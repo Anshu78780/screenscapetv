@@ -1,11 +1,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Android TV Features -->
-    <uses-feature
-        android:name="android.hardware.touchscreen"
-        android:required="false" />
+    <!-- Android TV Only - Leanback is required -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="true" />
+    
+    <!-- Touchscreen not required for TV -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    
+    <!-- Optional hardware features - set as not required for TV compatibility -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.location"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
     
     <!-- Internet permission for streaming -->
     <uses-permission android:name="android.permission.INTERNET" />

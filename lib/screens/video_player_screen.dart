@@ -1,7 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:better_player_plus/better_player_plus.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import '../utils/key_event_handler.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
@@ -21,10 +20,10 @@ class VideoPlayerScreen extends StatefulWidget {
 }
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
-  BetterPlayerController? _betterPlayerController;
-  VideoPlayerController? _videoPlayerController;
+  late final Player _player;
+  late final VideoController _videoController;
   bool _isControlsVisible = true;
-  bool _isLinux = Platform.isLinux;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -32,92 +31,36 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _initializePlayer();
   }
 
-  void _initializePlayer() {
-    if (_isLinux) {
-      // Use video_player for Linux
-      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-        ..initialize().then((_) {
-          setState(() {});
-          _videoPlayerController!.play();
-        });
-    } else {
-      // Use better_player_plus for other platforms
-      BetterPlayerDataSource betterPlayerDataSource = BetterPlayerDataSource(
-        BetterPlayerDataSourceType.network,
-        widget.videoUrl,
-        notificationConfiguration: BetterPlayerNotificationConfiguration(
-          showNotification: true,
-          title: widget.title,
-          author: widget.server,
-        ),
-      );
-
-      _betterPlayerController = BetterPlayerController(
-        const BetterPlayerConfiguration(
-          autoPlay: true,
-          looping: false,
-          fullScreenByDefault: false,
-          controlsConfiguration: BetterPlayerControlsConfiguration(
-            enablePlayPause: true,
-            enableMute: true,
-            enableFullscreen: true,
-            enableProgressBar: true,
-            enableProgressText: true,
-            enableProgressBarDrag: true,
-            showControlsOnInitialize: true,
-          ),
-        ),
-        betterPlayerDataSource: betterPlayerDataSource,
-      );
-    }
+  void _initializePlayer() async {
+    _player = Player();
+    _videoController = VideoController(_player);
+    
+    await _player.open(Media(widget.videoUrl));
+    await _player.play();
+    
+    setState(() {
+      _isInitialized = true;
+    });
   }
 
   void _togglePlayPause() {
-    if (_isLinux) {
-      if (_videoPlayerController?.value.isPlaying ?? false) {
-        _videoPlayerController?.pause();
-      } else {
-        _videoPlayerController?.play();
-      }
+    if (_player.state.playing) {
+      _player.pause();
     } else {
-      if (_betterPlayerController?.isPlaying() ?? false) {
-        _betterPlayerController?.pause();
-      } else {
-        _betterPlayerController?.play();
-      }
+      _player.play();
     }
   }
 
   void _seekForward() {
-    if (_isLinux) {
-      final currentPosition = _videoPlayerController?.value.position;
-      if (currentPosition != null) {
-        final newPosition = currentPosition + const Duration(seconds: 10);
-        _videoPlayerController?.seekTo(newPosition);
-      }
-    } else {
-      final currentPosition = _betterPlayerController?.videoPlayerController?.value.position;
-      if (currentPosition != null) {
-        final newPosition = currentPosition + const Duration(seconds: 10);
-        _betterPlayerController?.seekTo(newPosition);
-      }
-    }
+    final currentPosition = _player.state.position;
+    final newPosition = currentPosition + const Duration(seconds: 10);
+    _player.seek(newPosition);
   }
 
   void _seekBackward() {
-    if (_isLinux) {
-      final currentPosition = _videoPlayerController?.value.position;
-      if (currentPosition != null) {
-        final newPosition = currentPosition - const Duration(seconds: 10);
-        _videoPlayerController?.seekTo(newPosition > Duration.zero ? newPosition : Duration.zero);
-      }
-    } else {
-      final currentPosition = _betterPlayerController?.videoPlayerController?.value.position;
-      if (currentPosition != null) {
-        final newPosition = currentPosition - const Duration(seconds: 10);
-        _betterPlayerController?.seekTo(newPosition > Duration.zero ? newPosition : Duration.zero);
-      }
-    }
+    final currentPosition = _player.state.position;
+    final newPosition = currentPosition - const Duration(seconds: 10);
+    _player.seek(newPosition > Duration.zero ? newPosition : Duration.zero);
   }
 
   void _toggleControls() {
@@ -128,8 +71,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   @override
   void dispose() {
-    _betterPlayerController?.dispose();
-    _videoPlayerController?.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -155,14 +97,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             Center(
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: _isLinux
-                    ? (_videoPlayerController?.value.isInitialized ?? false)
-                        ? VideoPlayer(_videoPlayerController!)
-                        : const Center(
-                            child: CircularProgressIndicator(color: Colors.red),
-                          )
-                    : BetterPlayer(
-                        controller: _betterPlayerController!,
+                child: _isInitialized
+                    ? Video(controller: _videoController)
+                    : const Center(
+                        child: CircularProgressIndicator(color: Colors.red),
                       ),
               ),
             ),

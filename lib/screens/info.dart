@@ -6,7 +6,6 @@ import '../provider/drive/geteps.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
-import 'video_player_screen.dart';
 
 class InfoScreen extends StatefulWidget {
   final String movieUrl;
