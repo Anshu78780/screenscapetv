@@ -78,5 +78,12 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Allow querying for VLC app -->
+        <package android:name="org.videolan.vlc" />
+        <!-- Allow querying for video players -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
     </queries>
 </manifest>

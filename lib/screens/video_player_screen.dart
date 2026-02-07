@@ -35,6 +35,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   String _controlFeedback = '';
   Timer? _feedbackTimer;
   final FocusNode _focusNode = FocusNode();
+  bool _showAudioTrackMenu = false;
+  bool _showSettingsMenu = false;
+  List<BetterPlayerAsmsAudioTrack>? _availableAudioTracks;
+  BetterPlayerAsmsAudioTrack? _currentAudioTrack;
 
   @override
   void initState() {
@@ -156,6 +160,46 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _showControlsTemporarily();
   }
 
+  void _toggleSettingsMenu() {
+    setState(() {
+      _showSettingsMenu = !_showSettingsMenu;
+      if (_showSettingsMenu) {
+        _showAudioTrackMenu = false;
+      }
+    });
+    _showControlsTemporarily();
+  }
+
+  void _toggleAudioTrackMenu() {
+    setState(() {
+      _showAudioTrackMenu = !_showAudioTrackMenu;
+      if (_showAudioTrackMenu) {
+        _showSettingsMenu = false;
+        _loadAudioTracks();
+      }
+    });
+    _showControlsTemporarily();
+  }
+
+  void _loadAudioTracks() {
+    final tracks = _betterPlayerController.betterPlayerAsmsAudioTracks;
+    final currentTrack = _betterPlayerController.betterPlayerAsmsAudioTrack;
+    setState(() {
+      _availableAudioTracks = tracks;
+      _currentAudioTrack = currentTrack;
+    });
+  }
+
+  void _selectAudioTrack(BetterPlayerAsmsAudioTrack track) {
+    _betterPlayerController.setAudioTrack(track);
+    setState(() {
+      _currentAudioTrack = track;
+      _showAudioTrackMenu = false;
+    });
+    _showFeedback('Audio: ${track.label ?? "Track ${track.id}"}');
+    _showControlsTemporarily();
+  }
+
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (!_isInitialized || _hasError) return KeyEventResult.ignored;
 
@@ -186,22 +230,24 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           _changeSpeed();
           return KeyEventResult.handled;
 
-        // Show/Hide controls - Down Arrow
+        // Settings menu - Down Arrow
         case LogicalKeyboardKey.arrowDown:
-          setState(() {
-            _showControls = !_showControls;
-          });
-          if (_showControls) {
-            _resetHideControlsTimer();
-          }
+          _toggleSettingsMenu();
           return KeyEventResult.handled;
 
-        // Back - Exit player
+        // Back - Exit player or close menus
         case LogicalKeyboardKey.escape:
         case LogicalKeyboardKey.goBack:
         case LogicalKeyboardKey.browserBack:
-          _betterPlayerController.pause();
-          Navigator.of(context).pop();
+          if (_showAudioTrackMenu || _showSettingsMenu) {
+            setState(() {
+              _showAudioTrackMenu = false;
+              _showSettingsMenu = false;
+            });
+          } else {
+            _betterPlayerController.pause();
+            Navigator.of(context).pop();
+          }
           return KeyEventResult.handled;
 
         default:
@@ -384,7 +430,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           child: GestureDetector(
             onTap: () {
               setState(() {
-                _showControls = !_showControls;
+                if (_showAudioTrackMenu || _showSettingsMenu) {
+                  _showAudioTrackMenu = false;
+                  _showSettingsMenu = false;
+                } else {
+                  _showControls = !_showControls;
+                }
               });
               if (_showControls) {
                 _resetHideControlsTimer();
@@ -434,27 +485,36 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.8),
+                    Colors.black.withOpacity(0.9),
+                    Colors.black.withOpacity(0.7),
                     Colors.transparent,
                   ],
+                  stops: const [0.0, 0.5, 1.0],
                 ),
               ),
               child: SafeArea(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Back button
+                    // Back button with glow effect
                     GestureDetector(
                       onTap: () {
                         _betterPlayerController.pause();
                         Navigator.of(context).pop();
                       },
                       child: Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withOpacity(0.6),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.red, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.5),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
                         child: const Icon(
                           Icons.arrow_back,
@@ -464,7 +524,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    // Title and server info
+                    // Title and server info with enhanced styling
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,41 +534,60 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                             widget.title,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
                               shadows: [
                                 Shadow(
                                   color: Colors.black,
-                                  blurRadius: 8,
+                                  blurRadius: 12,
+                                  offset: Offset(0, 2),
                                 ),
                               ],
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Row(
                             children: [
-                              Text(
-                                'Server: ${widget.server}',
-                                style: TextStyle(
-                                  color: Colors.grey[300],
-                                  fontSize: 14,
-                                  shadows: const [
-                                    Shadow(
-                                      color: Colors.black,
-                                      blurRadius: 8,
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.red.withOpacity(0.5), width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.dns, size: 14, color: Colors.red),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      widget.server,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
                               if (currentSpeed != 1.0) ...[
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: Colors.red,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(6),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.withOpacity(0.4),
+                                        blurRadius: 8,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
                                   ),
                                   child: Text(
                                     '${currentSpeed}x',
@@ -543,9 +622,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    Colors.black.withOpacity(0.8),
+                    Colors.black.withOpacity(0.9),
+                    Colors.black.withOpacity(0.7),
                     Colors.transparent,
                   ],
+                  stops: const [0.0, 0.5, 1.0],
                 ),
               ),
               child: SafeArea(
@@ -559,18 +640,19 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                           _formatDuration(currentPosition),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: SliderTheme(
                             data: SliderThemeData(
-                              trackHeight: 4,
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                              trackHeight: 5,
+                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                               activeTrackColor: Colors.red,
-                              inactiveTrackColor: Colors.white30,
+                              inactiveTrackColor: Colors.white24,
                               thumbColor: Colors.red,
                               overlayColor: Colors.red.withOpacity(0.3),
                             ),
@@ -592,51 +674,64 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                           _formatDuration(totalDuration),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Control buttons
+                    // Control buttons with enhanced layout
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _buildControlButton(
                           icon: Icons.replay_10,
                           label: 'Rewind',
                           onPressed: () => _seekBackward(),
                         ),
-                        const SizedBox(width: 24),
                         _buildControlButton(
-                          icon: isPlaying ? Icons.pause : Icons.play_arrow,
+                          icon: isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
                           label: isPlaying ? 'Pause' : 'Play',
                           onPressed: _togglePlayPause,
                           isLarge: true,
                         ),
-                        const SizedBox(width: 24),
                         _buildControlButton(
                           icon: Icons.forward_10,
                           label: 'Forward',
                           onPressed: () => _seekForward(),
                         ),
-                        const SizedBox(width: 24),
                         _buildControlButton(
                           icon: Icons.speed,
                           label: '${currentSpeed}x',
                           onPressed: _changeSpeed,
+                          showBadge: currentSpeed != 1.0,
+                        ),
+                        _buildControlButton(
+                          icon: Icons.language,
+                          label: 'Audio',
+                          onPressed: _toggleAudioTrackMenu,
+                          showBadge: _availableAudioTracks != null && _availableAudioTracks!.length > 1,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    // Help text
-                    Text(
-                      'Space/Enter: Play/Pause  •  ← →: Seek  •  ↑: Speed  •  ↓: Controls  •  Back/Esc: Exit',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 11,
+                    const SizedBox(height: 8),
+                    // Help text with better formatting
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      textAlign: TextAlign.center,
+                      child: Text(
+                        'Space: Play/Pause  •  ← →: Seek  •  ↑: Speed  •  ↓: Menu  •  Back: Exit',
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ],
                 ),
@@ -645,46 +740,82 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           ),
         ],
         
-        // Center feedback (for pause/play/seek feedback)
+        // Center feedback with enhanced styling
         if (_controlFeedback.isNotEmpty)
           Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red, width: 2),
-              ),
-              child: Text(
-                _controlFeedback,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 200),
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: Opacity(
+                    opacity: value,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.red, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.5),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        _controlFeedback,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           
-        // Seeking indicators
+        // Seeking indicators with pulse animation
         if (_isSeekingBackward)
           Positioned(
             left: 40,
             top: 0,
             bottom: 0,
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.red, width: 3),
-                ),
-                child: const Icon(
-                  Icons.fast_rewind,
-                  color: Colors.red,
-                  size: 48,
-                ),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.8, end: 1.0),
+                duration: const Duration(milliseconds: 500),
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.red, width: 4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.6),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.fast_rewind,
+                        color: Colors.red,
+                        size: 56,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -695,17 +826,174 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             top: 0,
             bottom: 0,
             child: Center(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.8, end: 1.0),
+                duration: const Duration(milliseconds: 500),
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.red, width: 4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.6),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.fast_forward,
+                        color: Colors.red,
+                        size: 56,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        
+        // Audio track selection menu
+        if (_showAudioTrackMenu)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            top: 0,
+            child: Center(
               child: Container(
+                width: 320,
+                margin: const EdgeInsets.all(20),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.red, width: 3),
+                  color: Colors.black.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red.withOpacity(0.5), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.8),
+                      blurRadius: 30,
+                      spreadRadius: 10,
+                    ),
+                  ],
                 ),
-                child: const Icon(
-                  Icons.fast_forward,
-                  color: Colors.red,
-                  size: 48,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.language, color: Colors.red, size: 28),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Audio Tracks',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => setState(() => _showAudioTrackMenu = false),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(color: Colors.red, thickness: 1),
+                    const SizedBox(height: 12),
+                    if (_availableAudioTracks == null || _availableAudioTracks!.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Center(
+                          child: Text(
+                            'No audio tracks available',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: _availableAudioTracks!.map((track) {
+                              final isSelected = _currentAudioTrack?.id == track.id;
+                              return GestureDetector(
+                                onTap: () => _selectAudioTrack(track),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Colors.red.withOpacity(0.3)
+                                        : Colors.white.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isSelected ? Colors.red : Colors.transparent,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                                        color: isSelected ? Colors.red : Colors.grey,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              track.label ?? 'Track ${track.id}',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                            ),
+                                            if (track.language != null)
+                                              Text(
+                                                track.language!,
+                                                style: TextStyle(
+                                                  color: Colors.grey[400],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isSelected)
+                                        const Icon(
+                                          Icons.check_circle,
+                                          color: Colors.red,
+                                          size: 24,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -719,21 +1007,61 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     required String label,
     required VoidCallback onPressed,
     bool isLarge = false,
+    bool showBadge = false,
   }) {
     return GestureDetector(
       onTap: onPressed,
-      child: Container(
-        padding: EdgeInsets.all(isLarge ? 16 : 12),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.2),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.red, width: 2),
-        ),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: isLarge ? 40 : 28,
-        ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            padding: EdgeInsets.all(isLarge ? 18 : 14),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(isLarge ? 0.3 : 0.2),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.red,
+                width: isLarge ? 3 : 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.withOpacity(0.3),
+                  blurRadius: isLarge ? 16 : 10,
+                  spreadRadius: isLarge ? 3 : 1,
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: isLarge ? 48 : 28,
+            ),
+          ),
+          if (showBadge)
+            Positioned(
+              top: -4,
+              right: -4,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.6),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.circle,
+                  color: Colors.white,
+                  size: 8,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
