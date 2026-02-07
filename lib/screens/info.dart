@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/movie_info.dart';
-import '../provider/drive/info.dart';
-import '../provider/drive/hubcloud_extractor.dart';
-import '../provider/drive/geteps.dart';
+import '../provider/drive/index.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
@@ -32,6 +30,9 @@ class _InfoScreenState extends State<InfoScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SeasonListState> _seasonListKey = GlobalKey<SeasonListState>();
   
+  // Note: Provider Manager integration will be added here for multi-provider support
+  // For now, this screen uses Drive provider exclusively via MovieInfoParser
+  
   // Episode loading state
   List<Episode> _episodes = [];
   bool _isLoadingEpisodes = false;
@@ -56,6 +57,8 @@ class _InfoScreenState extends State<InfoScreen> {
     });
 
     try {
+      // Load movie info based on active provider
+      // Currently only Drive is supported, but this will be dynamic in the future
       final movieInfo = await MovieInfoParser.fetchMovieInfo(widget.movieUrl);
       setState(() {
         _movieInfo = movieInfo;

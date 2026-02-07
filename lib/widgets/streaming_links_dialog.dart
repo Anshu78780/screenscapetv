@@ -1,6 +1,6 @@
 // Streaming Links Dialog with Key Navigation
 import 'package:flutter/material.dart';
-import '../provider/drive/hubcloud_extractor.dart';
+import '../provider/drive/index.dart';
 import '../utils/key_event_handler.dart';
 import '../screens/video_player_screen.dart';
 

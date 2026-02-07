@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/movie.dart';
-import '../provider/drive/getpost.dart';
-import '../provider/drive/catalog.dart';
+import '../provider/drive/index.dart';
+import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
+import '../widgets/sidebar.dart';
 import 'info.dart';
 
 class MoviesScreen extends StatefulWidget {
@@ -21,15 +22,20 @@ class _MoviesScreenState extends State<MoviesScreen> {
   
   // Navigation & Search State
   bool _isNavigatingCategories = false;
+  bool _isSidebarOpen = false;
   bool _isSearchFocused = false;
   bool _isSearchActive = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   
   final ScrollController _scrollController = ScrollController();
-  final int _crossAxisCount = 6; 
+  final int _crossAxisCount = 6;
+  
+  // Provider Manager
+  final ProviderManager _providerManager = ProviderManager();
+  String get _currentProvider => _providerManager.activeProvider;
 
-  // Get categories from DriveCatalog
+  // Get categories from DriveCatalog (will be dynamic based on provider in the future)
   List<Map<String, String>> get _categories => DriveCatalog.categories;
 
   @override
@@ -307,6 +313,26 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 ),
               ],
             ),
+
+            // Sidebar Overlay
+            if (_isSidebarOpen) 
+              GestureDetector(
+                onTap: () => setState(() => _isSidebarOpen = false),
+                child: Container(color: Colors.black.withOpacity(0.5)),
+              ),
+
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                left: _isSidebarOpen ? 0 : -250,
+                top: 0,
+                bottom: 0,
+                width: 250,
+                child: Sidebar(
+                  selectedProvider: _currentProvider,
+                  onProviderSelected: _handleProviderChange,
+                ),
+              ),
           ],
         ),
         ),
@@ -314,10 +340,23 @@ class _MoviesScreenState extends State<MoviesScreen> {
     );
   }
 
+  void _handleProviderChange(String provider) {
+    setState(() {
+      _isSidebarOpen = false;
+    });
+    
+    if (provider != _currentProvider) {
+      _providerManager.setProvider(provider);
+      // Reload data for the new provider
+      // For now, only Drive is supported, but this is where you'd switch logic
+      _loadMovies();
+    }
+  }
+
   Widget _buildCategoryTabs() {
     if (_isSearchActive) {
       return Container(
-        padding: const EdgeInsets.fromLTRB(50, 40, 50, 20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         height: 100,
         child: Row(
           children: [
@@ -365,24 +404,18 @@ class _MoviesScreenState extends State<MoviesScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(50, 40, 50, 20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
       child: Row(
         children: [
-          ShaderMask(
-            shaderCallback: (bounds) => const LinearGradient(
-              colors: [Colors.red, Colors.orange],
-            ).createShader(bounds),
-            child: const Text(
-              'ScreenScapeTV',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-              ),
-            ),
+          IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white, size: 28),
+            onPressed: () {
+              setState(() {
+                _isSidebarOpen = !_isSidebarOpen;
+              });
+            },
           ),
-          const SizedBox(width: 60),
+          const SizedBox(width: 10),
           Expanded(
             child: SizedBox(
               height: 40,
