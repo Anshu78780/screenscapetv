@@ -37,3 +37,8 @@
     public static *** v(...);
     public static *** i(...);
 }
+
+# ExoPlayer (used by Better Player Plus)
+-keep class com.google.android.exoplayer2.** { *; }
+-keep interface com.google.android.exoplayer2.** { *; }
+-dontwarn com.google.android.exoplayer2.**

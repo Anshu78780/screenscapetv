@@ -22,7 +22,7 @@ class _InfoScreenState extends State<InfoScreen> {
   bool _isLoading = true;
   String _error = '';
   String _selectedQuality = '';
-  String _selectedSeason = 'All';
+  String _selectedSeason = '';
   int _selectedDownloadIndex = 0;
   int _selectedQualityIndex = 0;
   int _selectedSeasonIndex = 0;
@@ -31,6 +31,11 @@ class _InfoScreenState extends State<InfoScreen> {
   bool _isBackButtonFocused = false;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SeasonListState> _seasonListKey = GlobalKey<SeasonListState>();
+  
+  // Episode loading state
+  List<Episode> _episodes = [];
+  bool _isLoadingEpisodes = false;
+  String _currentEpisodeUrl = '';
 
   @override
   void initState() {
@@ -55,14 +60,23 @@ class _InfoScreenState extends State<InfoScreen> {
       setState(() {
         _movieInfo = movieInfo;
         _isLoading = false;
-        // Set default quality to first available quality
-        if (movieInfo.downloadLinks.isNotEmpty) {
-          final firstQuality = movieInfo.downloadLinks.first.quality;
-          // Extract base quality (480p, 720p, etc.)
-          final match = RegExp(r'(480p|720p|1080p|2160p|4k)').firstMatch(firstQuality);
-          _selectedQuality = match?.group(0) ?? 'All';
-        } else {
-          _selectedQuality = 'All';
+        // Set default quality and season to first available
+        final qualities = _getAvailableQualities();
+        final seasons = _getAvailableSeasons();
+        
+        if (qualities.isNotEmpty) {
+          _selectedQuality = qualities.first;
+          _selectedQualityIndex = 0;
+        }
+        
+        if (seasons.isNotEmpty) {
+          _selectedSeason = seasons.first;
+          _selectedSeasonIndex = 0;
+        }
+        
+        // Auto-load episodes if both are selected
+        if (_selectedQuality.isNotEmpty && _selectedSeason.isNotEmpty) {
+          _loadEpisodesIfNeeded();
         }
       });
     } catch (e) {
@@ -79,26 +93,37 @@ class _InfoScreenState extends State<InfoScreen> {
     var filtered = _movieInfo!.downloadLinks;
     
     // Filter by quality
-    if (_selectedQuality.isNotEmpty && _selectedQuality != 'All') {
+    if (_selectedQuality.isNotEmpty) {
       filtered = filtered.where((link) {
         return link.quality.toLowerCase().contains(_selectedQuality.toLowerCase());
       }).toList();
     }
     
     // Filter by season
-    if (_selectedSeason != 'All') {
+    if (_selectedSeason.isNotEmpty) {
       filtered = filtered.where((link) {
         return link.season == _selectedSeason;
       }).toList();
     }
     
+    // Remove duplicates based on quality + season + url combination
+    final seen = <String>{};
+    filtered = filtered.where((link) {
+      final uniqueKey = '${link.quality}_${link.season ?? ""}_${link.url}';
+      final isDuplicate = seen.contains(uniqueKey);
+      if (!isDuplicate) {
+        seen.add(uniqueKey);
+      }
+      return !isDuplicate;
+    }).toList();
+    
     return filtered;
   }
 
   List<String> _getAvailableQualities() {
-    if (_movieInfo == null) return ['All'];
+    if (_movieInfo == null) return [];
     
-    final Set<String> qualities = {'All'};
+    final Set<String> qualities = {};
     for (var link in _movieInfo!.downloadLinks) {
       final match = RegExp(r'(480p|720p|1080p|2160p|4k)').firstMatch(link.quality);
       if (match != null) {
@@ -109,9 +134,9 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   List<String> _getAvailableSeasons() {
-    if (_movieInfo == null) return ['All'];
+    if (_movieInfo == null) return [];
     
-    final Set<String> seasons = {'All'};
+    final Set<String> seasons = {};
     for (var link in _movieInfo!.downloadLinks) {
       if (link.season != null && link.season!.isNotEmpty) {
         seasons.add(link.season!);
@@ -121,15 +146,16 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   void _navigateDownloads(int delta) {
-    if (_isQualitySelectorFocused) return; // Don't navigate downloads when in quality selector
+    if (_isQualitySelectorFocused || _isSeasonSelectorFocused) return;
     
-    final downloads = _getFilteredDownloads();
-    if (downloads.isEmpty) return;
+    // Navigate episodes if they're loaded, otherwise navigate downloads
+    final itemCount = _episodes.isNotEmpty ? _episodes.length : _getFilteredDownloads().length;
+    if (itemCount == 0) return;
     
     setState(() {
-      _selectedDownloadIndex = (_selectedDownloadIndex + delta) % downloads.length;
+      _selectedDownloadIndex = (_selectedDownloadIndex + delta) % itemCount;
       if (_selectedDownloadIndex < 0) {
-        _selectedDownloadIndex = downloads.length - 1;
+        _selectedDownloadIndex = itemCount - 1;
       }
     });
     _scrollToSelected();
@@ -172,6 +198,7 @@ class _InfoScreenState extends State<InfoScreen> {
         _selectedQuality = qualities[_selectedQualityIndex];
         _selectedDownloadIndex = 0;
       });
+      _loadEpisodesIfNeeded();
     }
   }
 
@@ -183,6 +210,55 @@ class _InfoScreenState extends State<InfoScreen> {
       setState(() {
         _selectedSeason = seasons[_selectedSeasonIndex];
         _selectedDownloadIndex = 0;
+      });
+      _loadEpisodesIfNeeded();
+    }
+  }
+  
+  Future<void> _loadEpisodesIfNeeded() async {
+    // Only load episodes if both season and quality are selected
+    if (_selectedSeason.isEmpty || _selectedQuality.isEmpty) {
+      setState(() {
+        _episodes = [];
+        _currentEpisodeUrl = '';
+      });
+      return;
+    }
+    
+    final downloads = _getFilteredDownloads();
+    if (downloads.isEmpty) {
+      setState(() {
+        _episodes = [];
+        _currentEpisodeUrl = '';
+      });
+      return;
+    }
+    
+    // Use the first download link for this season/quality combo
+    final downloadUrl = downloads.first.url;
+    
+    // Don't reload if we already have episodes for this URL
+    if (_currentEpisodeUrl == downloadUrl && _episodes.isNotEmpty) {
+      return;
+    }
+    
+    setState(() {
+      _isLoadingEpisodes = true;
+      _currentEpisodeUrl = downloadUrl;
+    });
+    
+    try {
+      final episodes = await EpisodeParser.fetchEpisodes(downloadUrl);
+      setState(() {
+        _episodes = episodes;
+        _isLoadingEpisodes = false;
+        _selectedDownloadIndex = 0;
+      });
+    } catch (e) {
+      print('Error loading episodes: $e');
+      setState(() {
+        _episodes = [];
+        _isLoadingEpisodes = false;
       });
     }
   }
@@ -303,15 +379,28 @@ class _InfoScreenState extends State<InfoScreen> {
         } else if (_isSeasonSelectorFocused) {
           _selectCurrentSeason();
         } else {
-          final downloads = _getFilteredDownloads();
-          if (downloads.isNotEmpty) {
-            _openDownloadLink(downloads[_selectedDownloadIndex]);
+          // If episodes are loaded, play the selected episode
+          if (_episodes.isNotEmpty && _selectedDownloadIndex < _episodes.length) {
+            _playEpisode(_episodes[_selectedDownloadIndex]);
+          } else {
+            // Otherwise, open download link
+            final downloads = _getFilteredDownloads();
+            if (downloads.isNotEmpty) {
+              _openDownloadLink(downloads[_selectedDownloadIndex]);
+            }
           }
         }
       },
       onBackKey: () => Navigator.of(context).pop(),
-      child: Scaffold(
-        backgroundColor: Colors.black,
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (!didPop) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
         body: Stack(
           children: [
             // Background Image with Blur
@@ -336,6 +425,10 @@ class _InfoScreenState extends State<InfoScreen> {
                     fit: BoxFit.cover,
                     color: Colors.black.withOpacity(0.8),
                     colorBlendMode: BlendMode.darken,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const SizedBox();
+                    },
                     errorBuilder: (_, __, ___) => const SizedBox(),
                   ),
                 ),
@@ -370,6 +463,7 @@ class _InfoScreenState extends State<InfoScreen> {
                       )
                     : _buildContent(qualities, seasons),
           ],
+        ),
         ),
       ),
     );
@@ -449,6 +543,22 @@ class _InfoScreenState extends State<InfoScreen> {
                           'Referer': 'https://www.reddit.com/',
                         },
                         fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: Colors.grey[900],
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                                color: Colors.red,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          );
+                        },
                         errorBuilder: (context, error, stackTrace) => Container(
                           color: Colors.grey[900],
                           child: const Icon(Icons.movie, color: Colors.white54, size: 80),
@@ -552,6 +662,7 @@ class _InfoScreenState extends State<InfoScreen> {
                         _selectedDownloadIndex = 0;
                         _selectedSeasonIndex = seasons.indexOf(season);
                       });
+                      _loadEpisodesIfNeeded();
                     },
                   ),
                 ),
@@ -572,6 +683,7 @@ class _InfoScreenState extends State<InfoScreen> {
                       _selectedDownloadIndex = 0;
                       _selectedQualityIndex = qualities.indexOf(quality);
                     });
+                    _loadEpisodesIfNeeded();
                   },
                 ),
               ),
@@ -580,7 +692,8 @@ class _InfoScreenState extends State<InfoScreen> {
           
           const SizedBox(height: 30),
           
-          _buildDownloadLinks(),
+          // Show episodes if loaded, otherwise show download links
+          _episodes.isNotEmpty ? _buildEpisodeList() : _buildDownloadLinks(),
           const SizedBox(height: 100), // Bottom padding
         ],
       ),
@@ -642,6 +755,23 @@ class _InfoScreenState extends State<InfoScreen> {
 
   Widget _buildDownloadLinks() {
     final downloads = _getFilteredDownloads();
+    
+    if (_isLoadingEpisodes) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        alignment: Alignment.center,
+        child: const Column(
+          children: [
+            CircularProgressIndicator(color: Colors.red),
+            SizedBox(height: 16),
+            Text(
+              'Loading episodes...',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
     
     if (downloads.isEmpty) {
       return Container(
@@ -800,6 +930,164 @@ class _InfoScreenState extends State<InfoScreen> {
         );
       }).toList(),
     );
+  }
+
+  Widget _buildEpisodeList() {
+    if (_isLoadingEpisodes) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        alignment: Alignment.center,
+        child: const Column(
+          children: [
+            CircularProgressIndicator(color: Colors.red),
+            SizedBox(height: 16),
+            Text(
+              'Loading episodes...',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (_episodes.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        alignment: Alignment.center,
+        child: Column(
+          children: [
+            Icon(Icons.movie, size: 48, color: Colors.grey[800]),
+            const SizedBox(height: 16),
+            Text(
+              'No episodes found',
+              style: TextStyle(color: Colors.grey[600], fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return Column(
+      children: _episodes.asMap().entries.map((entry) {
+        final index = entry.key;
+        final episode = entry.value;
+        final isSelected = index == _selectedDownloadIndex;
+        
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: GestureDetector(
+            onTap: () => _playEpisode(episode),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              transform: Matrix4.identity()..scale(isSelected ? 1.02 : 1.0),
+              height: 72,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: isSelected 
+                    ? const Color(0xFFD32F2F)
+                    : const Color(0xFF212121),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? Colors.white : Colors.white.withOpacity(0.05),
+                  width: isSelected ? 2 : 1,
+                ),
+                boxShadow: isSelected ? [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ] : [],
+              ),
+              child: Row(
+                children: [
+                  // Episode icon
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.play_circle_fill,
+                      color: isSelected ? Colors.white : Colors.grey[500],
+                      size: 28,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 20),
+                  
+                  // Episode title
+                  Expanded(
+                    child: Text(
+                      episode.title,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // Play icon
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: isSelected ? Colors.white : Colors.grey[600],
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Future<void> _playEpisode(Episode episode) async {
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Loading stream...'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 30),
+      ),
+    );
+    
+    try {
+      // Extract streaming links from HubCloud
+      final result = await HubCloudExtractor.extractLinks(episode.link);
+      
+      // Hide loading indicator
+      ScaffoldMessenger.of(context).clearSnackBars();
+      
+      if (result.success && result.streams.isNotEmpty) {
+        // Show dialog with streaming links
+        _showStreamingLinksDialog(result.streams, _selectedQuality);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No streaming links found'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error playing episode: $e');
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   void _openDownloadLink(DownloadLink downloadLink) async {

@@ -25,6 +25,8 @@
     
     <!-- Internet permission for streaming -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Wake lock permission to keep screen on during video playback -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     
     <application
         android:label="ScreenScape TV"

@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'screens/movies_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Suppress image loading errors in console
+  FlutterError.onError = (FlutterErrorDetails details) {
+    // Filter out NetworkImageLoadException errors
+    if (details.exception.toString().contains('NetworkImageLoadException') ||
+        details.exception.toString().contains('HTTP request failed')) {
+      // Silently ignore image loading errors
+      return;
+    }
+    // For other errors, use the default handler
+    FlutterError.presentError(details);
+  };
+  
   runApp(const MyApp());
 }
 

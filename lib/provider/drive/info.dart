@@ -24,14 +24,17 @@ class MovieInfoParser {
       title = titleElement.text.trim();
     }
     
-    // Extract image
+    // Extract image - try multiple selectors
     String imageUrl = '';
-    final imageElement = document.querySelector('.page-body img.aligncenter');
+    final imageElement = document.querySelector('.page-body img.aligncenter') ?? 
+                        document.querySelector('.page-body img') ??
+                        document.querySelector('img[src*="tmsimg.com"]') ??
+                        document.querySelector('img[src*="media-amazon.com"]');
     if (imageElement != null) {
       imageUrl = imageElement.attributes['src'] ?? '';
     }
     
-    // Extract movie details
+    // Extract movie details - try emoji format first
     String imdbRating = _extractDetail(document, '🌟iMDB Rating:');
     String movieName = _extractDetail(document, '🎬Movie Name:');
     String genre = _extractDetail(document, '🤖Genre:');
@@ -42,6 +45,35 @@ class MovieInfoParser {
     String quality = _extractDetail(document, '🎵Quality:');
     String format = _extractDetail(document, '🎙Format:');
     
+    // If emoji format not found, try alternative format
+    if (imdbRating.isEmpty) {
+      imdbRating = _extractAlternativeDetail(document, 'IMDb Rating') ?? '';
+    }
+    if (movieName.isEmpty) {
+      movieName = _extractAlternativeDetail(document, 'Series Name') ?? 
+                  _extractAlternativeDetail(document, 'Movie Name') ?? '';
+    }
+    if (genre.isEmpty) {
+      genre = _extractGenreFromColoredText(document);
+    }
+    if (language.isEmpty) {
+      language = _extractAlternativeDetail(document, 'Language') ?? '';
+    }
+    if (quality.isEmpty) {
+      quality = _extractAlternativeDetail(document, 'Quality') ?? '';
+    }
+    
+    // Extract title from colored text if still empty
+    if (title.isEmpty) {
+      final coloredTitle = document.querySelector('span[style*="color: #ff0000"]');
+      if (coloredTitle != null) {
+        final titleText = coloredTitle.text.trim();
+        if (titleText.isNotEmpty && !titleText.toLowerCase().contains('download')) {
+          title = titleText;
+        }
+      }
+    }
+    
     // Use movie name if title is empty
     if (title.isEmpty && movieName.isNotEmpty) {
       title = movieName;
@@ -49,12 +81,36 @@ class MovieInfoParser {
     
     // Extract storyline
     String storyline = '';
-    final storylineElements = document.querySelectorAll('.page-body div');
+    
+    // Try finding storyline in various ways
+    final storylineElements = document.querySelectorAll('.page-body div, .page-body p');
     for (var element in storylineElements) {
       final text = element.text.trim();
-      if (text.contains('In the early') || text.contains('Storyline')) {
-        storyline = text;
-        break;
+      // Look for storyline indicators or long descriptive text
+      if (text.contains('In the early') || 
+          text.contains('Storyline') ||
+          text.contains('based on') ||
+          (text.length > 100 && !text.contains('download') && !text.toLowerCase().contains('movie') && !text.contains('Series Info'))) {
+        // Skip if it's just listing qualities or technical details
+        if (!text.contains('480p') && !text.contains('720p') && !text.contains('Download')) {
+          storyline = text;
+          // Clean up excessive information
+          if (storyline.length > 500) {
+            storyline = storyline.substring(0, 500) + '...';
+          }
+          break;
+        }
+      }
+    }
+    
+    // If still no storyline, try extracting from description meta or first long paragraph
+    if (storyline.isEmpty) {
+      final firstPara = document.querySelector('.page-body p');
+      if (firstPara != null) {
+        final text = firstPara.text.trim();
+        if (text.length > 100 && !text.toLowerCase().contains('download')) {
+          storyline = text.length > 500 ? text.substring(0, 500) + '...' : text;
+        }
       }
     }
     
@@ -168,5 +224,53 @@ class MovieInfoParser {
       }
     }
     return '';
+  }
+  
+  static String? _extractAlternativeDetail(Document document, String label) {
+    // Look for patterns like "Series Name: Loki" or "Language: Dual Audio"
+    final elements = document.querySelectorAll('.page-body p, .page-body strong');
+    for (var element in elements) {
+      final text = element.text;
+      final pattern = RegExp('$label:\\s*([^\\n<]+)', caseSensitive: false);
+      final match = pattern.firstMatch(text);
+      if (match != null) {
+        return match.group(1)?.trim();
+      }
+    }
+    
+    // Also try searching in the entire body text
+    final bodyText = document.querySelector('.page-body')?.text ?? '';
+    final pattern = RegExp('$label:\\s*([^\\n]+)', caseSensitive: false);
+    final match = pattern.firstMatch(bodyText);
+    if (match != null) {
+      var value = match.group(1)?.trim() ?? '';
+      // Clean up the value - remove anything after newline or excessive text
+      if (value.contains('\n')) {
+        value = value.split('\n').first.trim();
+      }
+      return value;
+    }
+    
+    return null;
+  }
+  
+  static String _extractGenreFromColoredText(Document document) {
+    // Look for genre in colored spans (e.g., Action, Adventure, Fantasy, Sci-Fi)
+    final genreElements = document.querySelectorAll('span[style*="color: #0000ff"]');
+    final genres = <String>[];
+    
+    for (var element in genreElements) {
+      final text = element.text.trim();
+      // Check if it looks like a genre (single word or two words, not a quality like "480p")
+      if (text.isNotEmpty && 
+          !text.contains('p') && 
+          !text.contains('download') &&
+          !RegExp(r'\d').hasMatch(text) &&
+          text.length < 20) {
+        genres.add(text);
+      }
+    }
+    
+    return genres.join(', ');
   }
 }

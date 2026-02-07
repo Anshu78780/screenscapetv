@@ -234,12 +234,24 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return KeyEventHandler(
-      onLeftKey: () => _navigateGrid(-1),
-      onRightKey: () => _navigateGrid(1),
-      onUpKey: () => _navigateUp(),
-      onDownKey: () => _navigateDown(),
-      onEnterKey: () {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) {
+          // Prevent app from closing on back button
+          // Could show an exit confirmation dialog here if needed
+        }
+      },
+      child: KeyEventHandler(
+        onLeftKey: () => _navigateGrid(-1),
+        onRightKey: () => _navigateGrid(1),
+        onUpKey: () => _navigateUp(),
+        onDownKey: () => _navigateDown(),
+        onBackKey: () {
+          // Prevent back button from closing the app on home screen
+          // Do nothing or show exit confirmation
+        },
+        onEnterKey: () {
         // If search is focused (user is in search input), perform search
         if (_isSearchFocused && _isSearchActive) {
             _performSearch(_searchController.text);
@@ -255,8 +267,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
           _showMovieDetails(_movies[_selectedMovieIndex]);
         }
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
+        child: Scaffold(
+          backgroundColor: Colors.black,
         body: Stack(
           children: [
             // Background Gradient
@@ -296,6 +308,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );
@@ -537,6 +550,22 @@ class _MoviesScreenState extends State<MoviesScreen> {
                         'Referer': 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[850],
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                              color: Colors.red,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        );
+                      },
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: Colors.grey[850],
                         child: Icon(Icons.broken_image, color: Colors.grey[700]),
