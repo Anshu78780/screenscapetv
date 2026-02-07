@@ -96,7 +96,7 @@ class MovieInfoParser {
           storyline = text;
           // Clean up excessive information
           if (storyline.length > 500) {
-            storyline = storyline.substring(0, 500) + '...';
+            storyline = '${storyline.substring(0, 500)}...';
           }
           break;
         }
@@ -109,7 +109,7 @@ class MovieInfoParser {
       if (firstPara != null) {
         final text = firstPara.text.trim();
         if (text.length > 100 && !text.toLowerCase().contains('download')) {
-          storyline = text.length > 500 ? text.substring(0, 500) + '...' : text;
+          storyline = text.length > 500 ? '${text.substring(0, 500)}...' : text;
         }
       }
     }

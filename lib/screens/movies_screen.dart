@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/movie.dart';
 import '../provider/drive/index.dart';
+import '../provider/hdhub/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -35,8 +36,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
   final ProviderManager _providerManager = ProviderManager();
   String get _currentProvider => _providerManager.activeProvider;
 
-  // Get categories from DriveCatalog (will be dynamic based on provider in the future)
-  List<Map<String, String>> get _categories => DriveCatalog.categories;
+  // Get categories dynamically based on active provider
+  List<Map<String, String>> get _categories {
+    switch (_currentProvider) {
+      case 'Hdhub':
+        return HdhubCatalog.categories;
+      case 'Drive':
+      default:
+        return DriveCatalog.categories;
+    }
+  }
 
   @override
   void initState() {
@@ -61,8 +70,19 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
     try {
       final category = _categories[_selectedCategoryIndex];
-      final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
-      final movies = await GetPost.fetchMovies(categoryUrl);
+      List<Movie> movies;
+      
+      switch (_currentProvider) {
+        case 'Hdhub':
+          final categoryUrl = await HdhubCatalog.getCategoryUrl(category['path']!);
+          movies = await HdhubGetPost.fetchMovies(categoryUrl);
+          break;
+        case 'Drive':
+        default:
+          final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
+          movies = await GetPost.fetchMovies(categoryUrl);
+          break;
+      }
       
       setState(() {
         _movies = movies;
@@ -86,7 +106,18 @@ class _MoviesScreenState extends State<MoviesScreen> {
     });
     
     try {
-      final movies = await GetPost.searchMovies(query);
+      List<Movie> movies;
+      
+      switch (_currentProvider) {
+        case 'Hdhub':
+          movies = await HdhubGetPost.searchMovies(query);
+          break;
+        case 'Drive':
+        default:
+          movies = await GetPost.searchMovies(query);
+          break;
+      }
+      
       setState(() {
         _movies = movies;
         _isLoading = false;

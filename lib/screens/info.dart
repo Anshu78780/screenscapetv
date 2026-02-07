@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/movie_info.dart';
 import '../provider/drive/index.dart';
+import '../provider/hdhub/index.dart';
+import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
@@ -30,8 +32,9 @@ class _InfoScreenState extends State<InfoScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SeasonListState> _seasonListKey = GlobalKey<SeasonListState>();
   
-  // Note: Provider Manager integration will be added here for multi-provider support
-  // For now, this screen uses Drive provider exclusively via MovieInfoParser
+  // Provider Manager for multi-provider support
+  final ProviderManager _providerManager = ProviderManager();
+  String get _currentProvider => _providerManager.activeProvider;
   
   // Episode loading state
   List<Episode> _episodes = [];
@@ -58,8 +61,18 @@ class _InfoScreenState extends State<InfoScreen> {
 
     try {
       // Load movie info based on active provider
-      // Currently only Drive is supported, but this will be dynamic in the future
-      final movieInfo = await MovieInfoParser.fetchMovieInfo(widget.movieUrl);
+      MovieInfo movieInfo;
+      
+      switch (_currentProvider) {
+        case 'Hdhub':
+          movieInfo = await HdhubInfoParser.fetchMovieInfo(widget.movieUrl);
+          break;
+        case 'Drive':
+        default:
+          movieInfo = await MovieInfoParser.fetchMovieInfo(widget.movieUrl);
+          break;
+      }
+      
       setState(() {
         _movieInfo = movieInfo;
         _isLoading = false;
@@ -88,6 +101,33 @@ class _InfoScreenState extends State<InfoScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// Process download URL for hdhub provider (only for gadgetsweb.xyz links)
+  Future<String> _processDownloadUrl(String url) async {
+    // Only process for Hdhub provider
+    if (_currentProvider != 'Hdhub') {
+      return url;
+    }
+
+    // Only call external API for gadgetsweb.xyz links
+    if (url.contains('gadgetsweb.xyz') && url.contains('?id=')) {
+      try {
+        print('Processing gadgetsweb.xyz URL with external API: $url');
+        
+        // Use getRedirectLinks which calls the external API for gadgetsweb
+        final processedUrl = await getRedirectLinks(url);
+        print('Got processed URL from API: $processedUrl');
+        
+        return processedUrl;
+      } catch (e) {
+        print('Error processing gadgetsweb URL: $e');
+        return url;
+      }
+    }
+    
+    // For all other links, return as-is (HubCloudExtractor will handle them)
+    return url;
   }
 
   List<DownloadLink> _getFilteredDownloads() {
@@ -251,7 +291,22 @@ class _InfoScreenState extends State<InfoScreen> {
     });
     
     try {
-      final episodes = await EpisodeParser.fetchEpisodes(downloadUrl);
+      // Process the URL if it's a gadgetsweb.xyz link for Hdhub provider
+      final processedUrl = await _processDownloadUrl(downloadUrl);
+      print('Fetching episodes from processed URL: $processedUrl');
+      
+      // If the processed URL is a hubcloud link, don't try to fetch episodes
+      // Hubcloud links don't contain episode lists, they ARE the final link
+      if (processedUrl.contains('hubcloud')) {
+        print('Processed URL is a hubcloud link, skipping episode fetch');
+        setState(() {
+          _episodes = [];
+          _isLoadingEpisodes = false;
+        });
+        return;
+      }
+      
+      final episodes = await EpisodeParser.fetchEpisodes(processedUrl);
       setState(() {
         _episodes = episodes;
         _isLoadingEpisodes = false;
@@ -1063,8 +1118,12 @@ class _InfoScreenState extends State<InfoScreen> {
     );
     
     try {
+      // Process episode link if needed before extraction
+      final processedLink = await _processDownloadUrl(episode.link);
+      print('Extracting streams from processed episode link: $processedLink');
+      
       // Extract streaming links from HubCloud
-      final result = await HubCloudExtractor.extractLinks(episode.link);
+      final result = await HubCloudExtractor.extractLinks(processedLink);
       
       // Hide loading indicator
       ScaffoldMessenger.of(context).clearSnackBars();
@@ -1110,9 +1169,46 @@ class _InfoScreenState extends State<InfoScreen> {
     );
     
     try {
-      // Step 1: Fetch Episodes from the download URL page
-      print('Step 1: Fetching episodes from: ${downloadLink.url}');
-      final episodes = await EpisodeParser.fetchEpisodes(downloadLink.url);
+      // Step 1: Process the download URL
+      print('Step 1: Processing download URL: ${downloadLink.url}');
+      final processedUrl = await _processDownloadUrl(downloadLink.url);
+      print('Processed URL: $processedUrl');
+      
+      // If the processed URL is a hubcloud link, directly extract streams from it
+      if (processedUrl.contains('hubcloud')) {
+        print('Processed URL is a hubcloud link, extracting streams directly');
+        
+        // Update loading message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Extracting streaming links...'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 30),
+          ),
+        );
+        
+        final result = await HubCloudExtractor.extractLinks(processedUrl);
+        print('Extractor result - Success: ${result.success}, Streams count: ${result.streams.length}');
+        
+        // Hide loading indicator
+        ScaffoldMessenger.of(context).clearSnackBars();
+        
+        if (result.success && result.streams.isNotEmpty) {
+          _showStreamingLinksDialog(result.streams, downloadLink.quality);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No streaming links found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      
+      // Otherwise, fetch episodes from the processed URL
+      print('Fetching episodes from processed URL: $processedUrl');
+      final episodes = await EpisodeParser.fetchEpisodes(processedUrl);
       print('Found ${episodes.length} episodes');
       
       if (episodes.isEmpty) {
@@ -1155,9 +1251,12 @@ class _InfoScreenState extends State<InfoScreen> {
         ),
       );
       
-      // Step 2: Extract streaming links from HubCloud using the selected episode link
-      final hubCloudUrl = selectedEpisode.link;
-      print('Step 2: Extracting streams from HubCloud: $hubCloudUrl for ${selectedEpisode.title}');
+      // Step 2: Process and extract streaming links from HubCloud using the selected episode link
+      final episodeLink = selectedEpisode.link;
+      print('Step 2: Processing episode link: $episodeLink for ${selectedEpisode.title}');
+      final hubCloudUrl = await _processDownloadUrl(episodeLink);
+      print('Extracting streams from processed URL: $hubCloudUrl');
+      
       final result = await HubCloudExtractor.extractLinks(hubCloudUrl);
       print('Extractor result - Success: ${result.success}, Streams count: ${result.streams.length}');
       

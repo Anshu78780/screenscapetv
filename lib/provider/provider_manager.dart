@@ -34,6 +34,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'Drive',
       'icon': Icons.cloud,
     },
+    {
+      'id': 'Hdhub',
+      'name': 'Hdhub4u',
+      'icon': Icons.movie_filter,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',
