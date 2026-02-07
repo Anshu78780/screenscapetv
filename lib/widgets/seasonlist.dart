@@ -49,94 +49,113 @@ class SeasonListState extends State<SeasonList> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.grey[850]!,
-            Colors.grey[900]!,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
+        color: widget.isFocused 
+            ? Colors.red.withOpacity(0.1) 
+            : const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: widget.isFocused ? Colors.red : Colors.red.withOpacity(0.3),
-          width: widget.isFocused ? 3 : 2,
+          color: widget.isFocused ? Colors.red : Colors.grey.withOpacity(0.2),
+          width: 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: widget.isFocused ? Colors.red.withOpacity(0.4) : Colors.red.withOpacity(0.2),
-            blurRadius: widget.isFocused ? 12 : 8,
-            spreadRadius: widget.isFocused ? 2 : 1,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: widget.isFocused
+            ? [
+                BoxShadow(
+                  color: Colors.red.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : [
+                 BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+            ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              key: _dropdownKey,
-              value: widget.selectedQuality,
-              dropdownColor: Colors.grey[850],
-              icon: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Icon(
-                  Icons.arrow_drop_down_rounded,
-                  color: widget.isFocused ? Colors.red : Colors.white,
-                  size: 24,
-                ),
-              ),
-              style: TextStyle(
-                color: widget.isFocused ? Colors.red : Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-              items: widget.qualities.map((String quality) {
-                final isSelected = quality == widget.selectedQuality;
-                return DropdownMenuItem<String>(
-                  value: quality,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.red.withOpacity(0.2) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
+           Container(
+             padding: const EdgeInsets.all(10),
+             decoration: BoxDecoration(
+               color: widget.isFocused ? Colors.red.withOpacity(0.2) : Colors.grey[800],
+               borderRadius: BorderRadius.circular(10),
+             ),
+             child: Icon(
+               Icons.high_quality_rounded,
+               color: widget.isFocused ? Colors.red : Colors.grey[400],
+               size: 24,
+             ),
+           ),
+           const SizedBox(width: 16),
+           Expanded(
+             child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                    Text(
+                      "Select Quality", 
+                      style: TextStyle(
+                        color: Colors.grey[400], 
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      )
                     ),
-                    child: Row(
-                      children: [
-                        if (isSelected)
-                          const Icon(
-                            Icons.check_circle,
-                            color: Colors.red,
-                            size: 18,
-                          ),
-                        if (isSelected) const SizedBox(width: 8),
-                        Text(
-                          quality,
-                          style: TextStyle(
-                            color: isSelected ? Colors.red : Colors.white,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
+                    const SizedBox(height: 2),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        key: _dropdownKey,
+                        value: widget.selectedQuality,
+                        isDense: true,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF2C2C2C),
+                        icon: const SizedBox.shrink(), // Hide default icon, we have one on the right
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
+                        items: widget.qualities.map((String quality) {
+                          final isSelected = quality == widget.selectedQuality;
+                          return DropdownMenuItem<String>(
+                            value: quality,
+                            child: Container(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                quality,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.red : Colors.white,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          if (newValue != null) {
+                            widget.onQualityChanged(newValue);
+                          }
+                        },
+                      ),
                     ),
-                  ),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  widget.onQualityChanged(newValue);
-                }
-              },
-            ),
-          ),
+                ],
+             ),
+           ),
+           Icon(
+             Icons.keyboard_arrow_down_rounded,
+             color: widget.isFocused ? Colors.red : Colors.grey[600],
+             size: 28,
+           ),
         ],
       ),
     );

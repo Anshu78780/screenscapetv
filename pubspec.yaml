@@ -37,9 +37,6 @@ dependencies:
   flutter_html: ^3.0.0
   http: ^1.2.0
   html: ^0.15.4
-  media_kit: ^1.1.10
-  media_kit_video: ^1.2.4
-  media_kit_libs_linux: ^1.0.4
 
 dev_dependencies:
   flutter_test:

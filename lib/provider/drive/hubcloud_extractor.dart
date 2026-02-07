@@ -42,8 +42,8 @@ class HubCloudResponse {
 }
 
 class HubCloudExtractor {
-  static const String baseUrl = 'https://screenscapeapi.dev'; // Replace with your actual base URL
-  static const String apiKey = 'sk_PEOMP8TQLYDXmBmQAqWLyJA2cp9nRyss'; // Replace with your actual API key
+  static const String baseUrl = 'https://screenscapeapi.dev'; 
+  static const String apiKey = 'sk_PEOMP8TQLYDXmBmQAqWLyJA2cp9nRyss'; 
 
   static Future<HubCloudResponse> extractLinks(String hubcloudUrl) async {
     try {

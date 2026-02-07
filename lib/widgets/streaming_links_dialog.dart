@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import '../provider/drive/hubcloud_extractor.dart';
 import '../utils/key_event_handler.dart';
-import '../screens/video_player_screen.dart';
 
 class StreamingLinksDialog extends StatefulWidget {
   final List<Stream> streams;
@@ -32,25 +31,13 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
     });
   }
 
-  void _playSelected() {
-    final selectedStream = widget.streams[_selectedIndex];
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => VideoPlayerScreen(
-          videoUrl: selectedStream.link,
-          title: '${widget.movieTitle} - ${widget.quality}',
-          server: selectedStream.server,
-        ),
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
     return KeyEventHandler(
       onUpKey: () => _navigate(-1),
       onDownKey: () => _navigate(1),
-      onEnterKey: _playSelected,
       onBackKey: () => Navigator.of(context).pop(),
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -181,7 +168,6 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                 setState(() {
                                   _selectedIndex = index;
                                 });
-                                _playSelected();
                               },
                             ),
                           ),

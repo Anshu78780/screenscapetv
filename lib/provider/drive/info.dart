@@ -17,7 +17,7 @@ class MovieInfoParser {
   static MovieInfo parseMovieInfo(String htmlContent) {
     final document = html_parser.parse(htmlContent);
     
-    // Extract title
+
     String title = '';
     final titleElement = document.querySelector('.page-body p strong');
     if (titleElement != null) {
@@ -71,31 +71,55 @@ class MovieInfoParser {
         continue;
       }
       
-      // Parse download link
+      // Parse download link - look for quality and size pattern
       if (linkText.contains('[') && linkText.contains(']')) {
-        final qualityMatch = RegExp(r'(480p|720p|1080p|2160p|4k)').firstMatch(linkText);
-        final sizeMatch = RegExp(r'\[([^\]]+)\]').firstMatch(linkText);
+        final qualityMatch = RegExp(r'(480p|720p|1080p|2160p|4k)', caseSensitive: false).firstMatch(linkText);
+        final sizeMatches = RegExp(r'\[([^\]]+)\]').allMatches(linkText);
+        final sizeMatch = sizeMatches.isNotEmpty ? sizeMatches.last : null;
         
         if (qualityMatch != null && sizeMatch != null) {
           String qualityText = qualityMatch.group(0) ?? '';
           String sizeText = sizeMatch.group(1) ?? '';
+          
+          // Extract season info
+          String? seasonInfo;
+          final seasonMatch = RegExp(r'Season\s+(\d+)', caseSensitive: false).firstMatch(linkText);
+          if (seasonMatch != null) {
+            seasonInfo = 'Season ${seasonMatch.group(1)}';
+          }
+          
+          // Extract episode info
+          String? episodeInfo;
+          final episodeMatch = RegExp(r'\[([^\]]*Episode[^\]]*)]', caseSensitive: false).firstMatch(linkText);
+          if (episodeMatch != null) {
+            episodeInfo = episodeMatch.group(1);
+          }
           
           // Add additional quality info (HEVC, x264, etc.)
           if (linkText.contains('HEVC')) qualityText += ' HEVC';
           if (linkText.contains('x264')) qualityText += ' x264';
           if (linkText.contains('x265')) qualityText += ' x265';
           if (linkText.contains('60FPS')) qualityText += ' 60FPS';
-          if (linkText.contains('10Bit')) qualityText += ' 10Bit';
+          if (linkText.contains('10Bit') || linkText.contains('10bit')) qualityText += ' 10Bit';
           if (linkText.contains('WEB-DL')) qualityText += ' WEB-DL';
           if (linkText.contains('SDR')) qualityText += ' SDR';
           
-          // Find the link in the next element
+          // Find the "Single Episode" link in the next element(s)
+          // Skip ZIP links
           String downloadUrl = '';
-          if (i + 1 < linkElements.length) {
-            final nextElement = linkElements[i + 1];
+          for (var j = 1; j <= 3 && (i + j) < linkElements.length; j++) {
+            final nextElement = linkElements[i + j];
+            final nextText = nextElement.text.toLowerCase();
             final linkElement = nextElement.querySelector('a');
+            
             if (linkElement != null) {
-              downloadUrl = linkElement.attributes['href'] ?? '';
+              final href = linkElement.attributes['href'] ?? '';
+              
+              // Only accept "Single Episode" links, skip ZIP/Zip links
+              if (nextText.contains('single episode') && !nextText.contains('zip')) {
+                downloadUrl = href;
+                break;
+              }
             }
           }
           
@@ -104,7 +128,9 @@ class MovieInfoParser {
               quality: qualityText,
               size: sizeText,
               url: downloadUrl,
-              hubCloudUrl: null, // Will be fetched from the URL page
+              hubCloudUrl: null,
+              season: seasonInfo,
+              episodeInfo: episodeInfo,
             ));
           }
         }

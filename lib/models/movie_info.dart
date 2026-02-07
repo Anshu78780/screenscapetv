@@ -33,11 +33,25 @@ class DownloadLink {
   final String size;
   final String url;
   final String? hubCloudUrl;
+  final String? season;
+  final String? episodeInfo;
 
   DownloadLink({
     required this.quality,
     required this.size,
     required this.url,
     this.hubCloudUrl,
+    this.season,
+    this.episodeInfo,
+  });
+}
+
+class Episode {
+  final String title;
+  final String link;
+  
+  Episode({
+    required this.title,
+    required this.link,
   });
 }
