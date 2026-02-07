@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/movie_info.dart';
 import '../provider/drive/index.dart';
@@ -18,8 +19,11 @@ class InfoScreen extends StatefulWidget {
 }
 
 class _InfoScreenState extends State<InfoScreen> {
+  static const kGoldColor = Color(0xFFFFD700);
+  
   MovieInfo? _movieInfo;
   bool _isLoading = true;
+  bool _isLoadingLinks = false;
   String _error = '';
   String _selectedQuality = '';
   String _selectedSeason = '';
@@ -520,6 +524,43 @@ class _InfoScreenState extends State<InfoScreen> {
                         ),
                       )
                     : _buildContent(qualities, seasons),
+
+            // Loading Overlay for Links
+            if (_isLoadingLinks)
+              Positioned.fill(
+                child: Stack(
+                  children: [
+                    // Blur effect
+                    BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                      child: Container(
+                        color: Colors.black.withOpacity(0.5),
+                      ),
+                    ),
+                    // Loader
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(kGoldColor),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'FETCHING LINKS...',
+                            style: TextStyle(
+                              color: kGoldColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
         ),
@@ -1071,32 +1112,23 @@ class _InfoScreenState extends State<InfoScreen> {
                     child: Icon(
                       Icons.play_circle_fill,
                       color: isSelected ? Colors.white : Colors.grey[500],
-                      size: 28,
-                    ),
-                  ),
-                  
-                  const SizedBox(width: 20),
-                  
-                  // Episode title
-                  Expanded(
-                    child: Text(
-                      episode.title,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                      size: 24,
                     ),
                   ),
                   
                   const SizedBox(width: 16),
                   
-                  // Play icon
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    color: isSelected ? Colors.white : Colors.grey[600],
-                    size: 20,
+                  Expanded(
+                    child: Text(
+                      episode.title,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.grey[300],
+                        fontSize: 16,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -1108,14 +1140,9 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Future<void> _playEpisode(Episode episode) async {
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Loading stream...'),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 30),
-      ),
-    );
+    setState(() {
+      _isLoadingLinks = true;
+    });
     
     try {
       // Process episode link if needed before extraction
@@ -1125,8 +1152,9 @@ class _InfoScreenState extends State<InfoScreen> {
       // Extract streaming links from HubCloud
       final result = await HubCloudExtractor.extractLinks(processedLink);
       
-      // Hide loading indicator
-      ScaffoldMessenger.of(context).clearSnackBars();
+      setState(() {
+        _isLoadingLinks = false;
+      });
       
       if (result.success && result.streams.isNotEmpty) {
         // Show dialog with streaming links
@@ -1141,7 +1169,9 @@ class _InfoScreenState extends State<InfoScreen> {
       }
     } catch (e) {
       print('Error playing episode: $e');
-      ScaffoldMessenger.of(context).clearSnackBars();
+      setState(() {
+        _isLoadingLinks = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
@@ -1159,14 +1189,9 @@ class _InfoScreenState extends State<InfoScreen> {
     print('URL: ${downloadLink.url}');
     print('========================');
     
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fetching episodes...'),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 30),
-      ),
-    );
+    setState(() {
+      _isLoadingLinks = true;
+    });
     
     try {
       // Step 1: Process the download URL
@@ -1178,20 +1203,12 @@ class _InfoScreenState extends State<InfoScreen> {
       if (processedUrl.contains('hubcloud')) {
         print('Processed URL is a hubcloud link, extracting streams directly');
         
-        // Update loading message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Extracting streaming links...'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 30),
-          ),
-        );
-        
         final result = await HubCloudExtractor.extractLinks(processedUrl);
         print('Extractor result - Success: ${result.success}, Streams count: ${result.streams.length}');
         
-        // Hide loading indicator
-        ScaffoldMessenger.of(context).clearSnackBars();
+        setState(() {
+          _isLoadingLinks = false;
+        });
         
         if (result.success && result.streams.isNotEmpty) {
           _showStreamingLinksDialog(result.streams, downloadLink.quality);
@@ -1212,6 +1229,9 @@ class _InfoScreenState extends State<InfoScreen> {
       print('Found ${episodes.length} episodes');
       
       if (episodes.isEmpty) {
+        setState(() {
+          _isLoadingLinks = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No episodes found on download page'),
@@ -1226,7 +1246,10 @@ class _InfoScreenState extends State<InfoScreen> {
       if (episodes.length == 1) {
         selectedEpisode = episodes.first;
       } else {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        setState(() {
+          _isLoadingLinks = false;
+        });
+        
         selectedEpisode = await showDialog<Episode>(
           context: context,
           barrierDismissible: true,
@@ -1235,21 +1258,19 @@ class _InfoScreenState extends State<InfoScreen> {
             quality: downloadLink.quality,
           ),
         );
+        
+        if (selectedEpisode != null) {
+          setState(() {
+            _isLoadingLinks = true;
+          });
+        }
       }
 
       if (selectedEpisode == null) {
-        // User cancelled selection
+        // User cancelled selection or no selection made
+        // No need to set isLoadingLinks to false as it was set to false before dialog
         return;
       }
-      
-      // Update loading message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Extracting streaming links...'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 30),
-        ),
-      );
       
       // Step 2: Process and extract streaming links from HubCloud using the selected episode link
       final episodeLink = selectedEpisode.link;
@@ -1260,8 +1281,9 @@ class _InfoScreenState extends State<InfoScreen> {
       final result = await HubCloudExtractor.extractLinks(hubCloudUrl);
       print('Extractor result - Success: ${result.success}, Streams count: ${result.streams.length}');
       
-      // Hide loading indicator
-      ScaffoldMessenger.of(context).clearSnackBars();
+      setState(() {
+        _isLoadingLinks = false;
+      });
       
       if (result.success && result.streams.isNotEmpty) {
         // Show dialog with streaming links
@@ -1276,7 +1298,9 @@ class _InfoScreenState extends State<InfoScreen> {
       }
     } catch (e) {
       print('Error in download link processing: $e');
-      ScaffoldMessenger.of(context).clearSnackBars();
+      setState(() {
+        _isLoadingLinks = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),

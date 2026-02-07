@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Debian package
+debian-package/
+*.deb
+
 # Flutter generated files
 /ios/Flutter
 /ios/Flutter
