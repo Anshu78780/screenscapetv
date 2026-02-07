@@ -115,8 +115,14 @@ class MovieInfoParser {
             if (linkElement != null) {
               final href = linkElement.attributes['href'] ?? '';
               
-              // Only accept "Single Episode" links, skip ZIP/Zip links
-              if (nextText.contains('single episode') && !nextText.contains('zip')) {
+              // Only accept "Single Episode" links or quality links, skip ZIP/Zip links
+              if ((nextText.contains('single episode') || 
+                   nextText.contains('480p') || 
+                   nextText.contains('720p') || 
+                   nextText.contains('1080p') || 
+                   nextText.contains('2160p') || 
+                   nextText.contains('4k')) && 
+                  !nextText.contains('zip')) {
                 downloadUrl = href;
                 break;
               }

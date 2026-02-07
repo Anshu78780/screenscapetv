@@ -50,10 +50,8 @@ class EpisodeParser {
                
                if (anchor != null) {
                    final href = anchor.attributes['href'];
-                   final linkText = anchor.text.toLowerCase();
-                   
-                   // Check for HubCloud links with "instant" text
-                   if (href != null && href.contains('hubcloud.foo') && linkText.contains('instant')) {
+                   // Check for HubCloud links
+                   if (href != null && href.contains('hubcloud.foo')) {
                        link = href;
                        break;
                    }
@@ -75,7 +73,24 @@ class EpisodeParser {
          for (var element in linkElements) {
             final href = element.attributes['href'];
             final text = element.text.toLowerCase();
-            if (href != null && text.contains('instant')) {
+            
+            bool isMatch = false;
+
+            // Check 1: Text contains 'instant'
+            if (text.contains('instant')) {
+                isMatch = true;
+            }
+            // Check 2: Contains an image (handling button images inside links)
+            // Fixes: <h4 ...><a ...><img ... src="...hubcloud..."></a></h4>
+            else if (element.querySelector('img') != null) {
+                isMatch = true; 
+            }
+            // Check 3: Parent is a header tag (strong signal for main movie link)
+            else if (element.parent != null && ['h3', 'h4', 'h5'].contains(element.parent!.localName)) {
+                isMatch = true;
+            }
+
+            if (href != null && isMatch) {
                  episodes.add(Episode(title: "Movie", link: href));
                  break; // Just take the first valid one
             }

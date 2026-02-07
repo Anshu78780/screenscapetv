@@ -539,12 +539,14 @@ class _InfoScreenState extends State<InfoScreen> {
               const Spacer(),
               if (seasons.length > 1) ...[
                 SizedBox(
-                  width: 200,
+                  width: 240,
                   child: SeasonList(
-                    qualities: seasons,
-                    selectedQuality: _selectedSeason,
+                    items: seasons,
+                    selectedItem: _selectedSeason,
+                    label: "Season",
+                    icon: Icons.folder_open,
                     isFocused: _isSeasonSelectorFocused,
-                    onQualityChanged: (season) {
+                    onChanged: (season) {
                       setState(() {
                         _selectedSeason = season;
                         _selectedDownloadIndex = 0;
@@ -556,13 +558,15 @@ class _InfoScreenState extends State<InfoScreen> {
                 const SizedBox(width: 16),
               ],
               SizedBox(
-                width: 250,
+                width: 240,
                 child: SeasonList(
                   key: _seasonListKey,
-                  qualities: qualities,
-                  selectedQuality: _selectedQuality,
+                  items: qualities,
+                  selectedItem: _selectedQuality,
+                  label: "Quality",
+                  icon: Icons.hd_outlined,
                   isFocused: _isQualitySelectorFocused,
-                  onQualityChanged: (quality) {
+                  onChanged: (quality) {
                     setState(() {
                       _selectedQuality = quality;
                       _selectedDownloadIndex = 0;
@@ -640,9 +644,19 @@ class _InfoScreenState extends State<InfoScreen> {
     final downloads = _getFilteredDownloads();
     
     if (downloads.isEmpty) {
-      return const Text(
-        'No download links available',
-        style: TextStyle(color: Colors.grey),
+      return Container(
+        padding: const EdgeInsets.all(40),
+        alignment: Alignment.center,
+        child: Column(
+          children: [
+            Icon(Icons.cloud_off, size: 48, color: Colors.grey[800]),
+            const SizedBox(height: 16),
+            Text(
+              'No download links available',
+              style: TextStyle(color: Colors.grey[600], fontSize: 16),
+            ),
+          ],
+        ),
       );
     }
 
@@ -653,148 +667,130 @@ class _InfoScreenState extends State<InfoScreen> {
         final isSelected = index == _selectedDownloadIndex;
         
         return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: 12),
           child: GestureDetector(
             onTap: () => _openDownloadLink(download),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
               transform: Matrix4.identity()..scale(isSelected ? 1.02 : 1.0),
-              padding: const EdgeInsets.all(20),
+              height: 72,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isSelected 
-                      ? [Colors.red.withOpacity(0.9), Colors.red.shade700]
-                      : [Colors.grey[850]!, Colors.grey[900]!],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: isSelected 
+                    ? const Color(0xFFD32F2F) // Cleaner solid red
+                    : const Color(0xFF212121), // Dark grey
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? Colors.white : Colors.red.withOpacity(0.3),
-                  width: isSelected ? 3 : 1,
+                  color: isSelected ? Colors.white : Colors.white.withOpacity(0.05),
+                  width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected ? [
                   BoxShadow(
                     color: Colors.red.withOpacity(0.4),
-                    blurRadius: 12,
-                    spreadRadius: 2,
+                    blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
-                ] : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                ] : [],
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Quality Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black26, // Subtle background for text
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      download.quality,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // Metadata
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                download.quality,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
                         if (download.season != null || download.episodeInfo != null) ...[
-                          Row(
-                            children: [
-                              if (download.season != null) ...[
-                                Icon(
-                                  Icons.video_library,
-                                  color: Colors.tealAccent,
-                                  size: 14,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  download.season!,
-                                  style: const TextStyle(
-                                    color: Colors.tealAccent,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                              if (download.season != null && download.episodeInfo != null)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                                  child: Text(
-                                    '•',
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              if (download.episodeInfo != null)
-                                Flexible(
-                                  child: Text(
-                                    download.episodeInfo!,
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 12,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
+                          Icon(
+                            Icons.movie_creation_outlined,
+                            size: 16,
+                            color: isSelected ? Colors.white70 : Colors.grey[500],
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.storage,
-                              color: Colors.grey[400],
-                              size: 14,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              download.size,
+                          const SizedBox(width: 8),
+                          if (download.season != null)
+                             Text(
+                              download.season!,
                               style: TextStyle(
-                                color: Colors.grey[300],
-                                fontSize: 14,
+                                color: isSelected ? Colors.white : Colors.grey[300],
                                 fontWeight: FontWeight.w500,
+                                fontSize: 13,
                               ),
                             ),
-                          ],
-                        ),
+                          if (download.season != null && download.episodeInfo != null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              child: Text('•', style: TextStyle(color: Colors.white24)),
+                            ),
+                          if (download.episodeInfo != null)
+                            Expanded(
+                              child: Text(
+                                download.episodeInfo!,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white70 : Colors.grey[500],
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
                       ],
                     ),
                   ),
+
+                  // File Size
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.data_usage,
+                        size: 16,
+                        color: isSelected ? Colors.white70 : Colors.grey[600],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        download.size,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.grey[400],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(width: 20),
+
+                  // Download Icon
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.download_rounded,
-                      color: Colors.white,
-                      size: 28,
+                      color: isSelected ? Colors.white : Colors.grey[500],
+                      size: 20,
                     ),
                   ),
                 ],
