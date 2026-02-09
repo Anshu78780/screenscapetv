@@ -4,6 +4,7 @@ import '../models/movie_info.dart';
 import '../provider/drive/index.dart';
 import '../provider/hdhub/index.dart';
 import '../provider/xdmovies/index.dart';
+import '../provider/desiremovies/index.dart';
 import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
@@ -78,6 +79,9 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Xdmovies':
           movieInfo = await XdmoviesInfo.fetchMovieInfo(widget.movieUrl);
+          break;
+        case 'Desiremovies':
+          movieInfo = await DesireMoviesInfo.fetchMovieInfo(widget.movieUrl);
           break;
         case 'Drive':
         default:
@@ -1346,6 +1350,22 @@ class _InfoScreenState extends State<InfoScreen> {
     try {
       if (_currentProvider == 'Xdmovies') {
         final streams = await xdmoviesGetStream(downloadLink.url, downloadLink.quality);
+        setState(() => _isLoadingLinks = false);
+        if (streams.isNotEmpty) {
+          _showStreamingLinksDialog(streams, downloadLink.quality);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No streams found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (_currentProvider == 'Desiremovies') {
+        final streams = await desireMoviesGetStream(downloadLink.url, downloadLink.quality);
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);
