@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/movie.dart';
 import '../provider/drive/index.dart';
 import '../provider/hdhub/index.dart';
+import '../provider/xdmovies/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -43,6 +44,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
     switch (_currentProvider) {
       case 'Hdhub':
         return HdhubCatalog.categories;
+      case 'Xdmovies':
+        return XdmoviesCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -79,6 +82,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
           final categoryUrl = await HdhubCatalog.getCategoryUrl(category['path']!);
           movies = await HdhubGetPost.fetchMovies(categoryUrl);
           break;
+        case 'Xdmovies':
+          final categoryUrl = await XdmoviesCatalog.getCategoryUrl(category['path']!);
+          movies = await XdmoviesGetPost.fetchMovies(categoryUrl);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -113,6 +120,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
       switch (_currentProvider) {
         case 'Hdhub':
           movies = await HdhubGetPost.searchMovies(query);
+          break;
+        case 'Xdmovies':
+          movies = await XdmoviesGetPost.searchMovies(query);
           break;
         case 'Drive':
         default:

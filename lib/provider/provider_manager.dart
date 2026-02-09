@@ -39,6 +39,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'Hdhub4u',
       'icon': Icons.movie_filter,
     },
+    {
+      'id': 'Xdmovies',
+      'name': 'Xdmovies',
+      'icon': Icons.movie_outlined,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',
