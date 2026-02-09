@@ -8,6 +8,7 @@ import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
 import '../widgets/episode_selection_dialog.dart';
+import '../provider/extractors/stream_types.dart' as stream_types;
 
 class InfoScreen extends StatefulWidget {
   final String movieUrl;
@@ -20,7 +21,7 @@ class InfoScreen extends StatefulWidget {
 
 class _InfoScreenState extends State<InfoScreen> {
   static const kGoldColor = Color(0xFFFFD700);
-  
+
   MovieInfo? _movieInfo;
   bool _isLoading = true;
   bool _isLoadingLinks = false;
@@ -34,13 +35,15 @@ class _InfoScreenState extends State<InfoScreen> {
   bool _isSeasonSelectorFocused = false;
   bool _isBackButtonFocused = false;
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey<SeasonListState> _seasonListKey = GlobalKey<SeasonListState>();
-  final GlobalKey<SeasonListState> _qualityListKey = GlobalKey<SeasonListState>();
-  
+  final GlobalKey<SeasonListState> _seasonListKey =
+      GlobalKey<SeasonListState>();
+  final GlobalKey<SeasonListState> _qualityListKey =
+      GlobalKey<SeasonListState>();
+
   // Provider Manager for multi-provider support
   final ProviderManager _providerManager = ProviderManager();
   String get _currentProvider => _providerManager.activeProvider;
-  
+
   // Episode loading state
   List<Episode> _episodes = [];
   bool _isLoadingEpisodes = false;
@@ -67,7 +70,7 @@ class _InfoScreenState extends State<InfoScreen> {
     try {
       // Load movie info based on active provider
       MovieInfo movieInfo;
-      
+
       switch (_currentProvider) {
         case 'Hdhub':
           movieInfo = await HdhubInfoParser.fetchMovieInfo(widget.movieUrl);
@@ -77,24 +80,24 @@ class _InfoScreenState extends State<InfoScreen> {
           movieInfo = await MovieInfoParser.fetchMovieInfo(widget.movieUrl);
           break;
       }
-      
+
       setState(() {
         _movieInfo = movieInfo;
         _isLoading = false;
         // Set default quality and season to first available
         final qualities = _getAvailableQualities();
         final seasons = _getAvailableSeasons();
-        
+
         if (qualities.isNotEmpty) {
           _selectedQuality = qualities.first;
           _selectedQualityIndex = 0;
         }
-        
+
         if (seasons.isNotEmpty) {
           _selectedSeason = seasons.first;
           _selectedSeasonIndex = 0;
         }
-        
+
         // Auto-load episodes if both are selected
         if (_selectedQuality.isNotEmpty && _selectedSeason.isNotEmpty) {
           _loadEpisodesIfNeeded();
@@ -119,41 +122,43 @@ class _InfoScreenState extends State<InfoScreen> {
     if (url.contains('gadgetsweb.xyz') && url.contains('?id=')) {
       try {
         print('Processing gadgetsweb.xyz URL with external API: $url');
-        
+
         // Use getRedirectLinks which calls the external API for gadgetsweb
         final processedUrl = await getRedirectLinks(url);
         print('Got processed URL from API: $processedUrl');
-        
+
         return processedUrl;
       } catch (e) {
         print('Error processing gadgetsweb URL: $e');
         return url;
       }
     }
-    
+
     // For all other links, return as-is (HubCloudExtractor will handle them)
     return url;
   }
 
   List<DownloadLink> _getFilteredDownloads() {
     if (_movieInfo == null) return [];
-    
+
     var filtered = _movieInfo!.downloadLinks;
-    
+
     // Filter by quality
     if (_selectedQuality.isNotEmpty) {
       filtered = filtered.where((link) {
-        return link.quality.toLowerCase().contains(_selectedQuality.toLowerCase());
+        return link.quality.toLowerCase().contains(
+          _selectedQuality.toLowerCase(),
+        );
       }).toList();
     }
-    
+
     // Filter by season
     if (_selectedSeason.isNotEmpty) {
       filtered = filtered.where((link) {
         return link.season == _selectedSeason;
       }).toList();
     }
-    
+
     // Remove duplicates based on quality + season + url combination
     final seen = <String>{};
     filtered = filtered.where((link) {
@@ -164,16 +169,18 @@ class _InfoScreenState extends State<InfoScreen> {
       }
       return !isDuplicate;
     }).toList();
-    
+
     return filtered;
   }
 
   List<String> _getAvailableQualities() {
     if (_movieInfo == null) return [];
-    
+
     final Set<String> qualities = {};
     for (var link in _movieInfo!.downloadLinks) {
-      final match = RegExp(r'(480p|720p|1080p|2160p|4k)').firstMatch(link.quality);
+      final match = RegExp(
+        r'(480p|720p|1080p|2160p|4k)',
+      ).firstMatch(link.quality);
       if (match != null) {
         qualities.add(match.group(0)!);
       }
@@ -183,7 +190,7 @@ class _InfoScreenState extends State<InfoScreen> {
 
   List<String> _getAvailableSeasons() {
     if (_movieInfo == null) return [];
-    
+
     final Set<String> seasons = {};
     for (var link in _movieInfo!.downloadLinks) {
       if (link.season != null && link.season!.isNotEmpty) {
@@ -195,11 +202,13 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _navigateDownloads(int delta) {
     if (_isQualitySelectorFocused || _isSeasonSelectorFocused) return;
-    
+
     // Navigate episodes if they're loaded, otherwise navigate downloads
-    final itemCount = _episodes.isNotEmpty ? _episodes.length : _getFilteredDownloads().length;
+    final itemCount = _episodes.isNotEmpty
+        ? _episodes.length
+        : _getFilteredDownloads().length;
     if (itemCount == 0) return;
-    
+
     setState(() {
       _selectedDownloadIndex = (_selectedDownloadIndex + delta) % itemCount;
       if (_selectedDownloadIndex < 0) {
@@ -210,13 +219,16 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   void _navigateQualities(int delta) {
-    if (!_isQualitySelectorFocused) return; // Only navigate qualities when focused
-    
+    if (!_isQualitySelectorFocused) {
+      return; // Only navigate qualities when focused
+    }
+
     final qualities = _getAvailableQualities();
     if (qualities.isEmpty) return;
-    
+
     setState(() {
-      _selectedQualityIndex = (_selectedQualityIndex + delta) % qualities.length;
+      _selectedQualityIndex =
+          (_selectedQualityIndex + delta) % qualities.length;
       if (_selectedQualityIndex < 0) {
         _selectedQualityIndex = qualities.length - 1;
       }
@@ -225,10 +237,10 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _navigateSeasons(int delta) {
     if (!_isSeasonSelectorFocused) return;
-    
+
     final seasons = _getAvailableSeasons();
     if (seasons.isEmpty) return;
-    
+
     setState(() {
       _selectedSeasonIndex = (_selectedSeasonIndex + delta) % seasons.length;
       if (_selectedSeasonIndex < 0) {
@@ -239,9 +251,10 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _selectCurrentQuality() {
     if (!_isQualitySelectorFocused) return;
-    
+
     final qualities = _getAvailableQualities();
-    if (_selectedQualityIndex >= 0 && _selectedQualityIndex < qualities.length) {
+    if (_selectedQualityIndex >= 0 &&
+        _selectedQualityIndex < qualities.length) {
       setState(() {
         _selectedQuality = qualities[_selectedQualityIndex];
         _selectedDownloadIndex = 0;
@@ -252,7 +265,7 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _selectCurrentSeason() {
     if (!_isSeasonSelectorFocused) return;
-    
+
     final seasons = _getAvailableSeasons();
     if (_selectedSeasonIndex >= 0 && _selectedSeasonIndex < seasons.length) {
       setState(() {
@@ -262,7 +275,7 @@ class _InfoScreenState extends State<InfoScreen> {
       _loadEpisodesIfNeeded();
     }
   }
-  
+
   Future<void> _loadEpisodesIfNeeded() async {
     // Only load episodes if both season and quality are selected
     if (_selectedSeason.isEmpty || _selectedQuality.isEmpty) {
@@ -272,7 +285,7 @@ class _InfoScreenState extends State<InfoScreen> {
       });
       return;
     }
-    
+
     final downloads = _getFilteredDownloads();
     if (downloads.isEmpty) {
       setState(() {
@@ -281,25 +294,25 @@ class _InfoScreenState extends State<InfoScreen> {
       });
       return;
     }
-    
+
     // Use the first download link for this season/quality combo
     final downloadUrl = downloads.first.url;
-    
+
     // Don't reload if we already have episodes for this URL
     if (_currentEpisodeUrl == downloadUrl && _episodes.isNotEmpty) {
       return;
     }
-    
+
     setState(() {
       _isLoadingEpisodes = true;
       _currentEpisodeUrl = downloadUrl;
     });
-    
+
     try {
       // Process the URL if it's a gadgetsweb.xyz link for Hdhub provider
       final processedUrl = await _processDownloadUrl(downloadUrl);
       print('Fetching episodes from processed URL: $processedUrl');
-      
+
       // If the processed URL is a hubcloud link, don't try to fetch episodes
       // Hubcloud links don't contain episode lists, they ARE the final link
       if (processedUrl.contains('hubcloud')) {
@@ -310,7 +323,7 @@ class _InfoScreenState extends State<InfoScreen> {
         });
         return;
       }
-      
+
       final episodes = await EpisodeParser.fetchEpisodes(processedUrl);
       setState(() {
         _episodes = episodes;
@@ -330,7 +343,10 @@ class _InfoScreenState extends State<InfoScreen> {
     setState(() {
       if (delta < 0) {
         // Up arrow
-        if (!_isBackButtonFocused && !_isQualitySelectorFocused && !_isSeasonSelectorFocused && _selectedDownloadIndex == 0) {
+        if (!_isBackButtonFocused &&
+            !_isQualitySelectorFocused &&
+            !_isSeasonSelectorFocused &&
+            _selectedDownloadIndex == 0) {
           // From first download to quality/season selector
           final seasons = _getAvailableSeasons();
           if (seasons.length > 1) {
@@ -347,7 +363,9 @@ class _InfoScreenState extends State<InfoScreen> {
           _isQualitySelectorFocused = false;
           _isBackButtonFocused = true;
           _scrollToTop();
-        } else if (!_isBackButtonFocused && !_isQualitySelectorFocused && !_isSeasonSelectorFocused) {
+        } else if (!_isBackButtonFocused &&
+            !_isQualitySelectorFocused &&
+            !_isSeasonSelectorFocused) {
           // Navigate up in downloads
           _navigateDownloads(delta);
         }
@@ -396,8 +414,9 @@ class _InfoScreenState extends State<InfoScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         final double itemHeight = 100.0;
-        final double targetPosition = 400 + (_selectedDownloadIndex * itemHeight);
-        
+        final double targetPosition =
+            400 + (_selectedDownloadIndex * itemHeight);
+
         _scrollController.animateTo(
           targetPosition,
           duration: const Duration(milliseconds: 300),
@@ -411,7 +430,7 @@ class _InfoScreenState extends State<InfoScreen> {
   Widget build(BuildContext context) {
     final qualities = _getAvailableQualities();
     final seasons = _getAvailableSeasons();
-    
+
     return KeyEventHandler(
       onLeftKey: () {
         if (_isQualitySelectorFocused) {
@@ -458,7 +477,8 @@ class _InfoScreenState extends State<InfoScreen> {
           _seasonListKey.currentState?.openDropdown();
         } else {
           // If episodes are loaded, play the selected episode
-          if (_episodes.isNotEmpty && _selectedDownloadIndex < _episodes.length) {
+          if (_episodes.isNotEmpty &&
+              _selectedDownloadIndex < _episodes.length) {
             _playEpisode(_episodes[_selectedDownloadIndex]);
           } else {
             // Otherwise, open download link
@@ -479,106 +499,115 @@ class _InfoScreenState extends State<InfoScreen> {
         },
         child: Scaffold(
           backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            // Background Image with Blur
-            if (_movieInfo != null && _movieInfo!.imageUrl.isNotEmpty)
-              Positioned.fill(
-                child: ShaderMask(
-                  shaderCallback: (rect) {
-                    return LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.black.withOpacity(0.3), Colors.black],
-                      stops: const [0.0, 0.8],
-                    ).createShader(rect);
-                  },
-                  blendMode: BlendMode.darken,
-                  child: Image.network(
-                    _movieInfo!.imageUrl,
-                    headers: const {
-                      'User-Agent': 'Mozilla/5.0',
-                      'Referer': 'https://www.reddit.com/',
+          body: Stack(
+            children: [
+              // Background Image with Blur
+              if (_movieInfo != null && _movieInfo!.imageUrl.isNotEmpty)
+                Positioned.fill(
+                  child: ShaderMask(
+                    shaderCallback: (rect) {
+                      return LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.black.withOpacity(0.3), Colors.black],
+                        stops: const [0.0, 0.8],
+                      ).createShader(rect);
                     },
-                    fit: BoxFit.cover,
-                    color: Colors.black.withOpacity(0.8),
-                    colorBlendMode: BlendMode.darken,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return const SizedBox();
-                    },
-                    errorBuilder: (_, __, ___) => const SizedBox(),
+                    blendMode: BlendMode.darken,
+                    child: Image.network(
+                      _movieInfo!.imageUrl,
+                      headers: const {
+                        'User-Agent': 'Mozilla/5.0',
+                        'Referer': 'https://www.reddit.com/',
+                      },
+                      fit: BoxFit.cover,
+                      color: Colors.black.withOpacity(0.8),
+                      colorBlendMode: BlendMode.darken,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const SizedBox();
+                      },
+                      errorBuilder: (_, __, ___) => const SizedBox(),
+                    ),
                   ),
                 ),
-              ),
 
-            // Content
-            _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.red))
-                : _error.isNotEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline, size: 60, color: Colors.orange),
-                            const SizedBox(height: 20),
-                            Text(
-                              _error,
-                              style: const TextStyle(color: Colors.white, fontSize: 16),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 30),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Go Back'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : _buildContent(qualities, seasons),
-
-            // Loading Overlay for Links
-            if (_isLoadingLinks)
-              Positioned.fill(
-                child: Stack(
-                  children: [
-                    // Blur effect
-                    BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                      child: Container(
-                        color: Colors.black.withOpacity(0.5),
-                      ),
-                    ),
-                    // Loader
-                    Center(
+              // Content
+              _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Colors.red),
+                    )
+                  : _error.isNotEmpty
+                  ? Center(
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(kGoldColor),
+                          const Icon(
+                            Icons.error_outline,
+                            size: 60,
+                            color: Colors.orange,
                           ),
                           const SizedBox(height: 20),
-                          const Text(
-                            'FETCHING LINKS...',
-                            style: TextStyle(
-                              color: kGoldColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
+                          Text(
+                            _error,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
                             ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 30),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Go Back'),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    )
+                  : _buildContent(qualities, seasons),
+
+              // Loading Overlay for Links
+              if (_isLoadingLinks)
+                Positioned.fill(
+                  child: Stack(
+                    children: [
+                      // Blur effect
+                      BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                        child: Container(color: Colors.black.withOpacity(0.5)),
+                      ),
+                      // Loader
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                kGoldColor,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              'FETCHING LINKS...',
+                              style: TextStyle(
+                                color: kGoldColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -606,7 +635,9 @@ class _InfoScreenState extends State<InfoScreen> {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(
-                  color: _isBackButtonFocused ? Colors.red : Colors.white.withOpacity(0.1),
+                  color: _isBackButtonFocused
+                      ? Colors.red
+                      : Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(30),
                   border: _isBackButtonFocused
                       ? Border.all(color: Colors.white, width: 2)
@@ -615,7 +646,10 @@ class _InfoScreenState extends State<InfoScreen> {
                 child: TextButton.icon(
                   onPressed: () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     foregroundColor: Colors.white,
                   ),
                   icon: const Icon(Icons.arrow_back),
@@ -628,7 +662,7 @@ class _InfoScreenState extends State<InfoScreen> {
             ],
           ),
           const SizedBox(height: 40),
-          
+
           // Movie header with poster and details
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,42 +685,52 @@ class _InfoScreenState extends State<InfoScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: _movieInfo!.imageUrl.isNotEmpty
-                    ? Image.network(
-                        _movieInfo!.imageUrl,
-                        headers: const {
-                          'User-Agent': 'Mozilla/5.0',
-                          'Referer': 'https://www.reddit.com/',
-                        },
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            color: Colors.grey[900],
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                    : null,
-                                color: Colors.red,
-                                strokeWidth: 2,
+                      ? Image.network(
+                          _movieInfo!.imageUrl,
+                          headers: const {
+                            'User-Agent': 'Mozilla/5.0',
+                            'Referer': 'https://www.reddit.com/',
+                          },
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.grey[900],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value:
+                                      loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  color: Colors.red,
+                                  strokeWidth: 2,
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) => Container(
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                color: Colors.grey[900],
+                                child: const Icon(
+                                  Icons.movie,
+                                  color: Colors.white54,
+                                  size: 80,
+                                ),
+                              ),
+                        )
+                      : Container(
                           color: Colors.grey[900],
-                          child: const Icon(Icons.movie, color: Colors.white54, size: 80),
+                          child: const Icon(
+                            Icons.movie,
+                            color: Colors.white54,
+                            size: 80,
+                          ),
                         ),
-                      )
-                    : Container(
-                        color: Colors.grey[900],
-                        child: const Icon(Icons.movie, color: Colors.white54, size: 80),
-                      ),
                 ),
               ),
               const SizedBox(width: 50),
-              
+
               // Details
               Expanded(
                 child: Column(
@@ -703,23 +747,35 @@ class _InfoScreenState extends State<InfoScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Meta Badges
                     Wrap(
                       spacing: 12,
                       runSpacing: 12,
                       children: [
                         if (_movieInfo!.imdbRating.isNotEmpty)
-                           _buildMetaBadge(Icons.star, _movieInfo!.imdbRating, Colors.amber),
+                          _buildMetaBadge(
+                            Icons.star,
+                            _movieInfo!.imdbRating,
+                            Colors.amber,
+                          ),
                         if (_movieInfo!.quality.isNotEmpty)
-                           _buildMetaBadge(Icons.hd, _movieInfo!.quality, Colors.blue),
+                          _buildMetaBadge(
+                            Icons.hd,
+                            _movieInfo!.quality,
+                            Colors.blue,
+                          ),
                         if (_movieInfo!.language.isNotEmpty)
-                           _buildMetaBadge(Icons.language, _movieInfo!.language, Colors.green),
+                          _buildMetaBadge(
+                            Icons.language,
+                            _movieInfo!.language,
+                            Colors.green,
+                          ),
                       ],
                     ),
 
                     const SizedBox(height: 30),
-                    
+
                     // Storyline (Moved up)
                     if (_movieInfo!.storyline.isNotEmpty) ...[
                       Text(
@@ -743,11 +799,11 @@ class _InfoScreenState extends State<InfoScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 50),
-          
+
           Divider(color: Colors.white.withOpacity(0.1)),
-          
+
           const SizedBox(height: 30),
 
           // Quality and Season selectors
@@ -805,9 +861,9 @@ class _InfoScreenState extends State<InfoScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 30),
-          
+
           // Show episodes if loaded, otherwise show download links
           _episodes.isNotEmpty ? _buildEpisodeList() : _buildDownloadLinks(),
           const SizedBox(height: 100), // Bottom padding
@@ -818,7 +874,9 @@ class _InfoScreenState extends State<InfoScreen> {
 
   Widget _buildMetaBadge(IconData icon, String text, Color color) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 400), // Prevent super wide badges
+      constraints: const BoxConstraints(
+        maxWidth: 400,
+      ), // Prevent super wide badges
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.2),
@@ -848,30 +906,30 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Widget _buildInfoRow(String label, String value) {
-     if (value.isEmpty) return const SizedBox.shrink();
-     return Padding(
-       padding: const EdgeInsets.only(bottom: 8.0),
-       child: RichText(
-         text: TextSpan(
-           style: const TextStyle(fontSize: 15, height: 1.5),
-           children: [
-             TextSpan(
-               text: '$label:  ',
-               style: TextStyle(color: Colors.grey[500]),
-             ),
-             TextSpan(
-               text: value,
-               style: const TextStyle(color: Colors.white),
-             ),
-           ],
-         ),
-       ),
-     );
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 15, height: 1.5),
+          children: [
+            TextSpan(
+              text: '$label:  ',
+              style: TextStyle(color: Colors.grey[500]),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDownloadLinks() {
     final downloads = _getFilteredDownloads();
-    
+
     if (_isLoadingEpisodes) {
       return Container(
         padding: const EdgeInsets.all(40),
@@ -888,7 +946,7 @@ class _InfoScreenState extends State<InfoScreen> {
         ),
       );
     }
-    
+
     if (downloads.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(40),
@@ -911,7 +969,7 @@ class _InfoScreenState extends State<InfoScreen> {
         final index = entry.key;
         final download = entry.value;
         final isSelected = index == _selectedDownloadIndex;
-        
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: GestureDetector(
@@ -923,27 +981,34 @@ class _InfoScreenState extends State<InfoScreen> {
               height: 72,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: isSelected 
+                color: isSelected
                     ? const Color(0xFFD32F2F) // Cleaner solid red
                     : const Color(0xFF212121), // Dark grey
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? Colors.white : Colors.white.withOpacity(0.05),
+                  color: isSelected
+                      ? Colors.white
+                      : Colors.white.withOpacity(0.05),
                   width: isSelected ? 2 : 1,
                 ),
-                boxShadow: isSelected ? [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.4),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ] : [],
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.red.withOpacity(0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : [],
               ),
               child: Row(
                 children: [
                   // Quality Badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black26, // Subtle background for text
                       borderRadius: BorderRadius.circular(6),
@@ -958,40 +1023,53 @@ class _InfoScreenState extends State<InfoScreen> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(width: 16),
-                  
+
                   // Metadata
                   Expanded(
                     child: Row(
                       children: [
-                        if (download.season != null || download.episodeInfo != null) ...[
+                        if (download.season != null ||
+                            download.episodeInfo != null) ...[
                           Icon(
                             Icons.movie_creation_outlined,
                             size: 16,
-                            color: isSelected ? Colors.white70 : Colors.grey[500],
+                            color: isSelected
+                                ? Colors.white70
+                                : Colors.grey[500],
                           ),
                           const SizedBox(width: 8),
                           if (download.season != null)
-                             Text(
+                            Text(
                               download.season!,
                               style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.grey[300],
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.grey[300],
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
                               ),
                             ),
-                          if (download.season != null && download.episodeInfo != null)
+                          if (download.season != null &&
+                              download.episodeInfo != null)
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              child: Text('•', style: TextStyle(color: Colors.white24)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              child: Text(
+                                '•',
+                                style: TextStyle(color: Colors.white24),
+                              ),
                             ),
                           if (download.episodeInfo != null)
                             Expanded(
                               child: Text(
                                 download.episodeInfo!,
                                 style: TextStyle(
-                                  color: isSelected ? Colors.white70 : Colors.grey[500],
+                                  color: isSelected
+                                      ? Colors.white70
+                                      : Colors.grey[500],
                                   fontSize: 13,
                                 ),
                                 maxLines: 1,
@@ -1022,7 +1100,7 @@ class _InfoScreenState extends State<InfoScreen> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(width: 20),
 
                   // Download Icon
@@ -1065,7 +1143,7 @@ class _InfoScreenState extends State<InfoScreen> {
         ),
       );
     }
-    
+
     if (_episodes.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(40),
@@ -1082,13 +1160,13 @@ class _InfoScreenState extends State<InfoScreen> {
         ),
       );
     }
-    
+
     return Column(
       children: _episodes.asMap().entries.map((entry) {
         final index = entry.key;
         final episode = entry.value;
         final isSelected = index == _selectedDownloadIndex;
-        
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: GestureDetector(
@@ -1100,21 +1178,25 @@ class _InfoScreenState extends State<InfoScreen> {
               height: 72,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: isSelected 
+                color: isSelected
                     ? const Color(0xFFD32F2F)
                     : const Color(0xFF212121),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? Colors.white : Colors.white.withOpacity(0.05),
+                  color: isSelected
+                      ? Colors.white
+                      : Colors.white.withOpacity(0.05),
                   width: isSelected ? 2 : 1,
                 ),
-                boxShadow: isSelected ? [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.4),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ] : [],
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.red.withOpacity(0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : [],
               ),
               child: Row(
                 children: [
@@ -1132,16 +1214,18 @@ class _InfoScreenState extends State<InfoScreen> {
                       size: 24,
                     ),
                   ),
-                  
+
                   const SizedBox(width: 16),
-                  
+
                   Expanded(
                     child: Text(
                       episode.title,
                       style: TextStyle(
                         color: isSelected ? Colors.white : Colors.grey[300],
                         fontSize: 16,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1160,26 +1244,71 @@ class _InfoScreenState extends State<InfoScreen> {
     setState(() {
       _isLoadingLinks = true;
     });
-    
+
     try {
-      // Process episode link if needed before extraction
-      final processedLink = await _processDownloadUrl(episode.link);
-      print('Extracting streams from processed episode link: $processedLink');
-      
-      // Extract streaming links from HubCloud
-      final result = await HubCloudExtractor.extractLinks(processedLink);
-      
+      // Collect all streams from all available links
+      List<stream_types.Stream> allStreams = [];
+
+      // If episode has multiple links, process all of them
+      if (episode.links != null && episode.links!.isNotEmpty) {
+        print(
+          'Processing ${episode.links!.length} links for episode: ${episode.title}',
+        );
+
+        for (var episodeLink in episode.links!) {
+          try {
+            print('Processing ${episodeLink.server} link: ${episodeLink.url}');
+
+            // Process the link
+            final processedLink = await _processDownloadUrl(episodeLink.url);
+
+            // Extract streams based on server type
+            if (episodeLink.server == 'GDFlix') {
+              print('Extracting streams from GDFlix: $processedLink');
+              final gdflixStreams = await GdFlixExtractor.extractStreams(
+                processedLink,
+              );
+              if (gdflixStreams.isNotEmpty) {
+                print('GDFlix extracted ${gdflixStreams.length} streams');
+                allStreams.addAll(gdflixStreams);
+              }
+            } else if (episodeLink.server == 'HubCloud') {
+              print('Extracting streams from HubCloud: $processedLink');
+              final result = await HubCloudExtractor.extractLinks(
+                processedLink,
+              );
+              if (result.success && result.streams.isNotEmpty) {
+                print('HubCloud extracted ${result.streams.length} streams');
+                allStreams.addAll(result.streams);
+              }
+            }
+          } catch (e) {
+            print('Error extracting from ${episodeLink.server}: $e');
+            // Continue to next link even if this one fails
+          }
+        }
+      } else {
+        // Fallback: Use primary link with HubCloud extractor (backward compatibility)
+        print('Using primary link: ${episode.link}');
+        final processedLink = await _processDownloadUrl(episode.link);
+        final result = await HubCloudExtractor.extractLinks(processedLink);
+        if (result.success && result.streams.isNotEmpty) {
+          allStreams.addAll(result.streams);
+        }
+      }
+
       setState(() {
         _isLoadingLinks = false;
       });
-      
-      if (result.success && result.streams.isNotEmpty) {
-        // Show dialog with streaming links
-        _showStreamingLinksDialog(result.streams, _selectedQuality);
+
+      if (allStreams.isNotEmpty) {
+        print('Total streams extracted: ${allStreams.length}');
+        // Show dialog with all collected streaming links
+        _showStreamingLinksDialog(allStreams, _selectedQuality);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No streaming links found'),
+            content: Text('No streaming links found from any source'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1205,30 +1334,48 @@ class _InfoScreenState extends State<InfoScreen> {
     print('Size: ${downloadLink.size}');
     print('URL: ${downloadLink.url}');
     print('========================');
-    
+
     setState(() {
       _isLoadingLinks = true;
     });
-    
+
     try {
       // Step 1: Process the download URL
       print('Step 1: Processing download URL: ${downloadLink.url}');
       final processedUrl = await _processDownloadUrl(downloadLink.url);
       print('Processed URL: $processedUrl');
-      
-      // If the processed URL is a hubcloud link, directly extract streams from it
-      if (processedUrl.contains('hubcloud')) {
-        print('Processed URL is a hubcloud link, extracting streams directly');
-        
-        final result = await HubCloudExtractor.extractLinks(processedUrl);
-        print('Extractor result - Success: ${result.success}, Streams count: ${result.streams.length}');
-        
+
+      // If the processed URL is a hubcloud or gdflix link, directly extract streams from it
+      if (processedUrl.contains('hubcloud') ||
+          processedUrl.contains('gdflix')) {
+        print('Processed URL is a direct link, extracting streams');
+
+        List<stream_types.Stream> allStreams = [];
+
+        if (processedUrl.contains('gdflix')) {
+          print('Processing GDFlix link');
+          final gdflixStreams = await GdFlixExtractor.extractStreams(
+            processedUrl,
+          );
+          if (gdflixStreams.isNotEmpty) {
+            allStreams.addAll(gdflixStreams);
+          }
+        } else if (processedUrl.contains('hubcloud')) {
+          print('Processing HubCloud link');
+          final result = await HubCloudExtractor.extractLinks(processedUrl);
+          if (result.success && result.streams.isNotEmpty) {
+            allStreams.addAll(result.streams);
+          }
+        }
+
+        print('Extractor result - Streams count: ${allStreams.length}');
+
         setState(() {
           _isLoadingLinks = false;
         });
-        
-        if (result.success && result.streams.isNotEmpty) {
-          _showStreamingLinksDialog(result.streams, downloadLink.quality);
+
+        if (allStreams.isNotEmpty) {
+          _showStreamingLinksDialog(allStreams, downloadLink.quality);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1239,12 +1386,12 @@ class _InfoScreenState extends State<InfoScreen> {
         }
         return;
       }
-      
+
       // Otherwise, fetch episodes from the processed URL
       print('Fetching episodes from processed URL: $processedUrl');
       final episodes = await EpisodeParser.fetchEpisodes(processedUrl);
       print('Found ${episodes.length} episodes');
-      
+
       if (episodes.isEmpty) {
         setState(() {
           _isLoadingLinks = false;
@@ -1266,7 +1413,7 @@ class _InfoScreenState extends State<InfoScreen> {
         setState(() {
           _isLoadingLinks = false;
         });
-        
+
         selectedEpisode = await showDialog<Episode>(
           context: context,
           barrierDismissible: true,
@@ -1275,7 +1422,7 @@ class _InfoScreenState extends State<InfoScreen> {
             quality: downloadLink.quality,
           ),
         );
-        
+
         if (selectedEpisode != null) {
           setState(() {
             _isLoadingLinks = true;
@@ -1288,31 +1435,14 @@ class _InfoScreenState extends State<InfoScreen> {
         // No need to set isLoadingLinks to false as it was set to false before dialog
         return;
       }
-      
-      // Step 2: Process and extract streaming links from HubCloud using the selected episode link
-      final episodeLink = selectedEpisode.link;
-      print('Step 2: Processing episode link: $episodeLink for ${selectedEpisode.title}');
-      final hubCloudUrl = await _processDownloadUrl(episodeLink);
-      print('Extracting streams from processed URL: $hubCloudUrl');
-      
-      final result = await HubCloudExtractor.extractLinks(hubCloudUrl);
-      print('Extractor result - Success: ${result.success}, Streams count: ${result.streams.length}');
-      
-      setState(() {
-        _isLoadingLinks = false;
-      });
-      
-      if (result.success && result.streams.isNotEmpty) {
-        // Show dialog with streaming links
-        _showStreamingLinksDialog(result.streams, downloadLink.quality);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No streaming links found'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+
+      // Step 2: Process all links from the selected episode
+      print(
+        'Step 2: Processing selected episode with all available links: ${selectedEpisode.title}',
+      );
+
+      // Use the _playEpisode method which processes all links
+      await _playEpisode(selectedEpisode);
     } catch (e) {
       print('Error in download link processing: $e');
       setState(() {
@@ -1327,8 +1457,11 @@ class _InfoScreenState extends State<InfoScreen> {
       );
     }
   }
-  
-  void _showStreamingLinksDialog(List<Stream> streams, String quality) {
+
+  void _showStreamingLinksDialog(
+    List<stream_types.Stream> streams,
+    String quality,
+  ) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => StreamingLinksDialog(

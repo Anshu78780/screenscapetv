@@ -6,8 +6,10 @@ import 'stream_types.dart';
 
 class GdFlixExtractor {
   static const Map<String, String> headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept':
+        'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.5',
   };
 
@@ -16,10 +18,7 @@ class GdFlixExtractor {
       final List<Stream> streamLinks = [];
       print('gdFlixExtracter: $link');
 
-      final response = await http.get(
-        Uri.parse(link),
-        headers: headers,
-      );
+      final response = await http.get(Uri.parse(link), headers: headers);
 
       if (response.statusCode != 200) {
         print('gdFlixExtracter: Failed to fetch page: ${response.statusCode}');
@@ -56,9 +55,9 @@ class GdFlixExtractor {
       final baseUrl = Uri.parse(link).origin;
       final resumeDriveElement = document.querySelector('.btn-secondary');
       final resumeDrive = resumeDriveElement?.attributes['href'] ?? '';
-      
+
       print('resumeDrive: $resumeDrive');
-      
+
       if (resumeDrive.isEmpty) return;
 
       if (resumeDrive.contains('indexbot')) {
@@ -81,10 +80,12 @@ class GdFlixExtractor {
         headers: headers,
       );
 
-      final tokenMatch = RegExp(r"formData\.append\('token', '([a-f0-9]+)'\)")
-          .firstMatch(resumeBotRes.body);
-      final pathMatch = RegExp(r"fetch\('\/download\?id=([a-zA-Z0-9\/+]+)'")
-          .firstMatch(resumeBotRes.body);
+      final tokenMatch = RegExp(
+        r"formData\.append\('token', '([a-f0-9]+)'\)",
+      ).firstMatch(resumeBotRes.body);
+      final pathMatch = RegExp(
+        r"fetch\('\/download\?id=([a-zA-Z0-9\/+]+)'",
+      ).firstMatch(resumeBotRes.body);
 
       if (tokenMatch == null || pathMatch == null) {
         print('ResumeBot: Token or path not found');
@@ -111,14 +112,12 @@ class GdFlixExtractor {
       if (downloadResponse.statusCode == 200) {
         final downloadData = json.decode(downloadResponse.body);
         final downloadUrl = downloadData['url'] as String?;
-        
+
         if (downloadUrl != null) {
           print('resumeBotDownloadData: $downloadUrl');
-          streamLinks.add(Stream(
-            server: 'ResumeBot',
-            link: downloadUrl,
-            type: 'mkv',
-          ));
+          streamLinks.add(
+            Stream(server: 'ResumeBot', link: downloadUrl, type: 'mkv'),
+          );
         }
       }
     } catch (err) {
@@ -133,21 +132,16 @@ class GdFlixExtractor {
   ) async {
     try {
       final url = '$baseUrl$resumeDrive';
-      final resumeDriveRes = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      );
+      final resumeDriveRes = await http.get(Uri.parse(url), headers: headers);
 
       final resumeDocument = html_parser.parse(resumeDriveRes.body);
       final resumeLinkElement = resumeDocument.querySelector('.btn-success');
       final resumeLink = resumeLinkElement?.attributes['href'];
 
       if (resumeLink != null && resumeLink.isNotEmpty) {
-        streamLinks.add(Stream(
-          server: 'ResumeCloud',
-          link: resumeLink,
-          type: 'mkv',
-        ));
+        streamLinks.add(
+          Stream(server: 'ResumeCloud', link: resumeLink, type: 'mkv'),
+        );
       }
     } catch (err) {
       print('ResumeCloud processing error: $err');
@@ -161,20 +155,24 @@ class GdFlixExtractor {
     try {
       final seedElement = document.querySelector('.btn-danger');
       final seed = seedElement?.attributes['href'] ?? '';
-      
+
       print('seed: $seed');
-      
+
       if (seed.isEmpty) return;
+
+      // Check if it's an instant.busycdn.xyz link with :: separator
+      if (seed.contains('instant.busycdn.xyz') && seed.contains('::')) {
+        print('Processing instant.busycdn.xyz link with redirect API');
+        await _processInstantBusyCdn(seed, streamLinks);
+        return;
+      }
 
       if (!seed.contains('?url=')) {
         // Process direct link
-        final headResponse = await http.head(
-          Uri.parse(seed),
-          headers: headers,
-        );
+        final headResponse = await http.head(Uri.parse(seed), headers: headers);
 
         String newLink = headResponse.headers['location'] ?? seed;
-        
+
         // Remove fastcdn-dl.pages.dev prefix if present
         if (newLink.contains('fastcdn-dl.pages.dev/?url=')) {
           final parts = newLink.split('?url=');
@@ -183,18 +181,56 @@ class GdFlixExtractor {
             print('Cleaned G-Drive link: $newLink');
           }
         }
-        
-        streamLinks.add(Stream(
-          server: 'G-Drive',
-          link: newLink,
-          type: 'mkv',
-        ));
+
+        streamLinks.add(Stream(server: 'G-Drive', link: newLink, type: 'mkv'));
       } else {
         // Process instant token
         await _processInstantToken(seed, streamLinks);
       }
     } catch (err) {
       print('Instant link not found: $err');
+    }
+  }
+
+  static Future<void> _processInstantBusyCdn(
+    String seed,
+    List<Stream> streamLinks,
+  ) async {
+    try {
+      // Call the redirect API
+      final apiUrl =
+          'https://ssbackend-2r7z.onrender.com/api/redirect?url=${Uri.encodeComponent(seed)}';
+      print('Calling redirect API: $apiUrl');
+
+      final response = await http.get(Uri.parse(apiUrl), headers: headers);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        String finalUrl = data['finalUrl'] as String? ?? '';
+
+        print('Redirect API response finalUrl: $finalUrl');
+
+        if (finalUrl.isNotEmpty) {
+          // Remove fastcdn-dl.pages.dev prefix if present
+          if (finalUrl.contains('fastcdn-dl.pages.dev/?url=')) {
+            final parts = finalUrl.split('fastcdn-dl.pages.dev/?url=');
+            if (parts.length > 1) {
+              finalUrl = Uri.decodeComponent(parts[1]);
+              print('Cleaned G-Drive link from busycdn: $finalUrl');
+            }
+          }
+
+          streamLinks.add(
+            Stream(server: 'G-Drive', link: finalUrl, type: 'mkv'),
+          );
+        } else {
+          print('Empty finalUrl in redirect API response');
+        }
+      } else {
+        print('Redirect API failed with status: ${response.statusCode}');
+      }
+    } catch (err) {
+      print('InstantBusyCdn processing error: $err');
     }
   }
 
@@ -217,11 +253,9 @@ class GdFlixExtractor {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['error'] == false && data['url'] != null) {
-          streamLinks.add(Stream(
-            server: 'Gdrive-Instant',
-            link: data['url'],
-            type: 'mkv',
-          ));
+          streamLinks.add(
+            Stream(server: 'Gdrive-Instant', link: data['url'], type: 'mkv'),
+          );
         } else {
           print('Instant link not found: $data');
         }
@@ -238,9 +272,9 @@ class GdFlixExtractor {
     try {
       final pixelElement = document.querySelector('.btn-success');
       String pixelDrainLink = pixelElement?.attributes['href'] ?? '';
-      
+
       print('pixelDrainLink: $pixelDrainLink');
-      
+
       if (pixelDrainLink.isNotEmpty && pixelDrainLink.contains('pixeldrain')) {
         // Convert /u/TOKEN to /api/file/TOKEN
         if (pixelDrainLink.contains('/u/')) {
@@ -254,27 +288,22 @@ class GdFlixExtractor {
             }
           }
         }
-        
-        streamLinks.add(Stream(
-          server: 'Pixeldrain',
-          link: pixelDrainLink,
-          type: 'mkv',
-        ));
+
+        streamLinks.add(
+          Stream(server: 'Pixeldrain', link: pixelDrainLink, type: 'mkv'),
+        );
       }
     } catch (err) {
       print('PixelDrain link not found: $err');
     }
   }
 
-  static Future<void> _processGoFile(
-    document,
-    List<Stream> streamLinks,
-  ) async {
+  static Future<void> _processGoFile(document, List<Stream> streamLinks) async {
     try {
       // Find GoFile [Multiup] button
       final gofileElements = document.querySelectorAll('a.btn-outline-info');
       String? gofileButton;
-      
+
       for (final element in gofileElements) {
         if (element.text.contains('GoFile [Multiup]')) {
           gofileButton = element.attributes['href'];
@@ -283,7 +312,7 @@ class GdFlixExtractor {
       }
 
       print('gofileButton link: $gofileButton');
-      
+
       if (gofileButton == null || gofileButton.isEmpty) return;
 
       final gofileMirrorRes = await http.get(
@@ -292,12 +321,13 @@ class GdFlixExtractor {
       );
 
       final gofileMirrorDoc = html_parser.parse(gofileMirrorRes.body);
-      final gofileLinkElement = gofileMirrorDoc
-          .querySelector('footer.panel-footer a[namehost="gofile.io"]');
+      final gofileLinkElement = gofileMirrorDoc.querySelector(
+        'footer.panel-footer a[namehost="gofile.io"]',
+      );
       final gofileLink = gofileLinkElement?.attributes['href'];
-      
+
       print('gofileLink: $gofileLink');
-      
+
       if (gofileLink != null && gofileLink.contains('/d/')) {
         final parts = gofileLink.split('/d/');
         if (parts.length > 1) {
@@ -306,15 +336,17 @@ class GdFlixExtractor {
 
           final gofileResult = await GofileExtractor.extractLink(gofileId);
           if (gofileResult.success && gofileResult.link.isNotEmpty) {
-            streamLinks.add(Stream(
-              server: 'GoFile',
-              link: gofileResult.link,
-              type: 'mkv',
-              headers: {
-                'referer': 'https://gofile.io/',
-                'cookie': 'accountToken=${gofileResult.token}',
-              },
-            ));
+            streamLinks.add(
+              Stream(
+                server: 'GoFile',
+                link: gofileResult.link,
+                type: 'mkv',
+                headers: {
+                  'referer': 'https://gofile.io/',
+                  'cookie': 'accountToken=${gofileResult.token}',
+                },
+              ),
+            );
           }
         }
       }

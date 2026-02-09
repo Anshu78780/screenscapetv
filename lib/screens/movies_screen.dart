@@ -432,7 +432,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 // Main content
                 Expanded(
                   child: _isLoading
-                      ? const Center(child: CircularProgressIndicator(color: Colors.red))
+                      ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFC107)))
                       : _error.isNotEmpty
                           ? Center(
                               child: Text(
@@ -503,7 +503,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                   color: Colors.grey[800],
                   borderRadius: BorderRadius.circular(30),
                   border: _isSearchFocused 
-                      ? Border.all(color: Colors.red, width: 2)
+                      ? Border.all(color: const Color(0xFFFFC107), width: 2)
                       : null,
                 ),
                 child: TextField(
@@ -580,16 +580,27 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 }
               });
             },
-            child: Container(
-              padding: const EdgeInsets.all(8),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _isMenuButtonFocused ? Colors.red : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
+                color: _isMenuButtonFocused ? const Color(0xFFFFC107) : Colors.white.withOpacity(0.05), // Premium Yellow
+                borderRadius: BorderRadius.circular(12),
                 border: _isMenuButtonFocused
                     ? Border.all(color: Colors.white, width: 2)
-                    : null,
+                    : Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+                boxShadow: _isMenuButtonFocused
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFFFC107).withOpacity(0.5),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        )
+                      ]
+                    : [],
               ),
-              child: const Icon(Icons.menu, color: Colors.white, size: 28),
+              child: const Icon(Icons.menu_rounded, color: Colors.white, size: 26),
             ),
           ),
           const SizedBox(width: 10),
@@ -622,7 +633,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         decoration: BoxDecoration(
                           color: isSelected && !_isSearchFocused
-                              ? (isFocused ? Colors.red : Colors.white.withOpacity(0.1)) 
+                              ? (isFocused ? const Color(0xFFFFC107) : Colors.white.withOpacity(0.1)) 
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                           border: isFocused
@@ -633,7 +644,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                           child: Text(
                             category['name']!,
                             style: TextStyle(
-                              color: (isSelected && !_isSearchFocused) ? Colors.white : Colors.grey[400],
+                              color: (isSelected && !_isSearchFocused) ? (isFocused ? Colors.black : Colors.white) : Colors.grey[400],
                               fontSize: 16,
                               fontWeight: (isSelected && !_isSearchFocused) ? FontWeight.bold : FontWeight.w500,
                             ),
@@ -654,7 +665,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _isSearchFocused ? Colors.red : Colors.transparent,
+                color: _isSearchFocused ? const Color(0xFFFFC107) : Colors.transparent,
                 borderRadius: BorderRadius.circular(30),
                 border: _isSearchFocused 
                     ? Border.all(color: Colors.white, width: 2) 
@@ -662,7 +673,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
               ),
               child: Icon(
                 Icons.search, 
-                color: _isSearchFocused ? Colors.white : Colors.grey[400],
+                color: _isSearchFocused ? Colors.black : Colors.grey[400],
                 size: 24,
               ),
             ),
@@ -740,7 +751,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                       offset: const Offset(0, 10),
                     ),
                     BoxShadow(
-                      color: Colors.red.withOpacity(0.3),
+                      color: const Color(0xFFFFC107).withOpacity(0.3),
                       blurRadius: 10,
                       spreadRadius: -2,
                     ),
@@ -771,7 +782,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                                   ? loadingProgress.cumulativeBytesLoaded /
                                       loadingProgress.expectedTotalBytes!
                                   : null,
-                              color: Colors.red,
+                              color: const Color(0xFFFFC107),
                               strokeWidth: 2,
                             ),
                           ),
@@ -837,7 +848,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                       const SizedBox(height: 4),
                        Row(
                         children: [
-                           const Icon(Icons.play_circle_fill, size: 14, color: Colors.red),
+                           const Icon(Icons.play_circle_fill, size: 14, color: Color(0xFFFFC107)),
                            const SizedBox(width: 4),
                            Text(
                             "Watch Now",

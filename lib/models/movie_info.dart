@@ -48,10 +48,16 @@ class DownloadLink {
 
 class Episode {
   final String title;
-  final String link;
-  
-  Episode({
-    required this.title,
-    required this.link,
-  });
+  final String link; // Primary link (for backward compatibility)
+  final List<EpisodeLink>? links; // Multiple links with different servers
+
+  Episode({required this.title, required this.link, this.links});
+}
+
+class EpisodeLink {
+  final String server; // e.g., 'HubCloud', 'GDFlix'
+  final String url;
+  final String? size; // Optional size info
+
+  EpisodeLink({required this.server, required this.url, this.size});
 }

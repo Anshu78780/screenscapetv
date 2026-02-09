@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../provider/drive/index.dart';
 import '../utils/key_event_handler.dart';
 import '../screens/video_player_screen.dart';
+import '../provider/extractors/stream_types.dart' as stream_types;
 
 class StreamingLinksDialog extends StatefulWidget {
-  final List<Stream> streams;
+  final List<stream_types.Stream> streams;
   final String quality;
   final String movieTitle;
 
@@ -37,7 +37,10 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
 
   void _navigate(int delta) {
     setState(() {
-      _selectedStreamIndex = (_selectedStreamIndex + delta).clamp(0, widget.streams.length - 1);
+      _selectedStreamIndex = (_selectedStreamIndex + delta).clamp(
+        0,
+        widget.streams.length - 1,
+      );
     });
     _scrollToSelected();
   }
@@ -86,7 +89,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
 
   Future<void> _openInVLC() async {
     final selectedStream = widget.streams[_selectedStreamIndex];
-    
+
     try {
       if (kIsWeb) {
         _showSnackBar('VLC is not supported on web platform');
@@ -109,7 +112,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
 
   Future<void> _openVLCOnLinux(String url) async {
     bool launched = false;
-    
+
     try {
       await Process.start('vlc', [url], mode: ProcessStartMode.detached);
       launched = true;
@@ -118,10 +121,14 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
     } catch (e) {
       print('Standard VLC not found: $e');
     }
-    
+
     if (!launched) {
       try {
-        await Process.start('flatpak', ['run', 'org.videolan.VLC', url], mode: ProcessStartMode.detached);
+        await Process.start('flatpak', [
+          'run',
+          'org.videolan.VLC',
+          url,
+        ], mode: ProcessStartMode.detached);
         launched = true;
         _showSnackBar('Opening in VLC (Flatpak)...');
         return;
@@ -129,10 +136,14 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
         print('Flatpak VLC not found: $e');
       }
     }
-    
+
     if (!launched) {
       try {
-        await Process.start('snap', ['run', 'vlc', url], mode: ProcessStartMode.detached);
+        await Process.start('snap', [
+          'run',
+          'vlc',
+          url,
+        ], mode: ProcessStartMode.detached);
         launched = true;
         _showSnackBar('Opening in VLC (Snap)...');
         return;
@@ -140,11 +151,12 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
         print('Snap VLC not found: $e');
       }
     }
-    
+
     if (!launched) {
       try {
         final whichResult = await Process.run('which', ['vlc']);
-        if (whichResult.exitCode == 0 && whichResult.stdout.toString().trim().isNotEmpty) {
+        if (whichResult.exitCode == 0 &&
+            whichResult.stdout.toString().trim().isNotEmpty) {
           final vlcPath = whichResult.stdout.toString().trim();
           await Process.start(vlcPath, [url], mode: ProcessStartMode.detached);
           launched = true;
@@ -155,26 +167,28 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
         print('Which command failed: $e');
       }
     }
-    
+
     if (!launched) {
       try {
         await Process.start('xdg-open', [url], mode: ProcessStartMode.detached);
         _showSnackBar('Opening video in default player...');
       } catch (e) {
-        _showSnackBar('VLC not found. Please install VLC: sudo apt install vlc');
+        _showSnackBar(
+          'VLC not found. Please install VLC: sudo apt install vlc',
+        );
       }
     }
   }
 
   Future<void> _openVLCOnAndroid(String url) async {
     const platform = MethodChannel('com.example.screenscapetv/vlc');
-    
+
     try {
       final bool? result = await platform.invokeMethod('launchVLC', {
         'url': url,
         'title': widget.movieTitle,
       });
-      
+
       if (result == true) {
         _showSnackBar('Opening in VLC...');
         return;
@@ -182,9 +196,9 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
     } catch (e) {
       print('Platform channel failed: $e');
     }
-    
+
     bool launched = false;
-    
+
     try {
       final vlcScheme = 'vlc://${Uri.encodeComponent(url)}';
       final vlcUri = Uri.parse(vlcScheme);
@@ -196,7 +210,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
     } catch (e) {
       print('VLC URL scheme failed: $e');
     }
-    
+
     try {
       final videoUri = Uri.parse(url);
       launched = await launchUrl(
@@ -210,16 +224,20 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
     } catch (e) {
       print('Direct URL launch failed: $e');
     }
-    
+
     if (!launched) {
-      _showSnackBar('Could not open VLC. Ensure VLC is installed from Play Store.');
+      _showSnackBar(
+        'Could not open VLC. Ensure VLC is installed from Play Store.',
+      );
     }
   }
 
   Future<void> _openVLCOnIOS(String url) async {
     try {
-      final vlcUri = Uri.parse('vlc-x-callback://x-callback-url/stream?url=${Uri.encodeComponent(url)}');
-      
+      final vlcUri = Uri.parse(
+        'vlc-x-callback://x-callback-url/stream?url=${Uri.encodeComponent(url)}',
+      );
+
       if (await canLaunchUrl(vlcUri)) {
         await launchUrl(vlcUri, mode: LaunchMode.externalApplication);
         _showSnackBar('Opening in VLC...');
@@ -249,14 +267,15 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
     // Handle hot reload and stream updates by syncing keys
     if (_itemKeys.length != widget.streams.length) {
       _itemKeys.clear();
-      _itemKeys.addAll(List.generate(widget.streams.length, (_) => GlobalKey()));
+      _itemKeys.addAll(
+        List.generate(widget.streams.length, (_) => GlobalKey()),
+      );
     }
 
     const kGoldColor = Color(0xFFFFD700);
     const kDarkBackground = Color(0xFF141414);
-    const kCardBackground = Color(0xFF1E1E1E);
     const kSurfaceColor = Color(0xFF2C2C2C);
-    
+
     return KeyEventHandler(
       onUpKey: () => _navigate(-1),
       onDownKey: () => _navigate(1),
@@ -273,7 +292,10 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
             decoration: BoxDecoration(
               color: kDarkBackground,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: kGoldColor.withOpacity(0.15), width: 1.5),
+              border: Border.all(
+                color: kGoldColor.withOpacity(0.15),
+                width: 1.5,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.8),
@@ -290,65 +312,8 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Premium Header
-                // Hidden header as per request
-                /*
-                Container(
-                  padding: const EdgeInsets.fromLTRB(32, 28, 32, 20),
-                  decoration: BoxDecoration(
-                    color: kCardBackground.withOpacity(0.5),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                    border: Border(
-                      bottom: BorderSide(color: Colors.white.withOpacity(0.04)),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: kGoldColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.movie_filter_rounded, color: kGoldColor, size: 28),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'SELECT SOURCE',
-                              style: TextStyle(
-                                color: kGoldColor.withOpacity(0.8),
-                                fontSize: 12,
-                                letterSpacing: 1.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${widget.quality} • ${widget.movieTitle.length > 30 ? "${widget.movieTitle.substring(0, 30)}..." : widget.movieTitle}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                */
-                const SizedBox(height: 20), 
-                
+                const SizedBox(height: 20),
+
                 // Streams list
                 Flexible(
                   child: SingleChildScrollView(
@@ -358,7 +323,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                         final index = entry.key;
                         final stream = entry.value;
                         final isCurrentStream = index == _selectedStreamIndex;
-                        
+
                         return Padding(
                           key: _itemKeys[index],
                           padding: const EdgeInsets.only(bottom: 16),
@@ -376,51 +341,82 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     curve: Curves.easeOutCubic,
-                                    transform: Matrix4.identity()..scale(isCurrentStream && !_isVLCSelected ? 1.02 : 1.0),
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                    transform: Matrix4.identity()
+                                      ..scale(
+                                        isCurrentStream && !_isVLCSelected
+                                            ? 1.02
+                                            : 1.0,
+                                      ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 16,
+                                    ),
                                     decoration: BoxDecoration(
-                                      gradient: isCurrentStream && !_isVLCSelected
+                                      gradient:
+                                          isCurrentStream && !_isVLCSelected
                                           ? const LinearGradient(
-                                              colors: [kGoldColor, Color(0xFFD4AF37)],
+                                              colors: [
+                                                kGoldColor,
+                                                Color(0xFFD4AF37),
+                                              ],
                                               begin: Alignment.centerLeft,
                                               end: Alignment.centerRight,
                                             )
                                           : LinearGradient(
-                                              colors: [kSurfaceColor, kSurfaceColor.withOpacity(0.8)],
+                                              colors: [
+                                                kSurfaceColor,
+                                                kSurfaceColor.withOpacity(0.8),
+                                              ],
                                               begin: Alignment.centerLeft,
                                               end: Alignment.centerRight,
                                             ),
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: isCurrentStream && !_isVLCSelected 
-                                            ? Colors.white.withOpacity(0.5) 
+                                        color:
+                                            isCurrentStream && !_isVLCSelected
+                                            ? Colors.white.withOpacity(0.5)
                                             : Colors.transparent,
                                         width: 1,
                                       ),
-                                      boxShadow: isCurrentStream && !_isVLCSelected ? [
-                                        BoxShadow(
-                                          color: kGoldColor.withOpacity(0.3),
-                                          blurRadius: 20,
-                                          offset: const Offset(0, 8),
-                                        ),
-                                      ] : [],
+                                      boxShadow:
+                                          isCurrentStream && !_isVLCSelected
+                                          ? [
+                                              BoxShadow(
+                                                color: kGoldColor.withOpacity(
+                                                  0.3,
+                                                ),
+                                                blurRadius: 20,
+                                                offset: const Offset(0, 8),
+                                              ),
+                                            ]
+                                          : [],
                                     ),
                                     child: Row(
                                       children: [
                                         Icon(
-                                          isCurrentStream && !_isVLCSelected ? Icons.play_circle_filled : Icons.play_circle_outline,
-                                          color: isCurrentStream && !_isVLCSelected ? Colors.black : Colors.white54,
+                                          isCurrentStream && !_isVLCSelected
+                                              ? Icons.play_circle_filled
+                                              : Icons.play_circle_outline,
+                                          color:
+                                              isCurrentStream && !_isVLCSelected
+                                              ? Colors.black
+                                              : Colors.white54,
                                           size: 26,
                                         ),
                                         const SizedBox(width: 16),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 stream.server,
                                                 style: TextStyle(
-                                                  color: isCurrentStream && !_isVLCSelected ? Colors.black : Colors.white,
+                                                  color:
+                                                      isCurrentStream &&
+                                                          !_isVLCSelected
+                                                      ? Colors.black
+                                                      : Colors.white,
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.bold,
                                                 ),
@@ -429,7 +425,11 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                               Text(
                                                 stream.type.toUpperCase(),
                                                 style: TextStyle(
-                                                  color: isCurrentStream && !_isVLCSelected ? Colors.black87 : Colors.white38,
+                                                  color:
+                                                      isCurrentStream &&
+                                                          !_isVLCSelected
+                                                      ? Colors.black87
+                                                      : Colors.white38,
                                                   fontSize: 11,
                                                   fontWeight: FontWeight.w600,
                                                   letterSpacing: 0.5,
@@ -442,10 +442,16 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                           Container(
                                             padding: const EdgeInsets.all(4),
                                             decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(0.1),
+                                              color: Colors.black.withOpacity(
+                                                0.1,
+                                              ),
                                               shape: BoxShape.circle,
                                             ),
-                                            child: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black54, size: 14),
+                                            child: const Icon(
+                                              Icons.arrow_forward_ios_rounded,
+                                              color: Colors.black54,
+                                              size: 14,
+                                            ),
                                           ),
                                       ],
                                     ),
@@ -464,25 +470,38 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   curve: Curves.easeOutCubic,
-                                  transform: Matrix4.identity()..scale(isCurrentStream && _isVLCSelected ? 1.05 : 1.0),
+                                  transform: Matrix4.identity()
+                                    ..scale(
+                                      isCurrentStream && _isVLCSelected
+                                          ? 1.05
+                                          : 1.0,
+                                    ),
                                   width: 80,
                                   height: 76,
                                   decoration: BoxDecoration(
                                     color: isCurrentStream && _isVLCSelected
-                                        ? const Color(0xFFE85E00) // Vibrant orange
+                                        ? const Color(
+                                            0xFFE85E00,
+                                          ) // Vibrant orange
                                         : kSurfaceColor,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: isCurrentStream && _isVLCSelected ? Colors.white.withOpacity(0.3) : Colors.transparent,
+                                      color: isCurrentStream && _isVLCSelected
+                                          ? Colors.white.withOpacity(0.3)
+                                          : Colors.transparent,
                                       width: 1,
                                     ),
-                                    boxShadow: isCurrentStream && _isVLCSelected ? [
-                                      BoxShadow(
-                                        color: const Color(0xFFE85E00).withOpacity(0.4),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ] : null,
+                                    boxShadow: isCurrentStream && _isVLCSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: const Color(
+                                                0xFFE85E00,
+                                              ).withOpacity(0.4),
+                                              blurRadius: 16,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ]
+                                        : null,
                                   ),
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -491,19 +510,27 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                         'assets/vlc_icon.png',
                                         width: 28,
                                         height: 28,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Icon(
-                                            Icons.live_tv,
-                                            color: isCurrentStream && _isVLCSelected ? Colors.white : Colors.orange,
-                                            size: 28,
-                                          );
-                                        },
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                              return Icon(
+                                                Icons.live_tv,
+                                                color:
+                                                    isCurrentStream &&
+                                                        _isVLCSelected
+                                                    ? Colors.white
+                                                    : Colors.orange,
+                                                size: 28,
+                                              );
+                                            },
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
                                         'VLC',
                                         style: TextStyle(
-                                          color: isCurrentStream && _isVLCSelected ? Colors.white : Colors.white38,
+                                          color:
+                                              isCurrentStream && _isVLCSelected
+                                              ? Colors.white
+                                              : Colors.white38,
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -519,34 +546,6 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                     ),
                   ),
                 ),
-                
-                // Footer with controls hint
-                // Hidden footer as per request
-                /*
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(24),
-                      bottomRight: Radius.circular(24),
-                    ),
-                    border: Border(top: BorderSide(color: Colors.white.withOpacity(0.04))),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildHint('↑↓', 'Navigate', kGoldColor),
-                      const SizedBox(width: 24),
-                      _buildHint('←→', 'Switch Player', kGoldColor),
-                      const SizedBox(width: 24),
-                      _buildHint('ENTER', 'Select', kGoldColor),
-                      const SizedBox(width: 24),
-                      _buildHint('BACK', 'Close', Colors.grey),
-                    ],
-                  ),
-                ),
-                */
               ],
             ),
           ),
@@ -554,7 +553,6 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
       ),
     );
   }
-
 
   Widget _buildHint(String key, String action, Color accent) {
     return Row(

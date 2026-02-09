@@ -2,11 +2,15 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import '../extractors/hubcloud_extractor.dart';
+import '../extractors/stream_types.dart' as stream_types;
 import 'headers.dart';
 import 'get_redirect_links.dart';
 
 /// Extract streaming links from hdhub4u, focusing on HubCloud links
-Future<List<Stream>> hdhubGetStream(String link, String type) async {
+Future<List<stream_types.Stream>> hdhubGetStream(
+  String link,
+  String type,
+) async {
   try {
     // Handle hubcdn.fans links directly
     if (link.contains('hubcdn.fans')) {
@@ -31,11 +35,11 @@ Future<List<Stream>> hdhubGetStream(String link, String type) async {
     else {
       print('Using link as-is: $link');
     }
-    
+
     // Use the Drive provider's HubCloudExtractor for all links
     print('Extracting streams from: $finalLink');
     final result = await HubCloudExtractor.extractLinks(finalLink);
-    
+
     if (result.success) {
       return result.streams;
     } else {
@@ -49,10 +53,13 @@ Future<List<Stream>> hdhubGetStream(String link, String type) async {
 }
 
 /// Handle hubcdn.fans links
-Future<List<Stream>> _handleHubcdnFans(String link) async {
+Future<List<stream_types.Stream>> _handleHubcdnFans(String link) async {
   try {
     print('Processing hubcdn.fans link: $link');
-    final response = await http.get(Uri.parse(link), headers: HdhubHeaders.headers);
+    final response = await http.get(
+      Uri.parse(link),
+      headers: HdhubHeaders.headers,
+    );
     final text = response.body;
 
     // Extract reurl from script tag
@@ -71,7 +78,7 @@ Future<List<Stream>> _handleHubcdnFans(String link) async {
           // Decode base64
           final decodedUrl = utf8.decode(base64.decode(base64Encoded));
           print('Decoded URL: $decodedUrl');
-          
+
           // Extract the actual video URL from link= parameter
           String finalVideoUrl = decodedUrl;
           final linkMatch = RegExp(r'[?&]link=(.+)$').firstMatch(decodedUrl);
@@ -79,9 +86,9 @@ Future<List<Stream>> _handleHubcdnFans(String link) async {
             finalVideoUrl = Uri.decodeComponent(linkMatch.group(1)!);
             print('Extracted video URL: $finalVideoUrl');
           }
-          
+
           return [
-            Stream(
+            stream_types.Stream(
               server: 'HDHub4u Direct',
               link: finalVideoUrl,
               type: 'mp4',
@@ -105,32 +112,48 @@ Future<List<Stream>> _handleHubcdnFans(String link) async {
 Future<String> _extractHubcloudFromHubdrive(String hubdriveLink) async {
   try {
     print('Extracting hubcloud from hubdrive: $hubdriveLink');
-    
+
     // Add cookie for hubdrive.space requests
     final headers = Map<String, String>.from(HdhubHeaders.headers);
     if (hubdriveLink.contains('hubdrive.space')) {
-      headers['Cookie'] = '_ga=GA1.1.493445100.1760626325; _ga_8QTNRD0R4M=GS2.1.s1763882919\$o4\$g0\$t1763882919\$j60\$l0\$h0';
+      headers['Cookie'] =
+          '_ga=GA1.1.493445100.1760626325; _ga_8QTNRD0R4M=GS2.1.s1763882919\$o4\$g0\$t1763882919\$j60\$l0\$h0';
     }
-    
+
     final response = await http.get(Uri.parse(hubdriveLink), headers: headers);
     final document = html_parser.parse(response.body);
-    
+
     // Look for HubCloud Server link in the specific button structure
-    final hubcloudLink = document.querySelector('h5 a.btn.btn-primary.btn-user.btn-success1[href*="hubcloud"]')?.attributes['href'] ??
-                         document.querySelector('.btn.btn-primary.btn-user.btn-success1.m-1[href*="hubcloud"]')?.attributes['href'];
-    
+    final hubcloudLink =
+        document
+            .querySelector(
+              'h5 a.btn.btn-primary.btn-user.btn-success1[href*="hubcloud"]',
+            )
+            ?.attributes['href'] ??
+        document
+            .querySelector(
+              '.btn.btn-primary.btn-user.btn-success1.m-1[href*="hubcloud"]',
+            )
+            ?.attributes['href'];
+
     if (hubcloudLink != null && hubcloudLink.isNotEmpty) {
       print('Extracted hubcloud link: $hubcloudLink');
-      
+
       // Check for meta refresh in the hubcloud link
-      final finalResponse = await http.get(Uri.parse(hubcloudLink), headers: HdhubHeaders.headers);
-      final metaRefreshMatch = RegExp(r'<META HTTP-EQUIV="refresh" content="0; url=([^"]+)">', caseSensitive: false).firstMatch(finalResponse.body);
+      final finalResponse = await http.get(
+        Uri.parse(hubcloudLink),
+        headers: HdhubHeaders.headers,
+      );
+      final metaRefreshMatch = RegExp(
+        r'<META HTTP-EQUIV="refresh" content="0; url=([^"]+)">',
+        caseSensitive: false,
+      ).firstMatch(finalResponse.body);
       final finalLink = metaRefreshMatch?.group(1) ?? hubcloudLink;
-      
+
       print('Final hubcloud link: $finalLink');
       return finalLink;
     }
-    
+
     print('No hubcloud link found, returning original');
     return hubdriveLink;
   } catch (error) {

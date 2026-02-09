@@ -30,6 +30,7 @@ class MovieInfoParser {
                         document.querySelector('.page-body img') ??
                         document.querySelector('img[src*="tmsimg.com"]') ??
                         document.querySelector('img[src*="media-amazon.com"]');
+    
     if (imageElement != null) {
       imageUrl = imageElement.attributes['src'] ?? '';
     }
@@ -65,11 +66,12 @@ class MovieInfoParser {
     
     // Extract title from colored text if still empty
     if (title.isEmpty) {
-      final coloredTitle = document.querySelector('span[style*="color: #ff0000"]');
-      if (coloredTitle != null) {
+      final coloredTitles = document.querySelectorAll('span[style*="color: #ff0000"]');
+      for (var coloredTitle in coloredTitles) {
         final titleText = coloredTitle.text.trim();
         if (titleText.isNotEmpty && !titleText.toLowerCase().contains('download')) {
           title = titleText;
+          break;
         }
       }
     }
@@ -116,7 +118,15 @@ class MovieInfoParser {
     
     // Extract download links (skip screenshots)
     List<DownloadLink> downloadLinks = [];
-    final linkElements = document.querySelectorAll('.page-body h5');
+    
+    // Try multiple selectors for download sections
+    var linkElements = document.querySelectorAll('.page-body h5');
+    if (linkElements.isEmpty) {
+      linkElements = document.querySelectorAll('.page-body h4');
+    }
+    if (linkElements.isEmpty) {
+      linkElements = document.querySelectorAll('.page-body p');
+    }
     
     for (var i = 0; i < linkElements.length; i++) {
       final linkText = linkElements[i].text.trim();
@@ -127,7 +137,7 @@ class MovieInfoParser {
         continue;
       }
       
-      // Parse download link - look for quality and size pattern
+      // Method 1: Parse download link - look for quality and size pattern (original format)
       if (linkText.contains('[') && linkText.contains(']')) {
         final qualityMatch = RegExp(r'(480p|720p|1080p|2160p|4k)', caseSensitive: false).firstMatch(linkText);
         final sizeMatches = RegExp(r'\[([^\]]+)\]').allMatches(linkText);
@@ -173,6 +183,7 @@ class MovieInfoParser {
               
               // Only accept "Single Episode" links or quality links, skip ZIP/Zip links
               if ((nextText.contains('single episode') || 
+                   nextText.contains('download now') ||
                    nextText.contains('480p') || 
                    nextText.contains('720p') || 
                    nextText.contains('1080p') || 
@@ -195,6 +206,111 @@ class MovieInfoParser {
               episodeInfo: episodeInfo,
             ));
           }
+        }
+      }
+      
+      // Method 2: Parse download link - look for colored spans format (new format)
+      else {
+        final currentElement = linkElements[i];
+        
+        // Look for quality in colored spans (blue color #0000ff)
+        final qualitySpans = currentElement.querySelectorAll('span[style*="color: #0000ff"]');
+        String qualityText = '';
+        String sizeText = '';
+        
+        for (var span in qualitySpans) {
+          final spanText = span.text.trim();
+          
+          // Check if this span contains quality info (480p, 720p, etc.)
+          final qualityMatch = RegExp(r'(480p|720p|1080p|2160p|4k|4kHDR)', caseSensitive: false).firstMatch(spanText);
+          if (qualityMatch != null) {
+            qualityText = qualityMatch.group(0) ?? '';
+            
+            // Extract size from same span if it's in brackets
+            final sizeMatch = RegExp(r'\[([^\]]+)\]').firstMatch(spanText);
+            if (sizeMatch != null) {
+              sizeText = sizeMatch.group(1) ?? '';
+            }
+            
+            // Add additional quality modifiers
+            if (spanText.contains('60FPS') || linkText.contains('{60FPS}')) qualityText += ' 60FPS';
+            if (spanText.contains('4kHDR') || linkText.contains('4kHDR')) qualityText += ' HDR';
+            
+            break;
+          }
+        }
+        
+        // If we found quality info, look for the download link in next element(s)
+        if (qualityText.isNotEmpty) {
+          String downloadUrl = '';
+          
+          for (var j = 1; j <= 3 && (i + j) < linkElements.length; j++) {
+            final nextElement = linkElements[i + j];
+            final downloadLinkElement = nextElement.querySelector('a');
+            
+            if (downloadLinkElement != null) {
+              final href = downloadLinkElement.attributes['href'] ?? '';
+              final nextLinkText = downloadLinkElement.text.toLowerCase();
+              
+              // Check if this is actually a download link
+              if (href.isNotEmpty && (nextLinkText.contains('download') || 
+                                     nextLinkText.contains('get') || 
+                                     href.contains('download') ||
+                                     href.contains('drive') ||
+                                     href.contains('workers.dev'))) {
+                downloadUrl = href;
+                break;
+              }
+            }
+          }
+          
+          if (downloadUrl.isNotEmpty) {
+            downloadLinks.add(DownloadLink(
+              quality: qualityText,
+              size: sizeText,
+              url: downloadUrl,
+              hubCloudUrl: null,
+              season: null,
+              episodeInfo: null,
+            ));
+          }
+        }
+      }
+    }
+    
+    // If no download links found using h5/h4/p tags, try a more general approach
+    if (downloadLinks.isEmpty) {
+      final allDownloadElements = document.querySelectorAll('a[href*="download"], a[href*="workers.dev"], a[href*="drive"]');
+      
+      for (var linkElement in allDownloadElements) {
+        final href = linkElement.attributes['href'] ?? '';
+        final linkText = linkElement.text.toLowerCase();
+        
+        if (href.isNotEmpty && linkText.contains('download')) {
+          // Try to find quality info from the surrounding text
+          String qualityText = 'Unknown';
+          String sizeText = '';
+          
+          // Look for quality in the parent element or previous elements
+          var parentText = linkElement.parent?.text ?? '';
+          final qualityMatch = RegExp(r'(480p|720p|1080p|2160p|4k)', caseSensitive: false).firstMatch(parentText);
+          if (qualityMatch != null) {
+            qualityText = qualityMatch.group(0) ?? '';
+            
+            final sizeMatch = RegExp(r'\[([^\]]+)\]').firstMatch(parentText);
+            if (sizeMatch != null) {
+              sizeText = sizeMatch.group(1) ?? '';
+            }
+          }
+          
+          downloadLinks.add(DownloadLink(
+            quality: qualityText,
+            size: sizeText,
+            url: href,
+            hubCloudUrl: null,
+            season: null,
+            episodeInfo: null,
+          ));
         }
       }
     }
@@ -256,7 +372,9 @@ class MovieInfoParser {
   
   static String _extractGenreFromColoredText(Document document) {
     // Look for genre in colored spans (e.g., Action, Adventure, Fantasy, Sci-Fi)
-    final genreElements = document.querySelectorAll('span[style*="color: #0000ff"]');
+    // Try different color codes used for genres
+    final genreElements = document.querySelectorAll('span[style*="color: #00ffff"]') + 
+                         document.querySelectorAll('span[style*="color: #0000ff"]');
     final genres = <String>[];
     
     for (var element in genreElements) {
