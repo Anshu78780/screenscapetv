@@ -33,8 +33,14 @@ class XdmoviesGetPost {
       // Logic from: `${baseUrl}/php/search_api.php?query=${encodeURIComponent(searchQuery)}&fuzzy=true&limit=50`
       final apiUrl = '$cleanBase/php/search_api.php?query=${Uri.encodeComponent(query)}&fuzzy=true&limit=50';
       
-      final searchHeaders = Map<String, String>.from(XdmoviesHeaders.headers);
-      searchHeaders['Referer'] = '$cleanBase/search.html?q=${Uri.encodeComponent(query)}';
+      final searchHeaders = {
+        'Cookie': '_ga=GA1.1.1068126441.1769750686; _ga_KFGX1HHK8C=GS2.1.s1770625735\$o3\$g1\$t1770626727\$j29\$l0\$h0',
+        'Priority': 'u=1, i',
+        'Referer': '$cleanBase/search.html?q=${Uri.encodeComponent(query)}',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36 Edg/144.0.0.0',
+        'X-Auth-Token': '7297skkihkajwnsgaklakshuwd',
+        'X-Requested-With': 'XMLHttpRequest',
+      };
       
       print('xdmoviesSearch: $apiUrl');
 
@@ -58,22 +64,6 @@ class XdmoviesGetPost {
       }
 
       final posts = <Movie>[];
-
-      /*
-        data.forEach((item: any) => {
-          const title = item.title;
-          const path = item.path;
-          const poster = item.poster;
-
-          if (title && path) {
-            const image = poster 
-              ? `https://image.tmdb.org/t/p/w500${poster}` 
-              : '';
-            const link = baseUrl + path;
-            posts.push({ title, link, image });
-          }
-        });
-      */
 
       if (data is List) {
         for (var item in data) {
