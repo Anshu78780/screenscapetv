@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
-import '../drive/hubcloud_extractor.dart';
+import '../extractors/hubcloud_extractor.dart';
 import 'headers.dart';
 import 'get_redirect_links.dart';
 

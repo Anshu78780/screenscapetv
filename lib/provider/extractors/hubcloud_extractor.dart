@@ -79,7 +79,7 @@ class HubCloudExtractor {
       if (vLinkRedirectMatch != null) {
         final redirectUrl = vLinkRedirectMatch.group(1);
         final rParam = Uri.parse(redirectUrl ?? '').queryParameters['r'];
-        vcloudLink = decode(rParam) ?? redirectUrl;
+        vcloudLink = decode(rParam);
       }
 
       // Fallback to download button
