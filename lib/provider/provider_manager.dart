@@ -1,16 +1,4 @@
 import 'package:flutter/material.dart';
-
-/// Provider Manager - Manages the active content provider
-/// 
-/// This singleton class tracks which provider is currently active (Drive, Netflix, etc.)
-/// and notifies listeners when the provider changes.
-/// 
-/// To add a new provider:
-/// 1. Create a new folder under lib/provider/ (e.g., lib/provider/netflix/)
-/// 2. Add an index.dart file to export all provider modules
-/// 3. Add the provider to availableProviders list below
-/// 4. Update _loadMovies() in movies_screen.dart to handle the new provider
-/// 5. Update _loadMovieInfo() in info.dart to handle the new provider
 class ProviderManager extends ChangeNotifier {
   static final ProviderManager _instance = ProviderManager._internal();
   factory ProviderManager() => _instance;
@@ -58,6 +46,11 @@ class ProviderManager extends ChangeNotifier {
       'id': 'Zinkmovies',
       'name': 'ZinkMovies',
       'icon': Icons.subscriptions_outlined,
+    },
+    {
+      'id': 'Animesalt',
+      'name': 'AnimeSalt',
+      'icon': Icons.animation_outlined,
     },
     // Add more providers here in the future
     // {

@@ -8,6 +8,8 @@ import '../provider/desiremovies/index.dart';
 import '../provider/moviesmod/index.dart';
 import '../provider/zinkmovies/info.dart' as zinkmovies_info;
 import '../provider/zinkmovies/getstream.dart' as zinkmovies_stream;
+import '../provider/animesalt/info.dart' as animesalt_info;
+import '../provider/animesalt/getstream.dart' as animesalt_stream;
 import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
@@ -91,6 +93,9 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Zinkmovies':
           movieInfo = await zinkmovies_info.fetchMovieInfo(widget.movieUrl);
+          break;
+        case 'Animesalt':
+          movieInfo = await animesalt_info.animesaltGetInfo(widget.movieUrl);
           break;
         case 'Drive':
         default:
@@ -1430,6 +1435,22 @@ class _InfoScreenState extends State<InfoScreen> {
 
       if (_currentProvider == 'Zinkmovies') {
         final streams = await zinkmovies_stream.getStream(downloadLink.url, downloadLink.quality);
+        setState(() => _isLoadingLinks = false);
+        if (streams.isNotEmpty) {
+          _showStreamingLinksDialog(streams, downloadLink.quality);
+        } else {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No streams found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (_currentProvider == 'Animesalt') {
+        final streams = await animesalt_stream.animesaltGetStream(downloadLink.url, 'anime');
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);

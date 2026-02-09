@@ -6,6 +6,7 @@ import '../provider/xdmovies/index.dart';
 import '../provider/desiremovies/index.dart';
 import '../provider/moviesmod/index.dart';
 import '../provider/zinkmovies/index.dart';
+import '../provider/animesalt/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -55,6 +56,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return MoviesmodCatalog.categories;
       case 'Zinkmovies':
         return ZinkMoviesCatalog.categories;
+      case 'Animesalt':
+        return AnimeSaltCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -106,6 +109,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'Zinkmovies':
           movies = await zinkmoviesGetPosts(category['filter']!, 1);
           break;
+        case 'Animesalt':
+          movies = await animesaltGetPosts(category['filter']!, 1);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -149,6 +155,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Zinkmovies':
           movies = await zinkmoviesGetPostsSearch(query, 1);
+          break;
+        case 'Animesalt':
+          movies = await animesaltGetPostsSearch(query, 1);
           break;
         case 'Xdmovies':
           movies = await XdmoviesGetPost.searchMovies(query);
@@ -520,6 +529,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
       _isSidebarOpen = false;
       _isNavigatingCategories = true;
       _isMenuButtonFocused = true;
+      // Reset to first category when switching providers
+      _selectedCategoryIndex = 0;
+      _selectedMovieIndex = 0;
     });
     
     if (provider != _currentProvider) {
