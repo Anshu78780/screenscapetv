@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../extractors/hubcloud_extractor.dart';
 import '../extractors/stream_types.dart';
-import 'headers.dart';
-import '../../libs/baseurl.dart';
 
 Future<List<Stream>> xdmoviesGetStream(
   String link,

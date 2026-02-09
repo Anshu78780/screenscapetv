@@ -54,6 +54,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'Moviesmod',
       'icon': Icons.movie_creation_outlined,
     },
+    {
+      'id': 'Zinkmovies',
+      'name': 'ZinkMovies',
+      'icon': Icons.subscriptions_outlined,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

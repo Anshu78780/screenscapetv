@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import '../../models/movie.dart';
-import '../../libs/baseurl.dart';
 import 'headers.dart';
 import 'catalog.dart';
 

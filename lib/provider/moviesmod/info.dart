@@ -90,7 +90,7 @@ class MoviesmodInfo {
                  quality: quality, 
                  size: 'Episode',
                  url: ep['link']!,
-                 episodeInfo: '${cleanTitle} - ${ep['title']}',
+                 episodeInfo: '$cleanTitle - ${ep['title']}',
                ));
              }
            } catch (e) {

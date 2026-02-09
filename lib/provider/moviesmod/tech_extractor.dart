@@ -201,7 +201,7 @@ class TechExtractor {
 
       // CF Workers type 1
       try {
-        final cfWorkersLink = driveLink.replaceAll('/file', '/wfile') + '?type=1';
+        final cfWorkersLink = '${driveLink.replaceAll('/file', '/wfile')}?type=1';
         final cfWorkersRes = await http.get(Uri.parse(cfWorkersLink), headers: headers);
         final cfWorkersDoc = html_parser.parse(cfWorkersRes.body);
         
@@ -222,7 +222,7 @@ class TechExtractor {
 
       // CF Workers type 2
       try {
-        final cfWorkersLink = driveLink.replaceAll('/file', '/wfile') + '?type=2';
+        final cfWorkersLink = '${driveLink.replaceAll('/file', '/wfile')}?type=2';
         final cfWorkersRes = await http.get(Uri.parse(cfWorkersLink), headers: headers);
         final cfWorkersDoc = html_parser.parse(cfWorkersRes.body);
         

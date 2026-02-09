@@ -86,7 +86,7 @@ class MoviesmodGetEpisodes {
         // Filter out invalid links (# or javascript:void)
         if (link != null && link != '#' && link != 'javascript:void(0);' && link.isNotEmpty && link.startsWith('http')) {
           // Remove emojis and clean title
-          final cleanTitle = seriesTitle?.replaceAll(RegExp(r'[^\w\s\-\(\)\.]'), '').trim();
+          final cleanTitle = seriesTitle.replaceAll(RegExp(r'[^\w\s\-\(\)\.]'), '').trim();
           
           episodeLinks.add({
             'title': (cleanTitle != null && cleanTitle.isNotEmpty) ? cleanTitle : 'download',
