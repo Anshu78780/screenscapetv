@@ -32,7 +32,7 @@ class Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 60),
+          const SizedBox(height: 30),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -69,7 +69,7 @@ class Sidebar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 20),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),

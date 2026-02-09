@@ -135,6 +135,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
   Future<void> _performSearch(String query) async {
     if (query.isEmpty) return;
     
+    // Unfocus immediately to ensure navigation keys work later
+    _searchFocusNode.unfocus();
+    
     setState(() {
       _isLoading = true;
       _error = '';
@@ -176,7 +179,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
         _isNavigatingCategories = false;
         _isSearchFocused = false;
       });
+      // Force clear focus from text field to enable usage of navigation keys
       _searchFocusNode.unfocus();
+      FocusScope.of(context).unfocus(); 
+      
+      // Ensure scrolling is reset
+      if (movies.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToSelected();
+        });
+      }
     } catch (e) {
          setState(() {
         _error = e.toString();
@@ -755,16 +767,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
       children: [
-        const Text(
-          'Latest Releases',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 25),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
