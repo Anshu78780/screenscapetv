@@ -125,8 +125,13 @@ class MovieInfoParser {
       linkElements = document.querySelectorAll('.page-body h4');
     }
     if (linkElements.isEmpty) {
+      linkElements = document.querySelectorAll('.page-body h3');
+    }
+    if (linkElements.isEmpty) {
       linkElements = document.querySelectorAll('.page-body p');
     }
+    
+    String? currentSeason;
     
     for (var i = 0; i < linkElements.length; i++) {
       final linkText = linkElements[i].text.trim();
@@ -135,6 +140,17 @@ class MovieInfoParser {
       if (linkText.toLowerCase().contains('screenshot') || 
           linkText.toLowerCase().contains('screen-shot')) {
         continue;
+      }
+      
+      // Detect season headers like "_______ [⇓ Season 1 हिंदी Dubbed ⇓] _______"
+      if (linkText.contains('Season') && 
+          (linkText.contains('⇓') || linkText.contains('_______'))) {
+        final seasonMatch = RegExp(r'Season\s+(\d+)', caseSensitive: false).firstMatch(linkText);
+        if (seasonMatch != null) {
+          currentSeason = 'Season ${seasonMatch.group(1)}';
+          print('Detected season: $currentSeason');
+          continue;
+        }
       }
       
       // Method 1: Parse download link - look for quality and size pattern (original format)
@@ -147,11 +163,13 @@ class MovieInfoParser {
           String qualityText = qualityMatch.group(0) ?? '';
           String sizeText = sizeMatch.group(1) ?? '';
           
-          // Extract season info
-          String? seasonInfo;
-          final seasonMatch = RegExp(r'Season\s+(\d+)', caseSensitive: false).firstMatch(linkText);
-          if (seasonMatch != null) {
-            seasonInfo = 'Season ${seasonMatch.group(1)}';
+          // Use detected season or extract from current line
+          String? seasonInfo = currentSeason;
+          if (seasonInfo == null) {
+            final seasonMatch = RegExp(r'S(\d+)', caseSensitive: false).firstMatch(linkText);
+            if (seasonMatch != null) {
+              seasonInfo = 'Season ${seasonMatch.group(1)}';
+            }
           }
           
           // Extract episode info
@@ -173,7 +191,7 @@ class MovieInfoParser {
           // Find the "Single Episode" link in the next element(s)
           // Skip ZIP links
           String downloadUrl = '';
-          for (var j = 1; j <= 3 && (i + j) < linkElements.length; j++) {
+          for (var j = 1; j <= 5 && (i + j) < linkElements.length; j++) {
             final nextElement = linkElements[i + j];
             final nextText = nextElement.text.toLowerCase();
             final linkElement = nextElement.querySelector('a');
@@ -181,16 +199,20 @@ class MovieInfoParser {
             if (linkElement != null) {
               final href = linkElement.attributes['href'] ?? '';
               
-              // Only accept "Single Episode" links or quality links, skip ZIP/Zip links
-              if ((nextText.contains('single episode') || 
-                   nextText.contains('download now') ||
-                   nextText.contains('480p') || 
-                   nextText.contains('720p') || 
-                   nextText.contains('1080p') || 
-                   nextText.contains('2160p') || 
-                   nextText.contains('4k')) && 
-                  !nextText.contains('zip')) {
+              // ONLY accept "Single Episode" links, explicitly skip ZIP/Zip links
+              if (nextText.contains('single episode') && !nextText.contains('zip')) {
                 downloadUrl = href;
+                print('Found single episode link for $qualityText: $downloadUrl');
+                break;
+              }
+              // Break if we hit another quality line or zip
+              if (nextText.contains('480p') || 
+                  nextText.contains('720p') || 
+                  nextText.contains('1080p') ||
+                  nextText.contains('2160p') ||
+                  nextText.contains('4k') ||
+                  nextText.contains('season')) {
+                // This is the start of a new quality or season, stop searching
                 break;
               }
             }
@@ -244,7 +266,7 @@ class MovieInfoParser {
         if (qualityText.isNotEmpty) {
           String downloadUrl = '';
           
-          for (var j = 1; j <= 3 && (i + j) < linkElements.length; j++) {
+          for (var j = 1; j <= 5 && (i + j) < linkElements.length; j++) {
             final nextElement = linkElements[i + j];
             final downloadLinkElement = nextElement.querySelector('a');
             
@@ -252,13 +274,29 @@ class MovieInfoParser {
               final href = downloadLinkElement.attributes['href'] ?? '';
               final nextLinkText = downloadLinkElement.text.toLowerCase();
               
-              // Check if this is actually a download link
-              if (href.isNotEmpty && (nextLinkText.contains('download') || 
-                                     nextLinkText.contains('get') || 
-                                     href.contains('download') ||
-                                     href.contains('drive') ||
-                                     href.contains('workers.dev'))) {
+              // Prefer "single episode" links, skip zip
+              if (nextLinkText.contains('single episode') && !nextLinkText.contains('zip')) {
                 downloadUrl = href;
+                print('Found single episode link (method 2) for $qualityText: $downloadUrl');
+                break;
+              }
+              // Fallback to any download link
+              else if (href.isNotEmpty && 
+                       (nextLinkText.contains('download') || 
+                        nextLinkText.contains('get') || 
+                        href.contains('download') ||
+                        href.contains('drive') ||
+                        href.contains('workers.dev')) &&
+                       !nextLinkText.contains('zip')) {
+                downloadUrl = href;
+                break;
+              }
+              
+              // Stop if we hit another quality line
+              if (nextLinkText.contains('480p') || 
+                  nextLinkText.contains('720p') || 
+                  nextLinkText.contains('1080p') ||
+                  nextLinkText.contains('season')) {
                 break;
               }
             }
@@ -270,7 +308,7 @@ class MovieInfoParser {
               size: sizeText,
               url: downloadUrl,
               hubCloudUrl: null,
-              season: null,
+              season: currentSeason,
               episodeInfo: null,
             ));
           }

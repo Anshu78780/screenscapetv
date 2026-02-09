@@ -358,6 +358,11 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _navigateVertical(int delta) {
     setState(() {
+      final qualities = _getAvailableQualities();
+      final seasons = _getAvailableSeasons();
+      final hasQualities = qualities.isNotEmpty;
+      final hasSeasons = seasons.length > 1;
+      
       if (delta < 0) {
         // Up arrow
         if (!_isBackButtonFocused &&
@@ -365,16 +370,23 @@ class _InfoScreenState extends State<InfoScreen> {
             !_isSeasonSelectorFocused &&
             _selectedDownloadIndex == 0) {
           // From first download to quality/season selector
-          final seasons = _getAvailableSeasons();
-          if (seasons.length > 1) {
+          if (hasSeasons) {
             _isSeasonSelectorFocused = true;
-          } else {
+          } else if (hasQualities) {
             _isQualitySelectorFocused = true;
+          } else {
+            _isBackButtonFocused = true;
+            _scrollToTop();
           }
         } else if (_isSeasonSelectorFocused) {
-          // From season to quality selector
+          // From season to quality selector or back button
           _isSeasonSelectorFocused = false;
-          _isQualitySelectorFocused = true;
+          if (hasQualities) {
+            _isQualitySelectorFocused = true;
+          } else {
+            _isBackButtonFocused = true;
+            _scrollToTop();
+          }
         } else if (_isQualitySelectorFocused) {
           // From quality selector to back button
           _isQualitySelectorFocused = false;
@@ -389,14 +401,18 @@ class _InfoScreenState extends State<InfoScreen> {
       } else {
         // Down arrow
         if (_isBackButtonFocused) {
-          // From back button to quality selector
+          // From back button to quality selector or season selector or downloads
           _isBackButtonFocused = false;
-          _isQualitySelectorFocused = true;
+          if (hasQualities) {
+            _isQualitySelectorFocused = true;
+          } else if (hasSeasons) {
+            _isSeasonSelectorFocused = true;
+          }
+          // If neither, focus stays on downloads (default)
         } else if (_isQualitySelectorFocused) {
           // From quality selector to season selector or downloads
           _isQualitySelectorFocused = false;
-          final seasons = _getAvailableSeasons();
-          if (seasons.length > 1) {
+          if (hasSeasons) {
             _isSeasonSelectorFocused = true;
           }
         } else if (_isSeasonSelectorFocused) {
@@ -469,11 +485,16 @@ class _InfoScreenState extends State<InfoScreen> {
       },
       onRightKey: () {
         if (_isSeasonSelectorFocused) {
-          // Navigate from season to quality
-          setState(() {
-            _isSeasonSelectorFocused = false;
-            _isQualitySelectorFocused = true;
-          });
+          // Navigate from season to quality (if quality exists)
+          final qualities = _getAvailableQualities();
+          if (qualities.isNotEmpty) {
+            setState(() {
+              _isSeasonSelectorFocused = false;
+              _isQualitySelectorFocused = true;
+            });
+          } else {
+            _navigateSeasons(1);
+          }
         } else if (_isQualitySelectorFocused) {
           _navigateQualities(1);
         } else {
@@ -857,25 +878,27 @@ class _InfoScreenState extends State<InfoScreen> {
                 ),
                 const SizedBox(width: 16),
               ],
-              SizedBox(
-                width: 240,
-                child: SeasonList(
-                  key: _qualityListKey,
-                  items: qualities,
-                  selectedItem: _selectedQuality,
-                  label: "Quality",
-                  icon: Icons.hd_outlined,
-                  isFocused: _isQualitySelectorFocused,
-                  onChanged: (quality) {
-                    setState(() {
-                      _selectedQuality = quality;
-                      _selectedDownloadIndex = 0;
-                      _selectedQualityIndex = qualities.indexOf(quality);
-                    });
-                    _loadEpisodesIfNeeded();
-                  },
+              if (qualities.isNotEmpty) ...[
+                SizedBox(
+                  width: 240,
+                  child: SeasonList(
+                    key: _qualityListKey,
+                    items: qualities,
+                    selectedItem: _selectedQuality,
+                    label: "Quality",
+                    icon: Icons.hd_outlined,
+                    isFocused: _isQualitySelectorFocused,
+                    onChanged: (quality) {
+                      setState(() {
+                        _selectedQuality = quality;
+                        _selectedDownloadIndex = 0;
+                        _selectedQualityIndex = qualities.indexOf(quality);
+                      });
+                      _loadEpisodesIfNeeded();
+                    },
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
 

@@ -157,7 +157,7 @@ Future<ZinkMoviesInfo> zinkmoviesGetInfo(String link) async {
             print('Found season header: $currentSeason');
           }
         }
-        // Check if this is a quality link for the current season
+        // Check if this is a quality link for the current season (direct child)
         else if (child.classes.contains('movie-button-container') && 
                  currentSeason != null) {
           final button = child.querySelector('a.movie-simple-button');
@@ -178,6 +178,31 @@ Future<ZinkMoviesInfo> zinkmoviesGetInfo(String link) async {
               'link': qualityLink,
             });
             print('Added quality to $currentSeason: $qualityText');
+          }
+        }
+        // Check if this is a seriecontainer with nested movie-button-containers
+        else if (child.classes.contains('seriecontainer') && 
+                 currentSeason != null) {
+          final nestedButtons = child.querySelectorAll('.movie-button-container a.movie-simple-button');
+          for (var button in nestedButtons) {
+            final qualityLink = button.attributes['href'] ?? '';
+            final fullText = button.querySelector('span')?.text.trim() ?? '';
+            
+            if (qualityLink.isNotEmpty && fullText.isNotEmpty) {
+              // Extract quality from full text
+              String qualityText = fullText;
+              final qualityMatch = RegExp(r'Season\s+\d+-(.+)', caseSensitive: false)
+                  .firstMatch(fullText);
+              if (qualityMatch != null) {
+                qualityText = qualityMatch.group(1)?.trim() ?? fullText;
+              }
+              
+              seasonGroups[currentSeason]!.add({
+                'quality': qualityText,
+                'link': qualityLink,
+              });
+              print('Added quality to $currentSeason (nested): $qualityText');
+            }
           }
         }
       }
