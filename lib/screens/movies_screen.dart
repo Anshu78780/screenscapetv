@@ -24,8 +24,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
   // Navigation & Search State
   bool _isNavigatingCategories = false;
   bool _isSidebarOpen = false;
+  bool _isMenuButtonFocused = false;
   bool _isSearchFocused = false;
   bool _isSearchActive = false;
+  int _selectedSidebarIndex = 0;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   
@@ -141,11 +143,14 @@ class _MoviesScreenState extends State<MoviesScreen> {
       if (_isSearchActive) {
         _isNavigatingCategories = true;
         _isSearchFocused = true; // Ensure focus stays on search area
+        _isMenuButtonFocused = false;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _searchFocusNode.requestFocus();
         });
       } else {
         _isSearchFocused = false;
+        _isNavigatingCategories = true;
+        _isMenuButtonFocused = false;
         // Optional: reload category movies if cancelling search?
         // _loadMovies(); 
       }
@@ -156,17 +161,27 @@ class _MoviesScreenState extends State<MoviesScreen> {
     if (_categories.isEmpty) return;
     
     setState(() {
-      if (_isSearchFocused) {
+      if (_isMenuButtonFocused) {
+        // Navigate from menu button
+        if (delta > 0) {
+          _isMenuButtonFocused = false;
+          _selectedCategoryIndex = 0;
+        }
+      } else if (_isSearchFocused) {
         if (delta < 0) {
-           _isSearchFocused = false;
-           _selectedCategoryIndex = _categories.length - 1;
-           if (!_isSearchActive) _loadMovies();
+          _isSearchFocused = false;
+          _selectedCategoryIndex = _categories.length - 1;
+          if (!_isSearchActive) _loadMovies();
+        } else if (delta > 0) {
+          // Can't go further right from search
         }
       } else {
         int newIndex = _selectedCategoryIndex + delta;
         if (newIndex >= _categories.length) {
           _isSearchFocused = true;
-        } else if (newIndex >= 0) {
+        } else if (newIndex < 0) {
+          _isMenuButtonFocused = true;
+        } else {
           _selectedCategoryIndex = newIndex;
           if (!_isSearchActive) _loadMovies();
         }
@@ -192,7 +207,23 @@ class _MoviesScreenState extends State<MoviesScreen> {
     }
   }
 
+  void _navigateSidebar(int delta) {
+    final providerCount = ProviderManager.availableProviders.length;
+    setState(() {
+      _selectedSidebarIndex = (_selectedSidebarIndex + delta) % providerCount;
+      if (_selectedSidebarIndex < 0) {
+        _selectedSidebarIndex = providerCount - 1;
+      }
+    });
+  }
+
   void _navigateUp() {
+    if (_isSidebarOpen) {
+      // Navigate up in sidebar
+      _navigateSidebar(-1);
+      return;
+    }
+    
     if (_isNavigatingCategories) return; // Already in category mode
     
     if (_movies.isEmpty) return;
@@ -213,7 +244,25 @@ class _MoviesScreenState extends State<MoviesScreen> {
   }
 
   void _navigateDown() {
+    if (_isSidebarOpen) {
+      // Navigate down in sidebar
+      _navigateSidebar(1);
+      return;
+    }
+    
     if (_isNavigatingCategories) {
+      if (_isMenuButtonFocused) {
+        // Open sidebar when pressing down on menu button
+        setState(() {
+          _isSidebarOpen = true;
+          _selectedSidebarIndex = ProviderManager.availableProviders.indexWhere(
+            (p) => p['id'] == _currentProvider
+          );
+          if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
+        });
+        return;
+      }
+      
       if (_isSearchActive) {
          if (_movies.isNotEmpty) {
              _searchFocusNode.unfocus();
@@ -280,19 +329,70 @@ class _MoviesScreenState extends State<MoviesScreen> {
         }
       },
       child: KeyEventHandler(
-        onLeftKey: () => _navigateGrid(-1),
-        onRightKey: () => _navigateGrid(1),
-        onUpKey: () => _navigateUp(),
-        onDownKey: () => _navigateDown(),
+        onLeftKey: () {
+          // Don't intercept if search field is focused
+          if (_searchFocusNode.hasFocus) return;
+          _navigateGrid(-1);
+        },
+        onRightKey: () {
+          // Don't intercept if search field is focused
+          if (_searchFocusNode.hasFocus) return;
+          _navigateGrid(1);
+        },
+        onUpKey: () {
+          // Don't intercept if search field is focused
+          if (_searchFocusNode.hasFocus) return;
+          _navigateUp();
+        },
+        onDownKey: () {
+          // Don't intercept if search field is focused
+          if (_searchFocusNode.hasFocus) return;
+          _navigateDown();
+        },
         onBackKey: () {
+          // Don't intercept if search field is focused (allow backspace)
+          if (_searchFocusNode.hasFocus) return;
+          
+          // Close sidebar if open
+          if (_isSidebarOpen) {
+            setState(() {
+              _isSidebarOpen = false;
+              _isNavigatingCategories = true;
+              _isMenuButtonFocused = true;
+            });
+            return;
+          }
+          // Close search if active
+          if (_isSearchActive) {
+            _toggleSearch();
+            return;
+          }
           // Prevent back button from closing the app on home screen
           // Do nothing or show exit confirmation
         },
         onEnterKey: () {
-        // If search is focused (user is in search input), perform search
-        if (_isSearchFocused && _isSearchActive) {
+        // If search field is focused, perform search
+        if (_searchFocusNode.hasFocus && _isSearchActive) {
             _performSearch(_searchController.text);
             return;
+        }
+        
+        // If sidebar is open, select the provider
+        if (_isSidebarOpen) {
+          final selectedProvider = ProviderManager.availableProviders[_selectedSidebarIndex];
+          _handleProviderChange(selectedProvider['id'] as String);
+          return;
+        }
+        // If menu button is focused, open sidebar
+        if (_isMenuButtonFocused) {
+          setState(() {
+            _isSidebarOpen = true;
+            _selectedSidebarIndex = ProviderManager.availableProviders.indexWhere(
+              (p) => p['id'] == _currentProvider
+            );
+            if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
+          });
+          return;
         }
         // If search icon is focused in category navigation, toggle search
         if (_isNavigatingCategories && _isSearchFocused) {
@@ -300,7 +400,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
             return;
         }
         // Otherwise, open the selected movie
-        if (_movies.isNotEmpty) {
+        if (_movies.isNotEmpty && !_isNavigatingCategories) {
           _showMovieDetails(_movies[_selectedMovieIndex]);
         }
       },
@@ -348,7 +448,11 @@ class _MoviesScreenState extends State<MoviesScreen> {
             // Sidebar Overlay
             if (_isSidebarOpen) 
               GestureDetector(
-                onTap: () => setState(() => _isSidebarOpen = false),
+                onTap: () => setState(() {
+                  _isSidebarOpen = false;
+                  _isNavigatingCategories = true;
+                  _isMenuButtonFocused = true;
+                }),
                 child: Container(color: Colors.black.withOpacity(0.5)),
               ),
 
@@ -361,6 +465,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 width: 250,
                 child: Sidebar(
                   selectedProvider: _currentProvider,
+                  focusedIndex: _selectedSidebarIndex,
                   onProviderSelected: _handleProviderChange,
                 ),
               ),
@@ -374,12 +479,13 @@ class _MoviesScreenState extends State<MoviesScreen> {
   void _handleProviderChange(String provider) {
     setState(() {
       _isSidebarOpen = false;
+      _isNavigatingCategories = true;
+      _isMenuButtonFocused = true;
     });
     
     if (provider != _currentProvider) {
       _providerManager.setProvider(provider);
       // Reload data for the new provider
-      // For now, only Drive is supported, but this is where you'd switch logic
       _loadMovies();
     }
   }
@@ -413,10 +519,34 @@ class _MoviesScreenState extends State<MoviesScreen> {
                   ),
                   textInputAction: TextInputAction.search,
                   onSubmitted: _performSearch,
+                  onChanged: (value) {
+                    // Auto-focus search field when typing
+                    if (!_isSearchFocused) {
+                      setState(() {
+                        _isSearchFocused = true;
+                        _isNavigatingCategories = true;
+                      });
+                    }
+                  },
                 ),
               ),
             ),
-            const SizedBox(width: 20),
+            const SizedBox(width: 15),
+            // Search Submit Button
+            GestureDetector(
+              onTap: () => _performSearch(_searchController.text),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                ),
+                child: const Icon(Icons.send, color: Colors.white, size: 20),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Close Search Button
             GestureDetector(
               onTap: _toggleSearch,
               child: Container(
@@ -438,13 +568,29 @@ class _MoviesScreenState extends State<MoviesScreen> {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white, size: 28),
-            onPressed: () {
+          GestureDetector(
+            onTap: () {
               setState(() {
                 _isSidebarOpen = !_isSidebarOpen;
+                if (_isSidebarOpen) {
+                  _selectedSidebarIndex = ProviderManager.availableProviders.indexWhere(
+                    (p) => p['id'] == _currentProvider
+                  );
+                  if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
+                }
               });
             },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _isMenuButtonFocused ? Colors.red : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: _isMenuButtonFocused
+                    ? Border.all(color: Colors.white, width: 2)
+                    : null,
+              ),
+              child: const Icon(Icons.menu, color: Colors.white, size: 28),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -456,7 +602,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 itemBuilder: (context, index) {
                   final category = _categories[index];
                   final isSelected = index == _selectedCategoryIndex;
-                  final isFocused = _isNavigatingCategories && isSelected && !_isSearchFocused && !_isSearchActive;
+                  final isFocused = _isNavigatingCategories && isSelected && !_isSearchFocused && !_isSearchActive && !_isMenuButtonFocused;
                   
                   return Padding(
                     padding: const EdgeInsets.only(right: 20),
@@ -465,6 +611,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                             setState(() {
                                 _isSearchFocused = false;
                                 _isSearchActive = false;
+                                _isMenuButtonFocused = false;
                                 _selectedCategoryIndex = index;
                                 _isNavigatingCategories = false;
                             });

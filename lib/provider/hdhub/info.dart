@@ -113,51 +113,57 @@ class HdhubInfoParser {
   static List<DownloadLink> _parseEpisodeLinks(Element container, String title) {
     final links = <DownloadLink>[];
     
-    // Method 1: Look for strong tags containing "EPiSODE"
-    final episodeStrongs = container.querySelectorAll('strong');
-    for (var strong in episodeStrongs) {
-      if (strong.text.contains('EPiSODE')) {
-        final parent = strong.parent;
-        if (parent == null) continue;
+    // Method 1: New format - Look for h4 tags with "EPISODE X" in anchor tags
+    final h4Elements = container.querySelectorAll('h4');
+    for (var h4 in h4Elements) {
+      final episodeAnchors = h4.querySelectorAll('a');
+      for (var anchor in episodeAnchors) {
+        final anchorText = anchor.text.trim();
         
-        final epTitle = parent.text.trim().toUpperCase();
-        
-        // Try to find link in next siblings
-        var nextSibling = parent.nextElementSibling;
-        String? episodeLink;
-        
-        // Look through next siblings for anchor tag
-        int attempts = 0;
-        while (nextSibling != null && attempts < 3) {
-          final anchor = nextSibling.querySelector('a');
-          if (anchor != null) {
-            episodeLink = anchor.attributes['href'];
-            break;
+        // Check if this is an episode link (not a WATCH link)
+        if (anchorText.toUpperCase().startsWith('EPISODE') && 
+            !anchorText.toUpperCase().contains('WATCH')) {
+          
+          final episodeLink = anchor.attributes['href'];
+          if (episodeLink != null && episodeLink.isNotEmpty) {
+            links.add(DownloadLink(
+              quality: '',
+              size: '',
+              url: episodeLink,
+              season: title,
+              episodeInfo: anchorText.toUpperCase(),
+            ));
           }
-          nextSibling = nextSibling.nextElementSibling;
-          attempts++;
-        }
-
-        if (episodeLink != null && episodeLink.isNotEmpty) {
-          links.add(DownloadLink(
-            quality: '',
-            size: '',
-            url: episodeLink,
-            season: title,
-            episodeInfo: epTitle,
-          ));
         }
       }
     }
 
-    // Method 2: Look for anchor tags containing "EPiSODE"
+    // Method 2: Original format - Look for strong tags containing "EPiSODE"
     if (links.isEmpty) {
-      final episodeAnchors = container.querySelectorAll('a');
-      for (var anchor in episodeAnchors) {
-        if (anchor.text.contains('EPiSODE')) {
-          final epTitle = anchor.text.trim().toUpperCase();
-          final episodeLink = anchor.attributes['href'];
+      final episodeStrongs = container.querySelectorAll('strong');
+      for (var strong in episodeStrongs) {
+        if (strong.text.contains('EPiSODE')) {
+          final parent = strong.parent;
+          if (parent == null) continue;
           
+          final epTitle = parent.text.trim().toUpperCase();
+          
+          // Try to find link in next siblings
+          var nextSibling = parent.nextElementSibling;
+          String? episodeLink;
+          
+          // Look through next siblings for anchor tag
+          int attempts = 0;
+          while (nextSibling != null && attempts < 3) {
+            final anchor = nextSibling.querySelector('a');
+            if (anchor != null) {
+              episodeLink = anchor.attributes['href'];
+              break;
+            }
+            nextSibling = nextSibling.nextElementSibling;
+            attempts++;
+          }
+
           if (episodeLink != null && episodeLink.isNotEmpty) {
             links.add(DownloadLink(
               quality: '',
@@ -170,6 +176,46 @@ class HdhubInfoParser {
         }
       }
     }
+
+    // Method 3: Fallback - Look for anchor tags containing "EPiSODE" or "EPISODE"
+    if (links.isEmpty) {
+      final episodeAnchors = container.querySelectorAll('a');
+      for (var anchor in episodeAnchors) {
+        final anchorText = anchor.text.trim().toUpperCase();
+        
+        if ((anchorText.contains('EPISODE') || anchorText.contains('EPiSODE')) &&
+            !anchorText.contains('WATCH')) {
+          
+          final episodeLink = anchor.attributes['href'];
+          if (episodeLink != null && episodeLink.isNotEmpty) {
+            links.add(DownloadLink(
+              quality: '',
+              size: '',
+              url: episodeLink,
+              season: title,
+              episodeInfo: anchorText,
+            ));
+          }
+        }
+      }
+    }
+
+    // Sort episodes by episode number if possible
+    links.sort((a, b) {
+      final aEpisodeInfo = a.episodeInfo ?? '';
+      final bEpisodeInfo = b.episodeInfo ?? '';
+      
+      final aMatch = RegExp(r'EPISODE\s*(\d+)', caseSensitive: false).firstMatch(aEpisodeInfo);
+      final bMatch = RegExp(r'EPISODE\s*(\d+)', caseSensitive: false).firstMatch(bEpisodeInfo);
+      
+      if (aMatch != null && bMatch != null) {
+        final aNum = int.tryParse(aMatch.group(1) ?? '0') ?? 0;
+        final bNum = int.tryParse(bMatch.group(1) ?? '0') ?? 0;
+        return aNum.compareTo(bNum);
+      }
+      
+      return aEpisodeInfo.compareTo(bEpisodeInfo);
+    });
 
     return links;
   }

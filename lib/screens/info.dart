@@ -35,6 +35,7 @@ class _InfoScreenState extends State<InfoScreen> {
   bool _isBackButtonFocused = false;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SeasonListState> _seasonListKey = GlobalKey<SeasonListState>();
+  final GlobalKey<SeasonListState> _qualityListKey = GlobalKey<SeasonListState>();
   
   // Provider Manager for multi-provider support
   final ProviderManager _providerManager = ProviderManager();
@@ -414,7 +415,16 @@ class _InfoScreenState extends State<InfoScreen> {
     return KeyEventHandler(
       onLeftKey: () {
         if (_isQualitySelectorFocused) {
-          _navigateQualities(-1);
+          // Navigate from quality to season (if seasons exist)
+          final seasons = _getAvailableSeasons();
+          if (seasons.length > 1) {
+            setState(() {
+              _isQualitySelectorFocused = false;
+              _isSeasonSelectorFocused = true;
+            });
+          } else {
+            _navigateQualities(-1);
+          }
         } else if (_isSeasonSelectorFocused) {
           _navigateSeasons(-1);
         } else {
@@ -422,10 +432,14 @@ class _InfoScreenState extends State<InfoScreen> {
         }
       },
       onRightKey: () {
-        if (_isQualitySelectorFocused) {
+        if (_isSeasonSelectorFocused) {
+          // Navigate from season to quality
+          setState(() {
+            _isSeasonSelectorFocused = false;
+            _isQualitySelectorFocused = true;
+          });
+        } else if (_isQualitySelectorFocused) {
           _navigateQualities(1);
-        } else if (_isSeasonSelectorFocused) {
-          _navigateSeasons(1);
         } else {
           _navigateDownloads(1);
         }
@@ -437,9 +451,11 @@ class _InfoScreenState extends State<InfoScreen> {
           Navigator.of(context).pop();
         } else if (_isQualitySelectorFocused) {
           _selectCurrentQuality();
-          _seasonListKey.currentState?.openDropdown();
+          _qualityListKey.currentState?.openDropdown();
         } else if (_isSeasonSelectorFocused) {
           _selectCurrentSeason();
+          // Open season dropdown if available
+          _seasonListKey.currentState?.openDropdown();
         } else {
           // If episodes are loaded, play the selected episode
           if (_episodes.isNotEmpty && _selectedDownloadIndex < _episodes.length) {
@@ -750,6 +766,7 @@ class _InfoScreenState extends State<InfoScreen> {
                 SizedBox(
                   width: 240,
                   child: SeasonList(
+                    key: _seasonListKey,
                     items: seasons,
                     selectedItem: _selectedSeason,
                     label: "Season",
@@ -770,7 +787,7 @@ class _InfoScreenState extends State<InfoScreen> {
               SizedBox(
                 width: 240,
                 child: SeasonList(
-                  key: _seasonListKey,
+                  key: _qualityListKey,
                   items: qualities,
                   selectedItem: _selectedQuality,
                   label: "Quality",
