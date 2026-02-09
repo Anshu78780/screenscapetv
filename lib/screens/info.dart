@@ -8,8 +8,6 @@ import '../provider/desiremovies/index.dart';
 import '../provider/moviesmod/index.dart';
 import '../provider/zinkmovies/info.dart' as zinkmovies_info;
 import '../provider/zinkmovies/getstream.dart' as zinkmovies_stream;
-import '../provider/animesalt/info.dart' as animesalt_info;
-import '../provider/animesalt/getstream.dart' as animesalt_stream;
 import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
@@ -93,9 +91,6 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Zinkmovies':
           movieInfo = await zinkmovies_info.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Animesalt':
-          movieInfo = await animesalt_info.animesaltGetInfo(widget.movieUrl);
           break;
         case 'Drive':
         default:
@@ -363,11 +358,6 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _navigateVertical(int delta) {
     setState(() {
-      final qualities = _getAvailableQualities();
-      final seasons = _getAvailableSeasons();
-      final hasQualities = qualities.isNotEmpty;
-      final hasSeasons = seasons.length > 1;
-      
       if (delta < 0) {
         // Up arrow
         if (!_isBackButtonFocused &&
@@ -375,23 +365,16 @@ class _InfoScreenState extends State<InfoScreen> {
             !_isSeasonSelectorFocused &&
             _selectedDownloadIndex == 0) {
           // From first download to quality/season selector
-          if (hasSeasons) {
+          final seasons = _getAvailableSeasons();
+          if (seasons.length > 1) {
             _isSeasonSelectorFocused = true;
-          } else if (hasQualities) {
-            _isQualitySelectorFocused = true;
           } else {
-            _isBackButtonFocused = true;
-            _scrollToTop();
+            _isQualitySelectorFocused = true;
           }
         } else if (_isSeasonSelectorFocused) {
-          // From season to quality selector or back button
+          // From season to quality selector
           _isSeasonSelectorFocused = false;
-          if (hasQualities) {
-            _isQualitySelectorFocused = true;
-          } else {
-            _isBackButtonFocused = true;
-            _scrollToTop();
-          }
+          _isQualitySelectorFocused = true;
         } else if (_isQualitySelectorFocused) {
           // From quality selector to back button
           _isQualitySelectorFocused = false;
@@ -406,18 +389,14 @@ class _InfoScreenState extends State<InfoScreen> {
       } else {
         // Down arrow
         if (_isBackButtonFocused) {
-          // From back button to quality selector or season selector or downloads
+          // From back button to quality selector
           _isBackButtonFocused = false;
-          if (hasQualities) {
-            _isQualitySelectorFocused = true;
-          } else if (hasSeasons) {
-            _isSeasonSelectorFocused = true;
-          }
-          // If neither, focus stays on downloads (default)
+          _isQualitySelectorFocused = true;
         } else if (_isQualitySelectorFocused) {
           // From quality selector to season selector or downloads
           _isQualitySelectorFocused = false;
-          if (hasSeasons) {
+          final seasons = _getAvailableSeasons();
+          if (seasons.length > 1) {
             _isSeasonSelectorFocused = true;
           }
         } else if (_isSeasonSelectorFocused) {
@@ -490,16 +469,11 @@ class _InfoScreenState extends State<InfoScreen> {
       },
       onRightKey: () {
         if (_isSeasonSelectorFocused) {
-          // Navigate from season to quality (if quality exists)
-          final qualities = _getAvailableQualities();
-          if (qualities.isNotEmpty) {
-            setState(() {
-              _isSeasonSelectorFocused = false;
-              _isQualitySelectorFocused = true;
-            });
-          } else {
-            _navigateSeasons(1);
-          }
+          // Navigate from season to quality
+          setState(() {
+            _isSeasonSelectorFocused = false;
+            _isQualitySelectorFocused = true;
+          });
         } else if (_isQualitySelectorFocused) {
           _navigateQualities(1);
         } else {
@@ -883,27 +857,25 @@ class _InfoScreenState extends State<InfoScreen> {
                 ),
                 const SizedBox(width: 16),
               ],
-              if (qualities.isNotEmpty) ...[
-                SizedBox(
-                  width: 240,
-                  child: SeasonList(
-                    key: _qualityListKey,
-                    items: qualities,
-                    selectedItem: _selectedQuality,
-                    label: "Quality",
-                    icon: Icons.hd_outlined,
-                    isFocused: _isQualitySelectorFocused,
-                    onChanged: (quality) {
-                      setState(() {
-                        _selectedQuality = quality;
-                        _selectedDownloadIndex = 0;
-                        _selectedQualityIndex = qualities.indexOf(quality);
-                      });
-                      _loadEpisodesIfNeeded();
-                    },
-                  ),
+              SizedBox(
+                width: 240,
+                child: SeasonList(
+                  key: _qualityListKey,
+                  items: qualities,
+                  selectedItem: _selectedQuality,
+                  label: "Quality",
+                  icon: Icons.hd_outlined,
+                  isFocused: _isQualitySelectorFocused,
+                  onChanged: (quality) {
+                    setState(() {
+                      _selectedQuality = quality;
+                      _selectedDownloadIndex = 0;
+                      _selectedQualityIndex = qualities.indexOf(quality);
+                    });
+                    _loadEpisodesIfNeeded();
+                  },
                 ),
-              ],
+              ),
             ],
           ),
 
@@ -1435,22 +1407,6 @@ class _InfoScreenState extends State<InfoScreen> {
 
       if (_currentProvider == 'Zinkmovies') {
         final streams = await zinkmovies_stream.getStream(downloadLink.url, downloadLink.quality);
-        setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      if (_currentProvider == 'Animesalt') {
-        final streams = await animesalt_stream.animesaltGetStream(downloadLink.url, 'anime');
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);
