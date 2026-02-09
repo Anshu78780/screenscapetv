@@ -4,6 +4,7 @@ import '../provider/drive/index.dart';
 import '../provider/hdhub/index.dart';
 import '../provider/xdmovies/index.dart';
 import '../provider/desiremovies/index.dart';
+import '../provider/moviesmod/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -49,6 +50,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return XdmoviesCatalog.categories;
       case 'Desiremovies':
         return DesireMoviesCatalog.categories;
+      case 'Moviesmod':
+        return MoviesmodCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -93,6 +96,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
           final categoryUrl = await DesireMoviesCatalog.getCategoryUrl(category['path']!);
           movies = await DesireMoviesGetPost.fetchMovies(categoryUrl);
           break;
+        case 'Moviesmod':
+          final categoryUrl = await MoviesmodCatalog.getCategoryUrl(category['path']!);
+          movies = await MoviesmodGetPost.fetchMovies(categoryUrl);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -130,6 +137,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Desiremovies':
           movies = await DesireMoviesGetPost.searchMovies(query);
+          break;
+        case 'Moviesmod':
+          movies = await MoviesmodGetPost.searchMovies(query);
           break;
         case 'Xdmovies':
           movies = await XdmoviesGetPost.searchMovies(query);

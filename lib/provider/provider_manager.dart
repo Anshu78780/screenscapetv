@@ -49,6 +49,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'DesireMovies',
       'icon': Icons.local_movies_outlined,
     },
+    {
+      'id': 'Moviesmod',
+      'name': 'Moviesmod',
+      'icon': Icons.movie_creation_outlined,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',
