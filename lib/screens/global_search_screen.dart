@@ -32,7 +32,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   // Map to store loading state: ProviderID -> bool
   final Map<String, bool> _loading = {};
   
-  // Map to store errors/empty states if needed, or just rely on empty list
+  // Map to store errors/empty states if needed
   final Map<String, String> _errors = {};
 
   bool _hasSearched = false;
@@ -44,7 +44,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-focus search on load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchFocusNode.requestFocus();
     });
@@ -61,7 +60,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     super.dispose();
   }
 
-  // Get list of providers that are actually visible (loading or have results)
   List<String> _getVisibleProviders() {
     return ProviderManager.availableProviders
         .map((p) => p['id'] as String)
@@ -75,7 +73,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _performGlobalSearch(String query) {
     if (query.trim().isEmpty) return;
     
-    // Unfocus search bar to allow navigation
     _searchFocusNode.unfocus();
 
     setState(() {
@@ -83,7 +80,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       _results.clear();
       _errors.clear();
       _loading.clear();
-      _selectedProviderIndex = -1; // Keep focus on search bar initially
+      _selectedProviderIndex = -1;
     });
 
     final providers = ProviderManager.availableProviders;
@@ -102,7 +99,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     try {
       List<Movie> movies = [];
       
-      // Call appropriate search function based on provider ID
       switch (providerId) {
         case 'Drive':
           movies = await drive.GetPost.searchMovies(query);
@@ -137,9 +133,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           _results[providerId] = movies;
           _loading[providerId] = false;
         });
-        
-        // If this is the first result and we're not focused on anything, 
-        // essentially we keep waiting. User will navigate down manually.
       }
     } catch (e) {
       print('Error searching $providerId: $e');
@@ -153,7 +146,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   void _navigateToInfo(Movie movie, String providerId) {
-    // Set the global provider first
     ProviderManager().setProvider(providerId);
     
     Navigator.push(
@@ -164,7 +156,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 
-  // Navigation Logic
   void _navigateHorizontal(int delta) {
     if (_searchFocusNode.hasFocus) return;
 
@@ -175,7 +166,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final providerId = visibleProviders[_selectedProviderIndex];
     final results = _results[providerId] ?? [];
     
-    if (results.isEmpty) return; // Can't navigate loading shimmers
+    if (results.isEmpty) return;
 
     setState(() {
       _selectedMovieIndex = (_selectedMovieIndex + delta).clamp(0, results.length - 1);
@@ -187,14 +178,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _navigateVertical(int delta) {
     final visibleProviders = _getVisibleProviders();
     
-    // Create ScrollController for provider if it doesn't exist
     for (var id in visibleProviders) {
       if (!_horizontalScrollControllers.containsKey(id)) {
         _horizontalScrollControllers[id] = ScrollController();
       }
     }
 
-    // Moving down from search bar
     if (_searchFocusNode.hasFocus) {
       if (delta > 0 && visibleProviders.isNotEmpty) {
         _searchFocusNode.unfocus();
@@ -207,13 +196,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       return;
     }
 
-    // Moving up to search bar
     if (delta < 0 && _selectedProviderIndex <= 0) {
       setState(() {
         _selectedProviderIndex = -1;
       });
       _searchFocusNode.requestFocus();
-      // Scroll to top
       if (_verticalScrollController.hasClients) {
         _verticalScrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       }
@@ -226,7 +213,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       final newIndex = _selectedProviderIndex + delta;
       if (newIndex >= 0 && newIndex < visibleProviders.length) {
         _selectedProviderIndex = newIndex;
-        _selectedMovieIndex = 0; // Reset horizontal selection when changing rows
+        _selectedMovieIndex = 0;
         _scrollToSelectedVertical();
       }
     });
@@ -235,13 +222,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedVertical() {
     if (!_verticalScrollController.hasClients) return;
     
-    // Approximate height logic: header + (card height + padding) * index
-    // This is rough but works for uniform lists. 
-    // Header ~ 100px. Each provider section ~ 280-300px.
-    const double sectionHeight = 300.0; 
-    const double headerHeight = 100.0;
+    const double sectionHeight = 400.0; 
+    const double headerHeight = 120.0;
     
-    final targetOffset = (_selectedProviderIndex * sectionHeight) + headerHeight - 100; // -100 to center a bit
+    final targetOffset = (_selectedProviderIndex * sectionHeight) + headerHeight - 100;
     
     _verticalScrollController.animateTo(
       targetOffset.clamp(0.0, _verticalScrollController.position.maxScrollExtent),
@@ -253,11 +237,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedHorizontal(String providerId) {
     final controller = _horizontalScrollControllers[providerId];
     if (controller != null && controller.hasClients) {
-      const double cardWidth = 140.0;
-      const double gap = 16.0;
+      const double cardWidth = 150.0;
+      const double gap = 24.0;
       const double itemExtent = cardWidth + gap;
       
-      final targetOffset = (_selectedMovieIndex * itemExtent) - 50; // -50 to show some context
+      final targetOffset = (_selectedMovieIndex * itemExtent) - 75; 
       
       controller.animateTo(
         targetOffset.clamp(0.0, controller.position.maxScrollExtent),
@@ -298,7 +282,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         if (_searchFocusNode.hasFocus) {
            Navigator.pop(context);
         } else {
-          // If in results, go back to details search
           _searchFocusNode.requestFocus();
           setState(() {
             _selectedProviderIndex = -1;
@@ -309,38 +292,51 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0D0D0D), // Deep dark background
+        backgroundColor: const Color(0xFF0D0D0D),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: const Text('Global Search'),
+          title: const Text('Global Search', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+          centerTitle: false,
         ),
         body: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search across all providers...',
-                  hintStyle: TextStyle(color: Colors.grey[600]),
-                  prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-                  filled: true,
-                  fillColor: _searchFocusNode.hasFocus 
-                      ? Colors.white.withOpacity(0.15) 
-                      : const Color(0xFF1E1E1E),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: _searchFocusNode.hasFocus
-                        ? const BorderSide(color: Color(0xFFFFD700), width: 1.5)
-                        : BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: _searchFocusNode.hasFocus 
+                      ? [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.2), blurRadius: 16, spreadRadius: 1)]
+                      : [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))],
                 ),
-                onSubmitted: _performGlobalSearch,
-                textInputAction: TextInputAction.search,
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  decoration: InputDecoration(
+                    hintText: 'Search movies & shows...',
+                    hintStyle: TextStyle(color: Colors.grey[600]),
+                    prefixIcon: Icon(
+                      Icons.search, 
+                      color: _searchFocusNode.hasFocus ? const Color(0xFFFFD700) : Colors.grey[500]
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFF1E1E1E),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(color: Color(0xFFFFD700), width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+                  ),
+                  onSubmitted: _performGlobalSearch,
+                  textInputAction: TextInputAction.search,
+                ),
               ),
             ),
             
@@ -350,11 +346,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.search, size: 64, color: Colors.grey[800]),
-                      const SizedBox(height: 16),
+                      Icon(Icons.movie_filter_outlined, size: 80, color: Colors.grey[900]),
+                      const SizedBox(height: 24),
                       Text(
-                        'Search for movies & TV shows',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                        'Discover content across all providers',
+                        style: TextStyle(color: Colors.grey[700], fontSize: 16),
                       ),
                     ],
                   ),
@@ -364,7 +360,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               Expanded(
                 child: ListView(
                   controller: _verticalScrollController,
-                  padding: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.only(bottom: 50),
                   children: ProviderManager.availableProviders.map((provider) {
                     return _buildProviderSection(provider);
                   }).toList(),
@@ -381,18 +377,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final isLoading = _loading[providerId] == true;
     final results = _results[providerId] ?? [];
     
-    // Hide section if not loading and no results
     if (!isLoading && results.isEmpty) {
       return const SizedBox.shrink();
     }
     
-    // Determine if this provider row is selected
     final visibleProviders = _getVisibleProviders();
     final isProviderSelected = _selectedProviderIndex >= 0 && 
                                _selectedProviderIndex < visibleProviders.length &&
                                visibleProviders[_selectedProviderIndex] == providerId;
 
-    // Initialize controller for this provider if needed
     if (!_horizontalScrollControllers.containsKey(providerId)) {
       _horizontalScrollControllers[providerId] = ScrollController();
     }
@@ -401,48 +394,58 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
           child: Row(
             children: [
-              Icon(
-                provider['icon'] as IconData, 
-                size: 20, 
-                color: isProviderSelected ? const Color(0xFFFFD700) : Colors.grey[400],
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isProviderSelected ? const Color(0xFFFFD700).withOpacity(0.1) : Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  provider['icon'] as IconData, 
+                  size: 20, 
+                  color: isProviderSelected ? const Color(0xFFFFD700) : Colors.grey[400],
+                ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Text(
                 provider['name'] as String,
                 style: TextStyle(
                   color: isProviderSelected ? Colors.white : Colors.white70,
-                  fontSize: 18,
-                  fontWeight: isProviderSelected ? FontWeight.bold : FontWeight.w500,
-                  shadows: isProviderSelected 
-                    ? [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.5), blurRadius: 10)]
-                    : null,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
                 ),
               ),
               if (isLoading) ...[
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 const SizedBox(
                   width: 16, 
                   height: 16, 
-                  child: CircularProgressIndicator(strokeWidth: 2)
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFD700))
                 ),
               ] else if (results.isNotEmpty) ...[
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: isProviderSelected 
                         ? const Color(0xFFFFD700).withOpacity(0.2)
                         : Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isProviderSelected ? const Color(0xFFFFD700).withOpacity(0.3) : Colors.transparent,
+                      width: 1,
+                    )
                   ),
                   child: Text(
                     '${results.length}',
                     style: TextStyle(
-                      color: isProviderSelected ? const Color(0xFFFFD700) : Colors.white70,
-                      fontSize: 12
+                      color: isProviderSelected ? const Color(0xFFFFD700) : Colors.white60,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -453,24 +456,24 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         
         if (isLoading && results.isEmpty)
           SizedBox(
-            height: 200, // Placeholder height
+            height: 250,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               itemCount: 3,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              separatorBuilder: (_, __) => const SizedBox(width: 24),
               itemBuilder: (context, index) => _buildShimmerCard(),
             ),
           )
         else if (results.isNotEmpty)
           SizedBox(
-            height: 240, // Height for posters
+            height: 320,
             child: ListView.separated(
               controller: _horizontalScrollControllers[providerId],
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               itemCount: results.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              separatorBuilder: (_, __) => const SizedBox(width: 24),
               itemBuilder: (context, index) {
                 final isSelected = isProviderSelected && _selectedMovieIndex == index;
                 return _buildMovieCard(results[index], providerId, isSelected);
@@ -483,152 +486,140 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _buildShimmerCard() {
     return Container(
-      width: 140,
+      width: 150,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
       ),
     );
   }
 
   Widget _buildMovieCard(Movie movie, String providerId, bool isSelected) {
-    return AnimatedScale(
-      scale: isSelected ? 1.1 : 1.0,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOutBack,
-      child: Container(
-        width: 140,
-        decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+    return Center(
+      child: AnimatedScale(
+        scale: isSelected ? 1.15 : 1.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.fastOutSlowIn,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          width: 150,
+          curve: Curves.fastOutSlowIn,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFFFD700).withOpacity(0.3), // Gold glow
-                      blurRadius: 20,
+                      color: const Color(0xFFFFD700).withOpacity(0.4),
+                      blurRadius: 24,
                       spreadRadius: 2,
-                      offset: const Offset(0, 10),
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFFFFD700).withOpacity(0.1),
-                      blurRadius: 10,
-                      spreadRadius: -2,
+                      offset: const Offset(0, 12),
                     ),
                   ]
-                : null,
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    )
+                  ],
           ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _navigateToInfo(movie, providerId),
-            borderRadius: BorderRadius.circular(12),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.network(
-                    movie.imageUrl,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[800],
-                        child: const Center(
-                          child: Icon(Icons.broken_image, color: Colors.white54),
-                        ),
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded / 
-                                loadingProgress.expectedTotalBytes!
-                              : null,
-                          strokeWidth: 2,
-                        ),
-                      );
-                    },
-                  ),
-                  
-                  // Gradient Overlay
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.2),
-                          Colors.black.withOpacity(0.9),
-                        ],
-                        stops: const [0.6, 0.8, 1.0],
+          child: Material(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: () => _navigateToInfo(movie, providerId),
+              borderRadius: BorderRadius.circular(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      movie.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: const Color(0xFF2A2A2A),
+                        child: Icon(Icons.movie, color: Colors.white.withOpacity(0.1), size: 40),
                       ),
                     ),
-                  ),
-
-                   // Selection Border
-                  if (isSelected)
+                    
                     Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFFFFD700),
-                          width: 2.5,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.0),
+                            Colors.black.withOpacity(0.6),
+                            Colors.black.withOpacity(0.95),
+                          ],
+                          stops: const [0.0, 0.5, 0.8, 1.0],
                         ),
                       ),
                     ),
 
-                  // Title and Info
-                  Positioned(
-                    bottom: 12,
-                    left: 10,
-                    right: 10,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          movie.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withOpacity(0.8),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+                    if (isSelected)
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFFFD700),
+                            width: 3.0,
                           ),
                         ),
-                        if (movie.quality.isNotEmpty)
+                      ),
+
+                    Positioned(
+                      bottom: 16,
+                      left: 12,
+                      right: 12,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (movie.quality.isNotEmpty)
                           Padding(
-                            padding: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.only(bottom: 6),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFD700),
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 movie.quality,
                                 style: const TextStyle(
                                   color: Colors.black,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
                             ),
                           ),
-                      ],
+                          Text(
+                            movie.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.white.withOpacity(0.8),
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                              height: 1.2,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withOpacity(0.8),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -637,4 +628,3 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 }
-
