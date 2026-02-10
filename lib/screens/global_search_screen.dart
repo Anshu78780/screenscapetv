@@ -11,6 +11,7 @@ import '../provider/moviesmod/getpost.dart';
 import '../provider/zinkmovies/getpost.dart';
 import '../provider/animesalt/getpost.dart';
 import '../provider/movies4u/getpost.dart';
+import '../provider/filmycab/getpost.dart';
 import 'info.dart';
 
 class GlobalSearchScreen extends StatefulWidget {
@@ -73,7 +74,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _performGlobalSearch(String query) {
     if (query.trim().isEmpty) return;
     
-    _searchFocusNode.unfocus();
+    // Keep focus on search bar until user navigates away
+    // _searchFocusNode.unfocus(); 
 
     setState(() {
       _hasSearched = true;
@@ -123,6 +125,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           break;
         case 'Movies4u':
           movies = await Movies4uGetPost.searchMovies(query);
+          break;
+        case 'Filmycab':
+          movies = await FilmyCabGetPost.searchMovies(query);
           break;
         default:
           print('Unknown provider: $providerId');
@@ -222,7 +227,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedVertical() {
     if (!_verticalScrollController.hasClients) return;
     
-    const double sectionHeight = 400.0; 
+    const double sectionHeight = 310.0; // Reduced height
     const double headerHeight = 120.0;
     
     final targetOffset = (_selectedProviderIndex * sectionHeight) + headerHeight - 100;
@@ -237,8 +242,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedHorizontal(String providerId) {
     final controller = _horizontalScrollControllers[providerId];
     if (controller != null && controller.hasClients) {
-      const double cardWidth = 150.0;
-      const double gap = 24.0;
+      const double cardWidth = 130.0; // Reduced width
+      const double gap = 20.0; // Reduced gap
       const double itemExtent = cardWidth + gap;
       
       final targetOffset = (_selectedMovieIndex * itemExtent) - 75; 
@@ -456,24 +461,24 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         
         if (isLoading && results.isEmpty)
           SizedBox(
-            height: 250,
+            height: 210, // Reduced placeholder height
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               itemCount: 3,
-              separatorBuilder: (_, __) => const SizedBox(width: 24),
+              separatorBuilder: (_, __) => const SizedBox(width: 20),
               itemBuilder: (context, index) => _buildShimmerCard(),
             ),
           )
         else if (results.isNotEmpty)
           SizedBox(
-            height: 320,
+            height: 270, // Reduced container height
             child: ListView.separated(
               controller: _horizontalScrollControllers[providerId],
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
               itemCount: results.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 24),
+              separatorBuilder: (_, __) => const SizedBox(width: 20),
               itemBuilder: (context, index) {
                 final isSelected = isProviderSelected && _selectedMovieIndex == index;
                 return _buildMovieCard(results[index], providerId, isSelected);
@@ -486,7 +491,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _buildShimmerCard() {
     return Container(
-      width: 150,
+      width: 130, // Reduced width
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
@@ -502,7 +507,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         curve: Curves.fastOutSlowIn,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          width: 150,
+          width: 130, // Reduced width
           curve: Curves.fastOutSlowIn,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),

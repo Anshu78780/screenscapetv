@@ -62,6 +62,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'VegaMovies',
       'icon': Icons.videocam_outlined,
     },
+    {
+      'id': 'Filmycab',
+      'name': 'FilmyCab',
+      'icon': Icons.local_movies,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

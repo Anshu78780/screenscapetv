@@ -9,6 +9,7 @@ import '../provider/zinkmovies/index.dart';
 import '../provider/animesalt/index.dart';
 import '../provider/movies4u/index.dart';
 import '../provider/vega/index.dart';
+import '../provider/filmycab/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -65,6 +66,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return Movies4uCatalog.categories;
       case 'Vega':
         return VegaCatalog.categories;
+      case 'Filmycab':
+        return FilmyCabCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -126,6 +129,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'Vega':
           movies = await vegaGetPosts(category['filter']!, 1, 'Vega');
           break;
+        case 'Filmycab':
+          movies = await FilmyCabGetPost.fetchMovies(category['path']!);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -149,8 +155,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
   Future<void> _performSearch(String query) async {
     if (query.isEmpty) return;
     
-    // Unfocus immediately to ensure navigation keys work later
-    _searchFocusNode.unfocus();
+    // Keep focus on search bar until navigation
+    // _searchFocusNode.unfocus();
     
     setState(() {
       _isLoading = true;
@@ -182,6 +188,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'Vega':
           movies = await vegaGetPostsSearch(query, 1, 'Vega');
           break;
+        case 'Filmycab':
+          movies = await FilmyCabGetPost.searchMovies(query);
+          break;
         case 'Xdmovies':
           movies = await XdmoviesGetPost.searchMovies(query);
           break;
@@ -195,13 +204,12 @@ class _MoviesScreenState extends State<MoviesScreen> {
         _movies = movies;
         _isLoading = false;
         _selectedMovieIndex = 0;
-        // After search completes, unfocus search and move to results
-        _isNavigatingCategories = false;
-        _isSearchFocused = false;
+        // Stay in search mode until user navigates down
+        // _isNavigatingCategories = false; 
+        // _isSearchFocused = false;
       });
-      // Force clear focus from text field to enable usage of navigation keys
-      _searchFocusNode.unfocus();
-      FocusScope.of(context).unfocus(); 
+      // _searchFocusNode.unfocus();
+      // FocusScope.of(context).unfocus(); 
       
       // Ensure scrolling is reset
       if (movies.isNotEmpty) {
@@ -336,6 +344,19 @@ class _MoviesScreenState extends State<MoviesScreen> {
       _navigateSidebar(1);
       return;
     }
+
+    if (_searchFocusNode.hasFocus) {
+        if (_movies.isNotEmpty) {
+           _searchFocusNode.unfocus();
+           setState(() {
+             _isNavigatingCategories = false;
+             _isSearchFocused = false;
+             _selectedMovieIndex = 0;
+           });
+           _scrollToSelected();
+        }
+        return;
+    }
     
     if (_isNavigatingCategories) {
       if (_isMenuButtonFocused) {
@@ -432,8 +453,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
           _navigateUp();
         },
         onDownKey: () {
-          // Don't intercept if search field is focused
-          if (_searchFocusNode.hasFocus) return;
+          // Allow navigation down from search
+          // if (_searchFocusNode.hasFocus) return;
           _navigateDown();
         },
         onBackKey: () {
@@ -829,26 +850,28 @@ class _MoviesScreenState extends State<MoviesScreen> {
     return GestureDetector(
       onTap: () => _showMovieDetails(movie),
       child: AnimatedScale(
-        scale: isSelected ? 1.1 : 1.0,
+        scale: isSelected ? 1.15 : 1.0,
         duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutBack,
+        curve: Curves.fastOutSlowIn,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
+                      color: const Color(0xFFFFC107).withOpacity(0.4),
                       blurRadius: 20,
+                      spreadRadius: 2,
                       offset: const Offset(0, 10),
                     ),
-                    BoxShadow(
-                      color: const Color(0xFFFFC107).withOpacity(0.3),
-                      blurRadius: 10,
-                      spreadRadius: -2,
-                    ),
                   ]
-                : null,
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    )
+                  ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -865,6 +888,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                       },
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
+                        // ... existing loading builder
                         if (loadingProgress == null) return child;
                         return Container(
                           color: Colors.grey[850],
@@ -898,11 +922,11 @@ class _MoviesScreenState extends State<MoviesScreen> {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.4),
-                      Colors.black.withOpacity(0.9),
+                      Colors.black.withOpacity(0.0),
+                      Colors.black.withOpacity(0.6),
+                      Colors.black.withOpacity(0.95),
                     ],
-                    stops: const [0.0, 0.6, 0.8, 1.0],
+                    stops: const [0.0, 0.5, 0.8, 1.0],
                   ),
                 ),
               ),
@@ -911,11 +935,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
               if (isSelected)
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white, width: 3),
+                    border: Border.all(color: const Color(0xFFFFC107), width: 3),
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-
               // Title and Info
               Positioned(
                 bottom: 12,

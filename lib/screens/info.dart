@@ -14,6 +14,8 @@ import '../provider/movies4u/index.dart';
 import '../provider/vega/info.dart' as vega_info;
 import '../provider/vega/geteps.dart' as vega_eps;
 import '../provider/vega/getstream.dart' as vega_stream;
+import '../provider/filmycab/info.dart' as filmycab_info;
+import '../provider/filmycab/getstream.dart' as filmycab_stream;
 import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
@@ -107,6 +109,9 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Vega':
           movieInfo = await vega_info.vegaGetInfo(widget.movieUrl);
+          break;
+        case 'Filmycab':
+          movieInfo = await filmycab_info.FilmyCabInfo.fetchMovieInfo(widget.movieUrl);
           break;
         case 'Drive':
         default:
@@ -1574,6 +1579,25 @@ class _InfoScreenState extends State<InfoScreen> {
 
       if (_currentProvider == 'Desiremovies') {
         final streams = await desireMoviesGetStream(
+          downloadLink.url,
+          downloadLink.quality,
+        );
+        setState(() => _isLoadingLinks = false);
+        if (streams.isNotEmpty) {
+          _showStreamingLinksDialog(streams, downloadLink.quality);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No streams found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (_currentProvider == 'Filmycab') {
+        final streams = await filmycab_stream.filmyCabGetStream(
           downloadLink.url,
           downloadLink.quality,
         );
