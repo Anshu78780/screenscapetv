@@ -52,6 +52,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'AnimeSalt',
       'icon': Icons.animation_outlined,
     },
+    {
+      'id': 'Movies4u',
+      'name': 'Movies4u',
+      'icon': Icons.video_library_outlined,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

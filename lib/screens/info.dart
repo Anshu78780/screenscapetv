@@ -10,6 +10,7 @@ import '../provider/zinkmovies/info.dart' as zinkmovies_info;
 import '../provider/zinkmovies/getstream.dart' as zinkmovies_stream;
 import '../provider/animesalt/info.dart' as animesalt_info;
 import '../provider/animesalt/getstream.dart' as animesalt_stream;
+import '../provider/movies4u/index.dart';
 import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
@@ -96,6 +97,9 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Animesalt':
           movieInfo = await animesalt_info.animesaltGetInfo(widget.movieUrl);
+          break;
+        case 'Movies4u':
+          movieInfo = await Movies4uInfo.fetchMovieInfo(widget.movieUrl);
           break;
         case 'Drive':
         default:
@@ -346,7 +350,18 @@ class _InfoScreenState extends State<InfoScreen> {
         return;
       }
 
-      final episodes = await EpisodeParser.fetchEpisodes(processedUrl);
+      // Fetch episodes based on provider
+      List<Episode> episodes;
+      
+      switch (_currentProvider) {
+        case 'Movies4u':
+          episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
+          break;
+        default:
+          episodes = await EpisodeParser.fetchEpisodes(processedUrl);
+          break;
+      }
+      
       setState(() {
         _episodes = episodes;
         _isLoadingEpisodes = false;
@@ -1491,7 +1506,19 @@ class _InfoScreenState extends State<InfoScreen> {
 
       // Otherwise, fetch episodes from the processed URL
       print('Fetching episodes from processed URL: $processedUrl');
-      final episodes = await EpisodeParser.fetchEpisodes(processedUrl);
+      
+      // Fetch episodes based on provider
+      List<Episode> episodes;
+      
+      switch (_currentProvider) {
+        case 'Movies4u':
+          episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
+          break;
+        default:
+          episodes = await EpisodeParser.fetchEpisodes(processedUrl);
+          break;
+      }
+      
       print('Found ${episodes.length} episodes');
 
       if (episodes.isEmpty) {

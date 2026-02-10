@@ -22,6 +22,8 @@ class _EpisodeSelectionDialogState extends State<EpisodeSelectionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    const accentColor = Colors.amber;
+
     return KeyEventHandler(
       onUpKey: () {
         if (_focusedIndex > 0) {
@@ -50,13 +52,18 @@ class _EpisodeSelectionDialogState extends State<EpisodeSelectionDialog> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white10),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: accentColor.withOpacity(0.3), width: 1.5),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.5),
-                  blurRadius: 20,
+                  blurRadius: 30,
                   spreadRadius: 5,
+                ),
+                BoxShadow(
+                  color: accentColor.withOpacity(0.1),
+                  blurRadius: 20,
+                  spreadRadius: 0,
                 ),
               ],
             ),
@@ -64,23 +71,40 @@ class _EpisodeSelectionDialogState extends State<EpisodeSelectionDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Select Episode',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                Row(
+                  children: [
+                    const Icon(Icons.movie_filter_rounded, color: accentColor, size: 28),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Select Episode',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.only(left: 40),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      widget.quality,
+                      style: const TextStyle(
+                        color: accentColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.quality,
-                  style: const TextStyle(
-                    color: Colors.tealAccent,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
@@ -92,42 +116,58 @@ class _EpisodeSelectionDialogState extends State<EpisodeSelectionDialog> {
                       return GestureDetector(
                         onTap: () => Navigator.pop(context, episode),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          margin: const EdgeInsets.only(bottom: 8),
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                            horizontal: 20,
+                            vertical: 16,
                           ),
                           decoration: BoxDecoration(
                             color: isFocused 
-                                ? Colors.tealAccent.withOpacity(0.2) 
+                                ? accentColor 
                                 : Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isFocused 
-                                  ? Colors.tealAccent 
+                                  ? accentColor 
                                   : Colors.transparent,
                               width: 1,
                             ),
+                             boxShadow: isFocused
+                              ? [
+                                  BoxShadow(
+                                    color: accentColor.withOpacity(0.4),
+                                    blurRadius: 12,
+                                    spreadRadius: 1,
+                                    offset: const Offset(0, 2),
+                                  )
+                                ]
+                              : [],
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                Icons.play_circle_outline,
-                                color: isFocused ? Colors.tealAccent : Colors.white70,
-                                size: 20,
+                                isFocused ? Icons.play_circle_filled : Icons.play_circle_outline,
+                                color: isFocused ? Colors.black : Colors.white70,
+                                size: 24,
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: Text(
                                   episode.title,
                                   style: TextStyle(
-                                    color: isFocused ? Colors.white : Colors.white70,
+                                    color: isFocused ? Colors.black : Colors.white70,
                                     fontSize: 16,
-                                    fontWeight: isFocused ? FontWeight.w600 : FontWeight.normal,
+                                    fontWeight: isFocused ? FontWeight.bold : FontWeight.w500,
                                   ),
                                 ),
                               ),
+                             if (isFocused)
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Colors.black.withOpacity(0.8),
+                                  size: 16,
+                                ),
                             ],
                           ),
                         ),

@@ -7,6 +7,7 @@ import '../provider/desiremovies/index.dart';
 import '../provider/moviesmod/index.dart';
 import '../provider/zinkmovies/index.dart';
 import '../provider/animesalt/index.dart';
+import '../provider/movies4u/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -58,6 +59,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return ZinkMoviesCatalog.categories;
       case 'Animesalt':
         return AnimeSaltCatalog.categories;
+      case 'Movies4u':
+        return Movies4uCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -112,6 +115,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'Animesalt':
           movies = await animesaltGetPosts(category['filter']!, 1);
           break;
+        case 'Movies4u':
+          final categoryUrl = await Movies4uCatalog.getCategoryUrl(category['path']!);
+          movies = await Movies4uGetPost.fetchMovies(categoryUrl);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -161,6 +168,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Animesalt':
           movies = await animesaltGetPostsSearch(query, 1);
+          break;
+        case 'Movies4u':
+          movies = await Movies4uGetPost.searchMovies(query);
           break;
         case 'Xdmovies':
           movies = await XdmoviesGetPost.searchMovies(query);
