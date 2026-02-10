@@ -53,39 +53,80 @@ class Movies4uGetPost {
   static List<Movie> _parseMoviesFromHtml(String htmlContent) {
     final document = html_parser.parse(htmlContent);
     final List<Movie> movies = [];
+    final Set<String> processedLinks = {};
 
-    // Find all article elements with class "post"
-    final articles = document.querySelectorAll('article.post');
+    // Combine selectors to find movie items (articles, figures, or standalone thumbnails)
+    // We select the thumbnail container as the anchor point
+    final thumbnailElements = document.querySelectorAll('.post-thumbnail');
 
-    for (var article in articles) {
+    for (var element in thumbnailElements) {
       try {
-        // Extract link from <a> tag with class "post-thumbnail"
-        final linkElement = article.querySelector('a.post-thumbnail');
+        // Determine the link element
+        // The element itself might be the <a> tag (class="post-thumbnail")
+        // OR it might be a div containing the <a> tag
+        final linkElement = element.localName == 'a' 
+            ? element 
+            : element.querySelector('a'); // Try finding <a> inside
+            
         if (linkElement == null) continue;
         
         final link = linkElement.attributes['href'] ?? '';
-        if (link.isEmpty) continue;
+        if (link.isEmpty || processedLinks.contains(link)) continue;
+        processedLinks.add(link);
 
-        // Extract image from <img> tag
-        final imgElement = article.querySelector('img');
-        final imageUrl = imgElement?.attributes['src'] ?? '';
+        // Extract image
+        final imgElement = element.querySelector('img');
+        String imageUrl = imgElement?.attributes['src'] ?? 
+                          imgElement?.attributes['data-src'] ?? 
+                          imgElement?.attributes['data-original'] ?? '';
 
-        // Extract title from <h2> tag with class "entry-title"
-        final titleElement = article.querySelector('h2.entry-title a');
-        final title = titleElement?.text.trim() ?? 'Unknown Title';
+        // Extract Title
+        String title = '';
+        
+        // Strategy 1: Look for standard title elements in the parent container
+        // Traverse up to find a container (article/figure/li)
+        var container = element.parent;
+        // Limit traversal to avoid going too far up
+        int levelsToCheck = 3; 
+        while (container != null && levelsToCheck > 0) {
+           final titleEl = container.querySelector('.entry-title a, .post-title a, h2 a, h3 a');
+           if (titleEl != null && titleEl.text.trim().isNotEmpty) {
+             title = titleEl.text.trim();
+             break;
+           }
+           // Stop if we hit a likely container boundary
+           if (container.localName == 'article' || container.localName == 'figure' || container.classes.contains('post')) {
+              break; 
+           }
+           container = container.parent;
+           levelsToCheck--;
+        }
 
-        // Extract quality label if present
-        final qualityElement = article.querySelector('.video-label');
+        // Strategy 2: Use Image Alt text (Common in <figure> layouts)
+        if (title.isEmpty) {
+           title = imgElement?.attributes['alt']?.trim() ?? '';
+        }
+        
+        // Strategy 3: Link title attribute
+        if (title.isEmpty) {
+           title = linkElement.attributes['title']?.trim() ?? '';
+        }
+
+        if (title.isEmpty) continue;
+
+        // Extract quality label
+        // Usually inside the thumbnail element
+        final qualityElement = element.querySelector('.video-label');
         final quality = qualityElement?.text.trim() ?? '';
 
         movies.add(Movie(
           title: title,
           link: link,
-          imageUrl: imageUrl.isNotEmpty ? imageUrl : 'https://via.placeholder.com/500x750?text=ScreenScape',
+          imageUrl: imageUrl.isNotEmpty ? imageUrl : 'https://via.placeholder.com/500x750?text=No+Image',
           quality: quality,
         ));
       } catch (e) {
-        // Skip invalid entries
+        print('Error parsing movie item: $e');
         continue;
       }
     }

@@ -28,13 +28,35 @@ class Movies4uInfo {
     final document = html_parser.parse(htmlContent);
     
     // Extract title
-    final titleElement = document.querySelector('h1.entry-title');
+    // Order of precedence:
+    // 1. h1 with entry-title class
+    // 2. h1 inside .single-service-content
+    // 3. h1 with movie-title class
+    // 4. Any h1 on the page
+    final titleElement = document.querySelector('h1.entry-title') ?? 
+                         document.querySelector('.single-service-content h1') ??
+                         document.querySelector('h1.movie-title') ??
+                         document.querySelector('h1');
     final title = titleElement?.text.trim() ?? 'Unknown Title';
 
-    // Extract image from entry-meta or post-thumbnail
-    final imgElement = document.querySelector('.entry-meta img') ?? 
-                      document.querySelector('.post-thumbnail img');
-    final imageUrl = imgElement?.attributes['src'] ?? '';
+    // Extract image 
+    // Check multiple possible locations and attributes
+    String imageUrl = '';
+    final imgSelectors = [
+      '.entry-meta img',
+      '.post-thumbnail img',
+      '.single-service-content img',
+    ];
+
+    for (var selector in imgSelectors) {
+      final el = document.querySelector(selector);
+      if (el != null) {
+        imageUrl = el.attributes['src'] ?? 
+                   el.attributes['data-src'] ?? 
+                   el.attributes['data-original'] ?? '';
+        if (imageUrl.isNotEmpty) break;
+      }
+    }
 
     // Extract quality label
     final qualityElement = document.querySelector('.video-label');
@@ -44,10 +66,16 @@ class Movies4uInfo {
     final downloadLinks = _parseDownloadLinks(document);
 
     // Extract additional info from the page
-    final contentElement = document.querySelector('.entry-content');
+    // Content might be in .entry-content OR .single-service-content
+    final contentElement = document.querySelector('.entry-content') ?? 
+                           document.querySelector('.single-service-content');
+    
     String imdbRating = '';
     String language = '';
     String storyline = '';
+    String genre = '';
+    String stars = '';
+    String director = '';
 
     if (contentElement != null) {
       // Try to extract IMDb rating
@@ -57,30 +85,64 @@ class Movies4uInfo {
         final ratingMatch = RegExp(r'(\d+\.\d+)/10').firstMatch(ratingText);
         if (ratingMatch != null) {
           imdbRating = ratingMatch.group(1) ?? '';
+        } else {
+             // Fallback for "IMDb Rating:- 8.2/10" format
+             final ratingMatch2 = RegExp(r'Rating:[-]*\s*(\d+\.?\d*)/10').firstMatch(ratingText);
+             if (ratingMatch2 != null) {
+                 imdbRating = ratingMatch2.group(1) ?? '';
+             }
         }
       }
 
-      // Try to extract language
-      final languageMatch = RegExp(r'Language:\s*([^\n<]+)').firstMatch(contentElement.text);
-      if (languageMatch != null) {
-        language = languageMatch.group(1)?.trim() ?? '';
+      // Helper function to extract text after a label
+      String extractInfo(String labelPattern) {
+        final regExp = RegExp('$labelPattern\\s*:?\\s*([^\\n<]+)', caseSensitive: false);
+        final match = regExp.firstMatch(contentElement.text);
+        return match?.group(1)?.trim() ?? '';
       }
 
-      // Extract storyline
-      final storylinePara = contentElement.querySelector('h3:contains("Storyline") ~ p');
-      if (storylinePara != null) {
-        storyline = storylinePara.text.trim();
+      language = extractInfo('Language');
+      if (language.isEmpty) language = extractInfo('Audio');
+
+      // Extract storyline - look for h3 with "Storyline" text, then get next p
+      final headings = contentElement.querySelectorAll('h3');
+      for (var h3 in headings) {
+        if (h3.text.contains("Storyline")) {
+          // Look for next paragraph
+          var next = h3.nextElementSibling;
+          while (next != null) {
+            if (next.localName == 'p' && next.text.trim().isNotEmpty) {
+               storyline = next.text.trim();
+               break;
+            }
+             next = next.nextElementSibling;
+          }
+           if (storyline.isNotEmpty) break;
+        }
       }
+      
+      // Fallback description from generic paragraph if explicit storyline not found
+      if (storyline.isEmpty) {
+          final firstP = contentElement.querySelector('p:not(:has(strong))');
+          if (firstP != null && firstP.text.length > 50) {
+             storyline = firstP.text.trim();
+          }
+      }
+    }
+
+    // Cleaning up image URL if it's protocol relative or incomplete
+    if (imageUrl.isNotEmpty && imageUrl.startsWith('//')) {
+      imageUrl = 'https:$imageUrl';
     }
 
     return MovieInfo(
       title: title,
       imageUrl: imageUrl.isNotEmpty ? imageUrl : 'https://via.placeholder.com/500x750?text=No+Image',
       imdbRating: imdbRating,
-      genre: '',
-      director: '',
+      genre: genre,
+      director: director,
       writer: '',
-      stars: '',
+      stars: stars,
       language: language,
       quality: quality,
       format: 'MKV',
