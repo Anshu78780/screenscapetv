@@ -1290,10 +1290,13 @@ class _InfoScreenState extends State<InfoScreen> {
       print('Processed URL: $processedUrl');
 
       // Check if it's a direct link (hubcloud, gdflix, or vcloud)
-      if (processedUrl.contains('hubcloud') ||
+      // For movies4u, we want to treat these as episodes to show the selection dialog
+      final isDirectLink = (processedUrl.contains('hubcloud') ||
           processedUrl.contains('gdflix') ||
           processedUrl.contains('vcloud.zip') ||
-          processedUrl.contains('vcloud.lol')) {
+          processedUrl.contains('vcloud.lol'));
+
+      if (isDirectLink && _currentProvider != 'movies4u') {
         print('Processed URL is a direct link, extracting streams');
 
         final directStreams =

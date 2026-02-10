@@ -20,6 +20,10 @@ class Movies4uProviderService extends ProviderService {
     String url,
     String quality,
   ) async {
+    // For m4ulinks, return empty to force episode selection flow
+    if (url.contains('m4ulinks.com')) {
+      return [];
+    }
     final result = await HubCloudExtractor.extractLinks(url);
     return result.success ? result.streams : [];
   }

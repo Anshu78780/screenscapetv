@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import '../../models/movie_info.dart';
+import '../extractors/hubcloud_extractor.dart';
 import 'headers.dart';
 
 class Movies4uGetEps {
@@ -8,16 +9,55 @@ class Movies4uGetEps {
   static Future<List<Episode>> fetchEpisodes(String episodePageUrl) async {
     try {
       print('Movies4u: Fetching episodes from $episodePageUrl');
+      
+      // Use generic headers for external links to avoid issues
+      final headers = (episodePageUrl.contains('m4ulinks') || 
+                       episodePageUrl.contains('hubcloud') || 
+                       episodePageUrl.contains('gdflix'))
+          ? HubCloudExtractor.headers
+          : Movies4uHeaders.getHeaders();
+          
       final response = await http.get(
         Uri.parse(episodePageUrl),
-        headers: Movies4uHeaders.getHeaders(),
+        headers: headers,
       );
 
       if (response.statusCode != 200) {
         throw Exception('Failed to load episodes: ${response.statusCode}');
       }
 
-      return _parseEpisodes(response.body);
+      final episodes = _parseEpisodes(response.body);
+      
+      // If regular parsing failed but it's a known direct type, try HubCloudExtractor as fallback
+      if (episodes.isEmpty && (episodePageUrl.contains('m4ulinks') || 
+                               episodePageUrl.contains('hubcloud') || 
+                               episodePageUrl.contains('gdflix'))) {
+         print('Movies4u: No standard episodes found, trying HubCloudExtractor fallback');
+         final result = await HubCloudExtractor.extractLinks(episodePageUrl);
+         if (result.success && result.streams.isNotEmpty) {
+            return result.streams
+                .map((s) {
+                  String name = s.server;
+                  try {
+                    final uri = Uri.parse(s.link);
+                    if (uri.pathSegments.isNotEmpty) {
+                      final filename = uri.pathSegments.last;
+                      if (filename.length < 20) {
+                         name += ' - $filename';
+                      }
+                    }
+                  } catch (_) {}
+                  
+                  return Episode(
+                      title: name,
+                      link: s.link,
+                    );
+                })
+                .toList();
+         }
+      }
+      
+      return episodes;
     } catch (e) {
       print('Movies4u Error fetching episodes: $e');
       throw Exception('Error fetching episodes: $e');
@@ -54,7 +94,7 @@ class Movies4uGetEps {
 
   /// Parse episode-based links (for series)
   static List<Episode> _parseEpisodeBasedLinks(List<dynamic> h5Elements) {
-    final List<Episode> episodes = [];
+    final Map<String, List<EpisodeLink>> episodeMap = {};
     
     for (var h5 in h5Elements) {
       final episodeTitle = h5.text.trim();
@@ -68,7 +108,7 @@ class Movies4uGetEps {
       
       // Find the next sibling div with class downloads-btns-div
       var nextElement = h5.nextElementSibling;
-      List<EpisodeLink> episodeLinks = [];
+      List<EpisodeLink> newLinks = [];
       
       while (nextElement != null) {
         if (nextElement.classes.contains('downloads-btns-div')) {
@@ -84,7 +124,7 @@ class Movies4uGetEps {
             // Determine server type from URL or link text
             String server = _determineServer(url, linkText);
             
-            episodeLinks.add(EpisodeLink(
+            newLinks.add(EpisodeLink(
               server: server,
               url: url,
             ));
@@ -94,18 +134,24 @@ class Movies4uGetEps {
         nextElement = nextElement.nextElementSibling;
       }
       
-      // Only add episode if it has at least one valid link
-      if (episodeLinks.isNotEmpty) {
-        episodes.add(Episode(
-          title: formattedTitle,
-          link: episodeLinks.first.url, // Backward compatibility - use first link
-          links: episodeLinks,
-        ));
+      if (newLinks.isNotEmpty) {
+        if (episodeMap.containsKey(formattedTitle)) {
+          episodeMap[formattedTitle]!.addAll(newLinks);
+        } else {
+          episodeMap[formattedTitle] = newLinks;
+        }
       }
     }
 
-    print('Movies4u: Found ${episodes.length} episodes');
-    return episodes;
+    // Convert map to list of Episodes
+    return episodeMap.entries.map((entry) {
+      final links = entry.value;
+      return Episode(
+        title: entry.key,
+        link: links.isNotEmpty ? links.first.url : '',
+        links: links,
+      );
+    }).toList();
   }
 
   /// Parse quality-based links (for movies)
