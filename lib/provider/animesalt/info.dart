@@ -118,8 +118,10 @@ class AnimeSaltApiResponse {
 }
 
 Future<MovieInfo> animesaltGetInfo(String url) async {
+  print('animesaltGetInfo called with url: $url');
   try {
     final apiUrl = 'https://scarperapi.onrender.com/api/animesalt/details?url=${Uri.encodeComponent(url)}';
+    print('Requesting API: $apiUrl');
 
     final response = await http.get(
       Uri.parse(apiUrl),
@@ -128,6 +130,9 @@ Future<MovieInfo> animesaltGetInfo(String url) async {
         'Content-Type': 'application/json',
       },
     );
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch anime info: ${response.statusCode} ${response.reasonPhrase}');
