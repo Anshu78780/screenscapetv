@@ -36,9 +36,13 @@ class HubCloudExtractor {
       final baseUrl = Uri.parse(link).origin;
       final List<Stream> streamLinks = [];
 
-      // Check if this is a direct hubcloud.foo/drive/ link (no redirect page)
-      if (link.contains('hubcloud.foo/drive/') || link.contains('hubcloud.lol/drive/')) {
-        print('Detected direct hubcloud drive link, attempting direct extraction');
+      // Check if this looks like a direct hubcloud link (any hubcloud domain)
+      String? vcloudLink;
+      final uri = Uri.parse(link);
+      final isHubcloudDomain = uri.host.contains('hubcloud');
+      
+      if (isHubcloudDomain) {
+        print('Detected hubcloud domain, attempting direct extraction');
         
         try {
           final directRes = await http.get(Uri.parse(link), headers: headers);
@@ -52,88 +56,93 @@ class HubCloudExtractor {
           if (directButtons.isNotEmpty) {
             print('Found ${directButtons.length} direct buttons, processing them');
             
+            // Find the first valid link - prefer gamerxyt links for full processing
             for (var element in directButtons) {
               final href = element.attributes['href'];
               if (href != null && href.isNotEmpty && href.startsWith('http')) {
-                streamLinks.add(Stream(server: 'HubCloud', link: href, type: 'mkv'));
-                print('Added direct link: $href');
+                if (href.contains('gamerxyt.com') && href.contains('hubcloud.php')) {
+                  // This needs further processing, set it as vcloudLink
+                  vcloudLink = href;
+                  print('Found gamerxyt.com link, will process through normal flow: $href');
+                  break;
+                } else {
+                  // Direct playable link
+                  streamLinks.add(Stream(server: 'HubCloud', link: href, type: 'mkv'));
+                  print('Added direct playable link: $href');
+                }
               }
-            }
-            
-            if (streamLinks.isNotEmpty) {
-              print('Successfully extracted ${streamLinks.length} direct links');
-              return HubCloudResponse(success: true, streams: streamLinks);
             }
           }
           
-          print('No direct links found on hubcloud.foo/drive/ page, continuing with normal flow');
+          print('Continuing with normal flow for further processing');
         } catch (e) {
           print('Error in direct extraction attempt: $e, falling back to normal flow');
         }
       }
 
-      // Step 1: Get initial page
-      final vLinkRes = await http.get(Uri.parse(link), headers: headers);
-      final vLinkText = vLinkRes.body;
-      final vLinkDoc = html_parser.parse(vLinkText);
+      // Step 1: Get initial page (skip if we already have vcloudLink from direct extraction)
+      if (vcloudLink == null) {
+        final vLinkRes = await http.get(Uri.parse(link), headers: headers);
+        final vLinkText = vLinkRes.body;
+        final vLinkDoc = html_parser.parse(vLinkText);
 
-      // Extract redirect URL from JavaScript - try multiple patterns
-      final patterns = [
-        RegExp(r"var\s+url\s*=\s*'([^']+)'"),
-        RegExp(r"const\s+url\s*=\s*'([^']+)'"),
-        RegExp(r"let\s+url\s*=\s*'([^']+)'"),
-        RegExp(r"url\s*=\s*'([^']+)'"),
-        RegExp(r'var\s+url\s*=\s*"([^"]+)"'),
-        RegExp(r'const\s+url\s*=\s*"([^"]+)"'),
-        RegExp(r'let\s+url\s*=\s*"([^"]+)"'),
-        RegExp(r'url\s*=\s*"([^"]+)"'),
-      ];
+        // Extract redirect URL from JavaScript - try multiple patterns
+        final patterns = [
+          RegExp(r"var\s+url\s*=\s*'([^']+)'"),
+          RegExp(r"const\s+url\s*=\s*'([^']+)'"),
+          RegExp(r"let\s+url\s*=\s*'([^']+)'"),
+          RegExp(r"url\s*=\s*'([^']+)'"),
+          RegExp(r'var\s+url\s*=\s*"([^"]+)"'),
+          RegExp(r'const\s+url\s*=\s*"([^"]+)"'),
+          RegExp(r'let\s+url\s*=\s*"([^"]+)"'),
+          RegExp(r'url\s*=\s*"([^"]+)"'),
+        ];
 
-      String? vcloudLink;
-      String? redirectUrl;
+        String? redirectUrl;
 
-      for (var pattern in patterns) {
-        final match = pattern.firstMatch(vLinkText);
-        if (match != null && match.group(1) != null) {
-          redirectUrl = match.group(1);
-          print('Found redirect URL pattern: $redirectUrl');
-          break;
+        for (var pattern in patterns) {
+          final match = pattern.firstMatch(vLinkText);
+          if (match != null && match.group(1) != null) {
+            redirectUrl = match.group(1);
+            print('Found redirect URL pattern: $redirectUrl');
+            break;
+          }
         }
-      }
 
-      if (redirectUrl != null) {
-        final rParam = Uri.parse(redirectUrl).queryParameters['r'];
-        if (rParam != null && rParam.isNotEmpty) {
-          vcloudLink = decode(rParam);
-          print('Decoded vcloudLink from r parameter: $vcloudLink');
-        } else {
-          // If no 'r' parameter, use the redirect URL directly
-          vcloudLink = redirectUrl;
-          print('Using redirect URL directly: $vcloudLink');
-        }
-      }
-
-      // Fallback to download button
-      if (vcloudLink == null || vcloudLink.isEmpty) {
-        print('No JavaScript redirect found, looking for download button');
-        final downloadButton = vLinkDoc
-            .querySelector('.fa-file-download.fa-lg')
-            ?.parent;
-        if (downloadButton != null) {
-          vcloudLink = downloadButton.attributes['href'] ?? link;
-          print('Found download button: $vcloudLink');
-        } else {
-          print('No download button found, checking if current page has download links');
-          // Check if this page already has download buttons
-          final directButtons = vLinkDoc.querySelectorAll(
-            '.btn-success.btn-lg.h6,.btn-danger,.btn-secondary',
-          );
-          if (directButtons.isNotEmpty) {
-            print('Found ${directButtons.length} direct download buttons on current page');
-            vcloudLink = link; // Use current page
+        if (redirectUrl != null) {
+          final rParam = Uri.parse(redirectUrl).queryParameters['r'];
+          if (rParam != null && rParam.isNotEmpty) {
+            vcloudLink = decode(rParam);
+            print('Decoded vcloudLink from r parameter: $vcloudLink');
           } else {
-            print('No download buttons found, using original link as fallback');
-            vcloudLink = link;
+            // If no 'r' parameter, use the redirect URL directly
+            vcloudLink = redirectUrl;
+            print('Using redirect URL directly: $vcloudLink');
+          }
+        }
+
+        // Fallback to download button
+        if (vcloudLink == null || vcloudLink.isEmpty) {
+          print('No JavaScript redirect found, looking for download button');
+          final downloadButton = vLinkDoc
+              .querySelector('.fa-file-download.fa-lg')
+              ?.parent;
+          if (downloadButton != null) {
+            vcloudLink = downloadButton.attributes['href'] ?? link;
+            print('Found download button: $vcloudLink');
+          } else {
+            print('No download button found, checking if current page has download links');
+            // Check if this page already has download buttons
+            final directButtons = vLinkDoc.querySelectorAll(
+              '.btn-success.btn-lg.h6,.btn-danger,.btn-secondary',
+            );
+            if (directButtons.isNotEmpty) {
+              print('Found ${directButtons.length} direct download buttons on current page');
+              vcloudLink = link; // Use current page
+            } else {
+              print('No download buttons found, using original link as fallback');
+              vcloudLink = link;
+            }
           }
         }
       }
@@ -146,8 +155,8 @@ class HubCloudExtractor {
         print('New vcloudLink: $vcloudLink');
       }
 
-      // Check if this is a gamerxyt.com/hubcloud.php link
-      if (vcloudLink.contains('gamerxyt.com/hubcloud.php')) {
+      // Check if this is a gamerxyt.com hubcloud.php link (domain-agnostic check)
+      if (vcloudLink.contains('gamerxyt.com') && vcloudLink.contains('hubcloud.php')) {
         print('Detected gamerxyt.com hubcloud.php link');
 
         try {

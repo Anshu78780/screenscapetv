@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/movie.dart';
-import '../models/movie_info.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../provider/drive/getpost.dart' as drive;

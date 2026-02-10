@@ -2,7 +2,6 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import '../../models/movie_info.dart';
 import 'headers.dart';
-import 'geteps.dart';
 
 class MoviesmodInfo {
   static Future<MovieInfo> fetchMovieInfo(String url) async {

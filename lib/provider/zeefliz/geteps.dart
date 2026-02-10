@@ -128,23 +128,17 @@ class ZeeflizGetEps {
             }
 
             // Priority 2: Look for zee-cloud links
-            if (downloadLink == null) {
-              downloadLink = nextP
+            downloadLink ??= nextP
                   .querySelector('a[href*="zee-cloud"]')
                   ?.attributes['href'];
-            }
 
             // Priority 3: Look for zee-dl links
-            if (downloadLink == null) {
-              downloadLink = nextP
+            downloadLink ??= nextP
                   .querySelector('a[href*="zee-dl"]')
                   ?.attributes['href'];
-            }
 
             // Fallback: First link found
-            if (downloadLink == null) {
-              downloadLink = nextP.querySelector('a')?.attributes['href'];
-            }
+            downloadLink ??= nextP.querySelector('a')?.attributes['href'];
 
             if (downloadLink != null) {
               print('Episode $episodeNumber: $downloadLink');

@@ -13,7 +13,7 @@ dependencies:
   flutter_html: ^3.0.0
   http: ^1.2.0
   html: ^0.15.4
-  better_player_plus: ^1.0.8
+  tha_player: ^0.5.1
   wakelock_plus: ^1.2.9
   package_info_plus: ^8.1.1
   url_launcher: ^6.3.1

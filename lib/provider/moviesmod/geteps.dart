@@ -89,7 +89,7 @@ class MoviesmodGetEpisodes {
           final cleanTitle = seriesTitle.replaceAll(RegExp(r'[^\w\s\-\(\)\.]'), '').trim();
           
           episodeLinks.add({
-            'title': (cleanTitle != null && cleanTitle.isNotEmpty) ? cleanTitle : 'download',
+            'title': (cleanTitle.isNotEmpty) ? cleanTitle : 'download',
             'link': link,
           });
         }
