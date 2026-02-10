@@ -355,6 +355,14 @@ class _InfoScreenState extends State<InfoScreen> {
       List<Episode> episodes;
       
       switch (_currentProvider) {
+        case 'Moviesmod':
+          // For Moviesmod, fetch episode list from the stored URL
+          final episodeData = await MoviesmodGetEpisodes.getEpisodeLinks(processedUrl);
+          episodes = episodeData.map((ep) => Episode(
+            title: ep['title']!,
+            link: ep['link']!,
+          )).toList();
+          break;
         case 'Movies4u':
           episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
           break;
@@ -517,7 +525,36 @@ class _InfoScreenState extends State<InfoScreen> {
           // If episodes are loaded, play the selected episode
           if (_episodes.isNotEmpty &&
               _selectedDownloadIndex < _episodes.length) {
-            _playEpisode(_episodes[_selectedDownloadIndex]);
+            // For Moviesmod, use moviesmodGetStream directly
+            if (_currentProvider == 'Moviesmod') {
+              final episode = _episodes[_selectedDownloadIndex];
+              setState(() => _isLoadingLinks = true);
+              
+              moviesmodGetStream(episode.link).then((streams) {
+                setState(() => _isLoadingLinks = false);
+                if (streams.isNotEmpty) {
+                  _showStreamingLinksDialog(streams, _selectedQuality);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No streams found'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }).catchError((e) {
+                print('Error getting streams: $e');
+                setState(() => _isLoadingLinks = false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              });
+            } else {
+              _playEpisode(_episodes[_selectedDownloadIndex]);
+            }
           } else {
             // Otherwise, open download link
             final downloads = _getFilteredDownloads();
@@ -1208,7 +1245,37 @@ class _InfoScreenState extends State<InfoScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: GestureDetector(
-            onTap: () => _playEpisode(episode),
+            onTap: () {
+              // For Moviesmod, use moviesmodGetStream directly
+              if (_currentProvider == 'Moviesmod') {
+                setState(() => _isLoadingLinks = true);
+                
+                moviesmodGetStream(episode.link).then((streams) {
+                  setState(() => _isLoadingLinks = false);
+                  if (streams.isNotEmpty) {
+                    _showStreamingLinksDialog(streams, _selectedQuality);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No streams found'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }).catchError((e) {
+                  print('Error getting streams: $e');
+                  setState(() => _isLoadingLinks = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                });
+              } else {
+                _playEpisode(episode);
+              }
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,
@@ -1420,12 +1487,15 @@ class _InfoScreenState extends State<InfoScreen> {
       }
 
       if (_currentProvider == 'Moviesmod') {
+        // Episodes are already loaded via _loadEpisodesIfNeeded()
+        // This is called when clicking on an individual episode
+        // Just get streams directly from the link
         final streams = await moviesmodGetStream(downloadLink.url);
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);
         } else {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No streams found'),
               backgroundColor: Colors.red,

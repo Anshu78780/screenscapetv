@@ -36,29 +36,106 @@ class HubCloudExtractor {
       final baseUrl = Uri.parse(link).origin;
       final List<Stream> streamLinks = [];
 
+      // Check if this is a direct hubcloud.foo/drive/ link (no redirect page)
+      if (link.contains('hubcloud.foo/drive/') || link.contains('hubcloud.lol/drive/')) {
+        print('Detected direct hubcloud drive link, attempting direct extraction');
+        
+        try {
+          final directRes = await http.get(Uri.parse(link), headers: headers);
+          final directDoc = html_parser.parse(directRes.body);
+          
+          // Try to extract links directly from this page
+          final directButtons = directDoc.querySelectorAll(
+            'a.btn, .btn-success, .btn-danger, .btn-secondary, a[href*="download"]',
+          );
+          
+          if (directButtons.isNotEmpty) {
+            print('Found ${directButtons.length} direct buttons, processing them');
+            
+            for (var element in directButtons) {
+              final href = element.attributes['href'];
+              if (href != null && href.isNotEmpty && href.startsWith('http')) {
+                streamLinks.add(Stream(server: 'HubCloud', link: href, type: 'mkv'));
+                print('Added direct link: $href');
+              }
+            }
+            
+            if (streamLinks.isNotEmpty) {
+              print('Successfully extracted ${streamLinks.length} direct links');
+              return HubCloudResponse(success: true, streams: streamLinks);
+            }
+          }
+          
+          print('No direct links found on hubcloud.foo/drive/ page, continuing with normal flow');
+        } catch (e) {
+          print('Error in direct extraction attempt: $e, falling back to normal flow');
+        }
+      }
+
       // Step 1: Get initial page
       final vLinkRes = await http.get(Uri.parse(link), headers: headers);
       final vLinkText = vLinkRes.body;
       final vLinkDoc = html_parser.parse(vLinkText);
 
-      // Extract redirect URL from JavaScript
-      final vLinkRedirectMatch = RegExp(
-        r"var\s+url\s*=\s*'([^']+)';",
-      ).firstMatch(vLinkText);
-      String? vcloudLink;
+      // Extract redirect URL from JavaScript - try multiple patterns
+      final patterns = [
+        RegExp(r"var\s+url\s*=\s*'([^']+)'"),
+        RegExp(r"const\s+url\s*=\s*'([^']+)'"),
+        RegExp(r"let\s+url\s*=\s*'([^']+)'"),
+        RegExp(r"url\s*=\s*'([^']+)'"),
+        RegExp(r'var\s+url\s*=\s*"([^"]+)"'),
+        RegExp(r'const\s+url\s*=\s*"([^"]+)"'),
+        RegExp(r'let\s+url\s*=\s*"([^"]+)"'),
+        RegExp(r'url\s*=\s*"([^"]+)"'),
+      ];
 
-      if (vLinkRedirectMatch != null) {
-        final redirectUrl = vLinkRedirectMatch.group(1);
-        final rParam = Uri.parse(redirectUrl ?? '').queryParameters['r'];
-        vcloudLink = decode(rParam);
+      String? vcloudLink;
+      String? redirectUrl;
+
+      for (var pattern in patterns) {
+        final match = pattern.firstMatch(vLinkText);
+        if (match != null && match.group(1) != null) {
+          redirectUrl = match.group(1);
+          print('Found redirect URL pattern: $redirectUrl');
+          break;
+        }
+      }
+
+      if (redirectUrl != null) {
+        final rParam = Uri.parse(redirectUrl).queryParameters['r'];
+        if (rParam != null && rParam.isNotEmpty) {
+          vcloudLink = decode(rParam);
+          print('Decoded vcloudLink from r parameter: $vcloudLink');
+        } else {
+          // If no 'r' parameter, use the redirect URL directly
+          vcloudLink = redirectUrl;
+          print('Using redirect URL directly: $vcloudLink');
+        }
       }
 
       // Fallback to download button
       if (vcloudLink == null || vcloudLink.isEmpty) {
+        print('No JavaScript redirect found, looking for download button');
         final downloadButton = vLinkDoc
             .querySelector('.fa-file-download.fa-lg')
             ?.parent;
-        vcloudLink = downloadButton?.attributes['href'] ?? link;
+        if (downloadButton != null) {
+          vcloudLink = downloadButton.attributes['href'] ?? link;
+          print('Found download button: $vcloudLink');
+        } else {
+          print('No download button found, checking if current page has download links');
+          // Check if this page already has download buttons
+          final directButtons = vLinkDoc.querySelectorAll(
+            '.btn-success.btn-lg.h6,.btn-danger,.btn-secondary',
+          );
+          if (directButtons.isNotEmpty) {
+            print('Found ${directButtons.length} direct download buttons on current page');
+            vcloudLink = link; // Use current page
+          } else {
+            print('No download buttons found, using original link as fallback');
+            vcloudLink = link;
+          }
+        }
       }
 
       print('vcloudLink: $vcloudLink');
@@ -172,9 +249,42 @@ class HubCloudExtractor {
       final vcloudDoc = html_parser.parse(vcloudRes.body);
       print('vcloudRes page loaded, looking for download links...');
 
-      final linkElements = vcloudDoc.querySelectorAll(
+      // Try multiple selector patterns for different hubcloud page layouts
+      final selectors = [
         '.btn-success.btn-lg.h6,.btn-danger,.btn-secondary',
-      );
+        '.btn-success,.btn-danger,.btn-secondary',
+        'a.btn',
+        'a[href*="download"]',
+        'a[href*="pixeld"]',
+        'a[href*="hubcdn"]',
+        'a[href*=".dev"]',
+      ];
+
+      List<dynamic> linkElements = [];
+      for (var selector in selectors) {
+        linkElements = vcloudDoc.querySelectorAll(selector);
+        if (linkElements.isNotEmpty) {
+          print('Found ${linkElements.length} links using selector: $selector');
+          break;
+        }
+      }
+
+      if (linkElements.isEmpty) {
+        print('WARNING: No download links found with any selector');
+        print('Page URL: $vcloudLink');
+        print('Page title: ${vcloudDoc.querySelector('title')?.text ?? 'No title'}');
+        
+        // Try to find any links on the page for debugging
+        final allLinks = vcloudDoc.querySelectorAll('a[href]');
+        print('Total links found on page: ${allLinks.length}');
+        if (allLinks.isNotEmpty && allLinks.length < 20) {
+          for (var link in allLinks) {
+            final href = link.attributes['href'];
+            final text = link.text.trim();
+            print('  Link: $text -> $href');
+          }
+        }
+      }
 
       for (final element in linkElements) {
         String? link = element.attributes['href'];
