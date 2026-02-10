@@ -3,7 +3,7 @@ import '../provider/provider_manager.dart';
 import '../screens/global_search_screen.dart';
 // import '../screens/extractor_test_screen.dart';
 
-class Sidebar extends StatelessWidget {
+class Sidebar extends StatefulWidget {
   final String selectedProvider;
   final int focusedIndex;
   final Function(String) onProviderSelected;
@@ -14,6 +14,61 @@ class Sidebar extends StatelessWidget {
     required this.focusedIndex,
     required this.onProviderSelected,
   });
+
+  @override
+  State<Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<Sidebar> {
+  final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _itemKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Create keys for each provider item
+    for (int i = 0; i < ProviderManager.availableProviders.length; i++) {
+      _itemKeys[i] = GlobalKey();
+    }
+    // Schedule initial scroll after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToFocusedItem();
+    });
+  }
+
+  @override
+  void didUpdateWidget(Sidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Scroll to focused item when focusedIndex changes
+    if (oldWidget.focusedIndex != widget.focusedIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToFocusedItem();
+      });
+    }
+  }
+
+  void _scrollToFocusedItem() {
+    if (widget.focusedIndex < 0 ||
+        widget.focusedIndex >= ProviderManager.availableProviders.length) {
+      return;
+    }
+
+    final key = _itemKeys[widget.focusedIndex];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.5, // Center the item
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +83,7 @@ class Sidebar extends StatelessWidget {
           ),
         ],
         border: Border(
-           right: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
+          right: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
         ),
       ),
       child: Column(
@@ -44,7 +99,11 @@ class Sidebar extends StatelessWidget {
                   ShaderMask(
                     shaderCallback: (bounds) => const LinearGradient(
                       // Vibrant Mixed Colors: Yellow -> Orange -> Pinkish Red
-                      colors: [Color(0xFFFFD54F), Color(0xFFFF9800), Color(0xFFFF3D00)], 
+                      colors: [
+                        Color(0xFFFFD54F),
+                        Color(0xFFFF9800),
+                        Color(0xFFFF3D00),
+                      ],
                       stops: [0.0, 0.5, 1.0],
                     ).createShader(bounds),
                     child: const Text(
@@ -64,49 +123,60 @@ class Sidebar extends StatelessWidget {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const GlobalSearchScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const GlobalSearchScreen(),
+                          ),
                         );
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
-                          color: focusedIndex == -1 
+                          color: widget.focusedIndex == -1
                               ? Colors.white.withOpacity(0.15)
                               : Colors.white.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: focusedIndex == -1 
+                            color: widget.focusedIndex == -1
                                 ? Colors.white.withOpacity(0.3)
                                 : Colors.white.withOpacity(0.1),
-                            width: focusedIndex == -1 ? 2 : 1,
+                            width: widget.focusedIndex == -1 ? 2 : 1,
                           ),
-                          boxShadow: focusedIndex == -1
+                          boxShadow: widget.focusedIndex == -1
                               ? [
                                   BoxShadow(
                                     color: Colors.white.withOpacity(0.2),
                                     blurRadius: 12,
                                     spreadRadius: 1,
-                                  )
+                                  ),
                                 ]
                               : [],
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              Icons.search, 
-                              color: focusedIndex == -1 ? Colors.white : Colors.grey[400], 
-                              size: 18
+                              Icons.search,
+                              color: widget.focusedIndex == -1
+                                  ? Colors.white
+                                  : Colors.grey[400],
+                              size: 18,
                             ),
                             const SizedBox(width: 10),
                             Text(
                               'Global Search',
                               style: TextStyle(
-                                color: focusedIndex == -1 ? Colors.white : Colors.white.withOpacity(0.9),
+                                color: widget.focusedIndex == -1
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.9),
                                 fontSize: 14,
-                                fontWeight: focusedIndex == -1 ? FontWeight.w700 : FontWeight.w500,
+                                fontWeight: widget.focusedIndex == -1
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                               ),
                             ),
                           ],
@@ -166,18 +236,23 @@ class Sidebar extends StatelessWidget {
           const SizedBox(height: 20),
           Expanded(
             child: ListView(
+              controller: _scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: ProviderManager.availableProviders.asMap().entries.map((entry) {
+              children: ProviderManager.availableProviders.asMap().entries.map((
+                entry,
+              ) {
                 final index = entry.key;
                 final provider = entry.value;
-                final isSelected = provider['id'] == selectedProvider;
-                final isFocused = index == focusedIndex;
+                final isSelected = provider['id'] == widget.selectedProvider;
+                final isFocused = index == widget.focusedIndex;
                 return _buildSidebarItem(
-                  provider['icon'] as IconData,
-                  provider['name'] as String,
-                  isSelected,
-                  isFocused,
-                  () => onProviderSelected(provider['id'] as String),
+                  key: _itemKeys[index],
+                  icon: provider['icon'] as IconData,
+                  title: provider['name'] as String,
+                  isSelected: isSelected,
+                  isFocused: isFocused,
+                  onTap: () =>
+                      widget.onProviderSelected(provider['id'] as String),
                 );
               }).toList(),
             ),
@@ -187,11 +262,22 @@ class Sidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildSidebarItem(IconData icon, String title, bool isSelected, bool isFocused, VoidCallback onTap) {
+  Widget _buildSidebarItem({
+    Key? key,
+    required IconData icon,
+    required String title,
+    required bool isSelected,
+    required bool isFocused,
+    required VoidCallback onTap,
+  }) {
     // Mixed Colors Gradient for selection
-    const List<Color> activeColors = [Color(0xFFFFC107), Color(0xFFFF6F00)]; // Amber to Dark Orange
+    const List<Color> activeColors = [
+      Color(0xFFFFC107),
+      Color(0xFFFF6F00),
+    ]; // Amber to Dark Orange
 
     return Padding(
+      key: key,
       padding: const EdgeInsets.only(bottom: 12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -204,14 +290,17 @@ class Sidebar extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
-              : (isFocused 
-                  ? LinearGradient(
-                      colors: [Colors.white.withOpacity(0.12), Colors.white.withOpacity(0.05)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null),
-          border: isFocused && !isSelected 
+              : (isFocused
+                    ? LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.12),
+                          Colors.white.withOpacity(0.05),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null),
+          border: isFocused && !isSelected
               ? Border.all(color: Colors.white.withOpacity(0.2), width: 1.5)
               : Border.all(color: Colors.transparent, width: 1.5),
           boxShadow: isSelected
@@ -233,26 +322,34 @@ class Sidebar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
-                   AnimatedContainer(
-                     duration: const Duration(milliseconds: 200),
-                     padding: const EdgeInsets.all(8),
-                     decoration: BoxDecoration(
-                       color: isSelected ? Colors.black.withOpacity(0.15) : Colors.white.withOpacity(0.05),
-                       shape: BoxShape.circle,
-                     ),
-                     child: Icon(
-                        icon, 
-                        color: isSelected ? Colors.white : (isFocused ? Colors.white : Colors.grey[500]), 
-                        size: 20
-                      ),
-                   ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.black.withOpacity(0.15)
+                          : Colors.white.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: isSelected
+                          ? Colors.white
+                          : (isFocused ? Colors.white : Colors.grey[500]),
+                      size: 20,
+                    ),
+                  ),
                   const SizedBox(width: 16),
                   Text(
                     title,
                     style: TextStyle(
-                      color: isFocused || isSelected ? Colors.white : Colors.grey[400],
+                      color: isFocused || isSelected
+                          ? Colors.white
+                          : Colors.grey[400],
                       fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.w700 : (isFocused ? FontWeight.w600 : FontWeight.w500),
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : (isFocused ? FontWeight.w600 : FontWeight.w500),
                       letterSpacing: 0.3,
                     ),
                   ),

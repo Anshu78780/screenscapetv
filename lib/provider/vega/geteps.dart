@@ -14,14 +14,11 @@ class EpisodeLink {
 
 Future<List<EpisodeLink>> vegaGetEpisodeLinks(String url) async {
   print('vegaGetEpisodeLinks: $url');
-  
+
   try {
     print('Using original URL: $url');
-    
-    final response = await http.get(
-      Uri.parse(url),
-      headers: vegaHeaders,
-    );
+
+    final response = await http.get(Uri.parse(url), headers: vegaHeaders);
 
     if (response.statusCode != 200) {
       print('vegaGetEpisodeLinks: HTTP ${response.statusCode}');
@@ -29,9 +26,10 @@ Future<List<EpisodeLink>> vegaGetEpisodeLinks(String url) async {
     }
 
     final document = html_parser.parse(response.body);
-    
+
     // Try multiple container selectors
-    final container = document.querySelector('#primary .entry-content') ??
+    final container =
+        document.querySelector('#primary .entry-content') ??
         document.querySelector('main .entry-content') ??
         document.querySelector('.entry-content') ??
         document.querySelector('.entry-inner');
@@ -42,44 +40,50 @@ Future<List<EpisodeLink>> vegaGetEpisodeLinks(String url) async {
     }
 
     // Remove unwanted elements
-    container.querySelectorAll('.unili-content, .code-block-1').forEach((el) => el.remove());
+    container
+        .querySelectorAll('.unili-content, .code-block-1')
+        .forEach((el) => el.remove());
 
     final episodes = <EpisodeLink>[];
 
     // Find all h4 elements that contain episode information
     final h4Elements = container.querySelectorAll('h4');
     bool hasEpisodes = false;
-    
+
     for (var h4 in h4Elements) {
-      final title = h4.text
-          .replaceAll('-', '')
-          .replaceAll(':', '')
-          .trim();
+      final title = h4.text.replaceAll('-', '').replaceAll(':', '').trim();
 
       final nextP = h4.nextElementSibling;
       if (nextP == null || nextP.localName != 'p') continue;
 
       final links = <String>[];
 
-      // Extract G-Direct link (fastdl.zip)
-      final gDirectLink = nextP.querySelector('a[href*="fastdl.zip"]')?.attributes['href'];
+      // Extract G-Direct link (by green gradient style or fastdl.zip URL)
+      final gDirectButton = nextP.querySelector(
+        'button[style*="background:linear-gradient(135deg,#0ebac3,#09d261)"]',
+      );
+      final gDirectLink =
+          gDirectButton?.parent?.attributes['href'] ??
+          nextP.querySelector('a[href*="fastdl.zip"]')?.attributes['href'];
       if (gDirectLink != null && gDirectLink.isNotEmpty) {
         links.add(gDirectLink);
       }
 
-      // Extract V-Cloud link
+      // Extract V-Cloud link (by red/yellow gradient style or vcloud URL)
       final vcloudButton = nextP.querySelector(
         'button[style*="background:linear-gradient(135deg,#ed0b0b,#f2d152)"]',
       );
-      if (vcloudButton != null) {
-        final vcloudLink = vcloudButton.parent?.attributes['href'];
-        if (vcloudLink != null && vcloudLink.isNotEmpty) {
-          links.add(vcloudLink);
-        }
+      final vcloudLink =
+          vcloudButton?.parent?.attributes['href'] ??
+          nextP.querySelector('a[href*="vcloud"]')?.attributes['href'];
+      if (vcloudLink != null && vcloudLink.isNotEmpty) {
+        links.add(vcloudLink);
       }
 
       // Extract Filepress/Filebee link
-      final filepressLink = nextP.querySelector('a[href*="filebee.xyz"], a[href*="filepress.cloud"]')?.attributes['href'];
+      final filepressLink = nextP
+          .querySelector('a[href*="filebee.xyz"], a[href*="filepress.cloud"]')
+          ?.attributes['href'];
       if (filepressLink != null && filepressLink.isNotEmpty) {
         links.add(filepressLink);
       }
@@ -96,27 +100,39 @@ Future<List<EpisodeLink>> vegaGetEpisodeLinks(String url) async {
     // If no episodes found, check for direct download links (movie without episodes)
     if (!hasEpisodes) {
       print('No episodes found, looking for direct download links');
-      
+
       // Look for paragraphs with download buttons
       final downloadParagraphs = container.querySelectorAll('p');
-      
+
       for (var p in downloadParagraphs) {
         final links = <String>[];
 
-        // Extract G-Direct link (fastdl.zip)
-        final gDirectLink = p.querySelector('a[href*="fastdl.zip"]')?.attributes['href'];
+        // Extract G-Direct link (by green gradient style or fastdl.zip URL)
+        final gDirectButton = p.querySelector(
+          'button[style*="background:linear-gradient(135deg,#0ebac3,#09d261)"]',
+        );
+        final gDirectLink =
+            gDirectButton?.parent?.attributes['href'] ??
+            p.querySelector('a[href*="fastdl.zip"]')?.attributes['href'];
         if (gDirectLink != null && gDirectLink.isNotEmpty) {
           links.add(gDirectLink);
         }
 
-        // Extract V-Cloud link (vcloud.zip or vcloud.lol)
-        final vcloudLink = p.querySelector('a[href*="vcloud"]')?.attributes['href'];
+        // Extract V-Cloud link (by red/yellow gradient style or vcloud URL)
+        final vcloudButton = p.querySelector(
+          'button[style*="background:linear-gradient(135deg,#ed0b0b,#f2d152)"]',
+        );
+        final vcloudLink =
+            vcloudButton?.parent?.attributes['href'] ??
+            p.querySelector('a[href*="vcloud"]')?.attributes['href'];
         if (vcloudLink != null && vcloudLink.isNotEmpty) {
           links.add(vcloudLink);
         }
 
         // Extract Filepress/Filebee link
-        final filepressLink = p.querySelector('a[href*="filebee.xyz"], a[href*="filepress.cloud"]')?.attributes['href'];
+        final filepressLink = p
+            .querySelector('a[href*="filebee.xyz"], a[href*="filepress.cloud"]')
+            ?.attributes['href'];
         if (filepressLink != null && filepressLink.isNotEmpty) {
           links.add(filepressLink);
         }
@@ -126,16 +142,20 @@ Future<List<EpisodeLink>> vegaGetEpisodeLinks(String url) async {
           // Get the title from h1 post-title
           final h1 = document.querySelector('h1.post-title, h1.entry-title');
           final title = h1?.text.trim() ?? 'Download';
-          
+
           final combinedLink = links.join('|');
-          print('Found direct download with ${links.length} links: $combinedLink');
+          print(
+            'Found direct download with ${links.length} links: $combinedLink',
+          );
           episodes.add(EpisodeLink(title: title, link: combinedLink));
           break; // Only need one combined link for direct downloads
         }
       }
     }
 
-    print('vegaGetEpisodeLinks: Found ${episodes.length} ${hasEpisodes ? "episodes" : "direct downloads"}');
+    print(
+      'vegaGetEpisodeLinks: Found ${episodes.length} ${hasEpisodes ? "episodes" : "direct downloads"}',
+    );
     return episodes;
   } catch (err) {
     print('vegaGetEpisodeLinks error: $err');

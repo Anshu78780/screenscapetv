@@ -359,28 +359,65 @@ class _InfoScreenState extends State<InfoScreen> {
 
       // Fetch episodes based on provider
       List<Episode> episodes;
-      
+
       switch (_currentProvider) {
         case 'Moviesmod':
           // For Moviesmod, fetch episode list from the stored URL
-          final episodeData = await MoviesmodGetEpisodes.getEpisodeLinks(processedUrl);
-          episodes = episodeData.map((ep) => Episode(
-            title: ep['title']!,
-            link: ep['link']!,
-          )).toList();
+          final episodeData = await MoviesmodGetEpisodes.getEpisodeLinks(
+            processedUrl,
+          );
+          episodes = episodeData
+              .map((ep) => Episode(title: ep['title']!, link: ep['link']!))
+              .toList();
           break;
         case 'Movies4u':
           episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
           break;
         case 'Vega':
-          final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
-          episodes = vegaEps.map((e) => Episode(title: e.title, link: e.link)).toList();
+          // Handle pipe-delimited URLs (G-Direct|V-Cloud)
+          if (processedUrl.contains('|')) {
+            print('Processing multiple episode URLs (G-Direct + V-Cloud)');
+            final urls = processedUrl.split('|');
+            final episodeMap = <String, String>{}; // title -> combined links
+
+            // Fetch episodes from each URL
+            for (final url in urls) {
+              if (url.trim().isEmpty) continue;
+
+              try {
+                print('Fetching from: $url');
+                final vegaEps = await vega_eps.vegaGetEpisodeLinks(url.trim());
+
+                for (final ep in vegaEps) {
+                  if (episodeMap.containsKey(ep.title)) {
+                    // Merge links with pipe delimiter
+                    episodeMap[ep.title] = '${episodeMap[ep.title]}|${ep.link}';
+                  } else {
+                    episodeMap[ep.title] = ep.link;
+                  }
+                }
+              } catch (e) {
+                print('Error fetching from $url: $e');
+              }
+            }
+
+            // Convert map to episodes list
+            episodes = episodeMap.entries
+                .map((e) => Episode(title: e.key, link: e.value))
+                .toList();
+          } else {
+            // Single URL
+            final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
+            episodes = vegaEps
+                .map((e) => Episode(title: e.title, link: e.link))
+                .toList();
+          }
           break;
         default:
           episodes = await EpisodeParser.fetchEpisodes(processedUrl);
           break;
       }
-      
+
       setState(() {
         _episodes = episodes;
         _isLoadingEpisodes = false;
@@ -539,29 +576,31 @@ class _InfoScreenState extends State<InfoScreen> {
             if (_currentProvider == 'Moviesmod') {
               final episode = _episodes[_selectedDownloadIndex];
               setState(() => _isLoadingLinks = true);
-              
-              moviesmodGetStream(episode.link).then((streams) {
-                setState(() => _isLoadingLinks = false);
-                if (streams.isNotEmpty) {
-                  _showStreamingLinksDialog(streams, _selectedQuality);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No streams found'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }).catchError((e) {
-                print('Error getting streams: $e');
-                setState(() => _isLoadingLinks = false);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              });
+
+              moviesmodGetStream(episode.link)
+                  .then((streams) {
+                    setState(() => _isLoadingLinks = false);
+                    if (streams.isNotEmpty) {
+                      _showStreamingLinksDialog(streams, _selectedQuality);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No streams found'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  })
+                  .catchError((e) {
+                    print('Error getting streams: $e');
+                    setState(() => _isLoadingLinks = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  });
             } else {
               _playEpisode(_episodes[_selectedDownloadIndex]);
             }
@@ -1067,7 +1106,8 @@ class _InfoScreenState extends State<InfoScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.amber // Yellowish
+                    ? Colors
+                          .amber // Yellowish
                     : const Color(0xFF212121), // Dark grey
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
@@ -1144,7 +1184,11 @@ class _InfoScreenState extends State<InfoScreen> {
                               ),
                               child: Text(
                                 '•',
-                                style: TextStyle(color: isSelected ? Colors.black26 : Colors.white24),
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.black26
+                                      : Colors.white24,
+                                ),
                               ),
                             ),
                           if (download.episodeInfo != null)
@@ -1259,54 +1303,59 @@ class _InfoScreenState extends State<InfoScreen> {
               // For Moviesmod and Vega, use their respective getStream functions directly
               if (_currentProvider == 'Moviesmod') {
                 setState(() => _isLoadingLinks = true);
-                
-                moviesmodGetStream(episode.link).then((streams) {
-                  setState(() => _isLoadingLinks = false);
-                  if (streams.isNotEmpty) {
-                    _showStreamingLinksDialog(streams, _selectedQuality);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No streams found'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }).catchError((e) {
-                  print('Error getting streams: $e');
-                  setState(() => _isLoadingLinks = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                });
+
+                moviesmodGetStream(episode.link)
+                    .then((streams) {
+                      setState(() => _isLoadingLinks = false);
+                      if (streams.isNotEmpty) {
+                        _showStreamingLinksDialog(streams, _selectedQuality);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No streams found'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    })
+                    .catchError((e) {
+                      print('Error getting streams: $e');
+                      setState(() => _isLoadingLinks = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    });
               } else if (_currentProvider == 'Vega') {
                 setState(() => _isLoadingLinks = true);
-                
-                vega_stream.vegaGetStream(episode.link, _selectedQuality).then((streams) {
-                  setState(() => _isLoadingLinks = false);
-                  if (streams.isNotEmpty) {
-                    _showStreamingLinksDialog(streams, _selectedQuality);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No streams found'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }).catchError((e) {
-                  print('Error getting streams: $e');
-                  setState(() => _isLoadingLinks = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                });
+
+                vega_stream
+                    .vegaGetStream(episode.link, _selectedQuality)
+                    .then((streams) {
+                      setState(() => _isLoadingLinks = false);
+                      if (streams.isNotEmpty) {
+                        _showStreamingLinksDialog(streams, _selectedQuality);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No streams found'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    })
+                    .catchError((e) {
+                      print('Error getting streams: $e');
+                      setState(() => _isLoadingLinks = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    });
               } else {
                 _playEpisode(episode);
               }
@@ -1318,9 +1367,7 @@ class _InfoScreenState extends State<InfoScreen> {
               height: 72,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.amber
-                    : const Color(0xFF212121),
+                color: isSelected ? Colors.amber : const Color(0xFF212121),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected
@@ -1439,11 +1486,16 @@ class _InfoScreenState extends State<InfoScreen> {
       } else {
         // Fallback: Use primary link
         print('Using primary link: ${episode.link}');
-        
+
         // Check provider type for proper extraction
         if (_currentProvider == 'Vega') {
-          print('Vega provider detected, using vegaGetStream for combined links');
-          final vegaStreams = await vega_stream.vegaGetStream(episode.link, _selectedQuality);
+          print(
+            'Vega provider detected, using vegaGetStream for combined links',
+          );
+          final vegaStreams = await vega_stream.vegaGetStream(
+            episode.link,
+            _selectedQuality,
+          );
           if (vegaStreams.isNotEmpty) {
             print('Vega extracted ${vegaStreams.length} streams');
             allStreams.addAll(vegaStreams);
@@ -1502,7 +1554,10 @@ class _InfoScreenState extends State<InfoScreen> {
 
     try {
       if (_currentProvider == 'Xdmovies') {
-        final streams = await xdmoviesGetStream(downloadLink.url, downloadLink.quality);
+        final streams = await xdmoviesGetStream(
+          downloadLink.url,
+          downloadLink.quality,
+        );
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);
@@ -1518,12 +1573,15 @@ class _InfoScreenState extends State<InfoScreen> {
       }
 
       if (_currentProvider == 'Desiremovies') {
-        final streams = await desireMoviesGetStream(downloadLink.url, downloadLink.quality);
+        final streams = await desireMoviesGetStream(
+          downloadLink.url,
+          downloadLink.quality,
+        );
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);
         } else {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No streams found'),
               backgroundColor: Colors.red,
@@ -1553,12 +1611,15 @@ class _InfoScreenState extends State<InfoScreen> {
       }
 
       if (_currentProvider == 'Zinkmovies') {
-        final streams = await zinkmovies_stream.getStream(downloadLink.url, downloadLink.quality);
+        final streams = await zinkmovies_stream.getStream(
+          downloadLink.url,
+          downloadLink.quality,
+        );
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);
         } else {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No streams found'),
               backgroundColor: Colors.red,
@@ -1569,12 +1630,15 @@ class _InfoScreenState extends State<InfoScreen> {
       }
 
       if (_currentProvider == 'Animesalt') {
-        final streams = await animesalt_stream.animesaltGetStream(downloadLink.url, downloadLink.quality);
+        final streams = await animesalt_stream.animesaltGetStream(
+          downloadLink.url,
+          downloadLink.quality,
+        );
         setState(() => _isLoadingLinks = false);
         if (streams.isNotEmpty) {
           _showStreamingLinksDialog(streams, downloadLink.quality);
         } else {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No streams found'),
               backgroundColor: Colors.red,
@@ -1598,7 +1662,8 @@ class _InfoScreenState extends State<InfoScreen> {
 
         List<stream_types.Stream> allStreams = [];
 
-        if (processedUrl.contains('vcloud.zip') || processedUrl.contains('vcloud.lol')) {
+        if (processedUrl.contains('vcloud.zip') ||
+            processedUrl.contains('vcloud.lol')) {
           print('Processing VCloud link');
           final vcloudStreams = await VCloudExtractor.extractStreams(
             processedUrl,
@@ -1643,23 +1708,59 @@ class _InfoScreenState extends State<InfoScreen> {
 
       // Otherwise, fetch episodes from the processed URL
       print('Fetching episodes from processed URL: $processedUrl');
-      
+
       // Fetch episodes based on provider
       List<Episode> episodes;
-      
+
       switch (_currentProvider) {
         case 'Movies4u':
           episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
           break;
         case 'Vega':
-          final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
-          episodes = vegaEps.map((e) => Episode(title: e.title, link: e.link)).toList();
+          // Handle pipe-delimited URLs (G-Direct|V-Cloud)
+          if (processedUrl.contains('|')) {
+            print('Processing multiple episode URLs (G-Direct + V-Cloud)');
+            final urls = processedUrl.split('|');
+            final episodeMap = <String, String>{}; // title -> combined links
+
+            // Fetch episodes from each URL
+            for (final url in urls) {
+              if (url.trim().isEmpty) continue;
+
+              try {
+                print('Fetching from: $url');
+                final vegaEps = await vega_eps.vegaGetEpisodeLinks(url.trim());
+
+                for (final ep in vegaEps) {
+                  if (episodeMap.containsKey(ep.title)) {
+                    // Merge links with pipe delimiter
+                    episodeMap[ep.title] = '${episodeMap[ep.title]}|${ep.link}';
+                  } else {
+                    episodeMap[ep.title] = ep.link;
+                  }
+                }
+              } catch (e) {
+                print('Error fetching from $url: $e');
+              }
+            }
+
+            // Convert map to episodes list
+            episodes = episodeMap.entries
+                .map((e) => Episode(title: e.key, link: e.value))
+                .toList();
+          } else {
+            // Single URL
+            final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
+            episodes = vegaEps
+                .map((e) => Episode(title: e.title, link: e.link))
+                .toList();
+          }
           break;
         default:
           episodes = await EpisodeParser.fetchEpisodes(processedUrl);
           break;
       }
-      
+
       print('Found ${episodes.length} episodes');
 
       if (episodes.isEmpty) {
