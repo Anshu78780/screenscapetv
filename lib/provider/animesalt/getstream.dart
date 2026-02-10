@@ -136,13 +136,19 @@ Future<List<Stream>> animesaltGetStream(dynamic link, String type) async {
         final securedLink = videoData['securedLink'] as String;
         print('[AnimeSalt] Found securedLink: $securedLink');
         
+        // Extract origin from securedLink for proper CORS handling
+        final securedLinkUri = Uri.parse(securedLink);
+        final streamOrigin = '${securedLinkUri.scheme}://${securedLinkUri.host}';
+        print('[AnimeSalt] Using origin: $streamOrigin');
+        
         return [
           Stream(
             server: 'AnimeSalt',
             link: securedLink,
             type: 'm3u8',
             headers: {
-              'origin': 'https://as-cdn21.top',
+              'origin': streamOrigin,
+              'referer': episodeUrl,
             },
           ),
         ];

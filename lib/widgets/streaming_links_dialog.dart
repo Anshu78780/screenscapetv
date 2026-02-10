@@ -74,6 +74,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
           videoUrl: selectedStream.link,
           title: widget.movieTitle,
           server: selectedStream.server,
+          headers: selectedStream.headers,
         ),
       ),
     );

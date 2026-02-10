@@ -8,12 +8,14 @@ class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String title;
   final String server;
+  final Map<String, String>? headers;
 
   const VideoPlayerScreen({
     super.key,
     required this.videoUrl,
     required this.title,
     required this.server,
+    this.headers,
   });
 
   @override
@@ -87,12 +89,20 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         eventListener: _onPlayerEvent,
       );
 
+      // Merge custom headers with default User-Agent
+      final Map<String, String> requestHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...?widget.headers, // Spread operator to include headers from Stream (if provided)
+      };
+
+      print('[VideoPlayer] Initializing player for: ${widget.server}');
+      print('[VideoPlayer] Video URL: ${widget.videoUrl}');
+      print('[VideoPlayer] Headers: $requestHeaders');
+
       BetterPlayerDataSource dataSource = BetterPlayerDataSource(
         BetterPlayerDataSourceType.network,
         widget.videoUrl,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
+        headers: requestHeaders,
         useAsmsTracks: true,
         useAsmsSubtitles: true,
         notificationConfiguration: BetterPlayerNotificationConfiguration(
