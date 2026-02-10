@@ -10,6 +10,7 @@ import 'movies4u/movies4u_provider_service.dart';
 import 'vega/vega_provider_service.dart';
 import 'filmycab/filmycab_provider_service.dart';
 import 'zeefliz/zeefliz_provider_service.dart';
+import 'nf/nf_provider_service.dart';
 
 /// Factory class to create the appropriate provider service
 class ProviderFactory {
@@ -35,6 +36,8 @@ class ProviderFactory {
         return FilmycabProviderService();
       case 'Zeefliz':
         return ZeeflizProviderService();
+      case 'NfMirror':
+        return NfProviderService();
       case 'Drive':
       default:
         return DriveProviderService();

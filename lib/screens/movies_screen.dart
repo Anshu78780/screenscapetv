@@ -11,6 +11,7 @@ import '../provider/movies4u/index.dart';
 import '../provider/vega/index.dart';
 import '../provider/filmycab/index.dart';
 import '../provider/zeefliz/index.dart';
+import '../provider/nf/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -71,6 +72,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return FilmyCabCatalog.categories;
       case 'Zeefliz':
         return ZeeflizCatalog.categories;
+      case 'NfMirror':
+        return NfCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -138,6 +141,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'Zeefliz':
           movies = await ZeeflizGetPost.fetchMovies(category['path']!);
           break;
+        case 'NfMirror':
+          movies = await NfGetPost.fetchMovies(category['path']!);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -196,6 +202,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Filmycab':
           movies = await FilmyCabGetPost.searchMovies(query);
+          break;
+        case 'NfMirror':
+          movies = await NfGetPost.searchMovies(query);
           break;
         case 'Zeefliz':
           movies = await ZeeflizGetPost.searchMovies(query);

@@ -72,6 +72,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'Zeefliz',
       'icon': Icons.video_collection,
     },
+    {
+      'id': 'NfMirror',
+      'name': 'Netflix Mirror',
+      'icon': Icons.live_tv,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',
