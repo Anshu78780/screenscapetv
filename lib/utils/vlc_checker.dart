@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:device_apps/device_apps.dart';
+import 'package:installed_apps/installed_apps.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class VlcChecker {
@@ -18,7 +18,8 @@ class VlcChecker {
       bool installed = false;
 
       if (Platform.isAndroid) {
-        installed = await DeviceApps.isAppInstalled(_vlcPackageName);
+        bool? isAppInstalled = await InstalledApps.isAppInstalled(_vlcPackageName);
+        installed = isAppInstalled ?? false;
       } else if (Platform.isLinux) {
         installed = await _isVlcInstalledLinux();
       } else {

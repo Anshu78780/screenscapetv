@@ -1,10 +1,9 @@
 // Streaming Links Dialog with Key Navigation
-import 'dart:io' show Platform, Process, ProcessStartMode;
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../utils/key_event_handler.dart';
+import '../utils/vlc_launcher.dart';
 import '../screens/video_player_screen.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
 
@@ -66,6 +65,11 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
   }
 
   void _playSelectedStream() {
+    if (!kIsWeb && Platform.isLinux) {
+      _openInVLC();
+      return;
+    }
+
     final selectedStream = widget.streams[_selectedStreamIndex];
     Navigator.push(
       context,
@@ -75,6 +79,8 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
           title: widget.movieTitle,
           server: selectedStream.server,
           headers: selectedStream.headers,
+          streams: widget.streams,
+          currentStreamIndex: _selectedStreamIndex,
         ),
       ),
     );
@@ -97,158 +103,14 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
         return;
       }
 
-      if (Platform.isLinux) {
-        await _openVLCOnLinux(selectedStream.link);
-      } else if (Platform.isAndroid) {
-        await _openVLCOnAndroid(selectedStream.link);
-      } else if (Platform.isIOS) {
-        await _openVLCOnIOS(selectedStream.link);
-      } else {
-        _showSnackBar('VLC integration not available for this platform');
-      }
-    } catch (e) {
-      _showSnackBar('Error opening VLC: $e');
-    }
-  }
-
-  Future<void> _openVLCOnLinux(String url) async {
-    bool launched = false;
-
-    try {
-      await Process.start('vlc', [url], mode: ProcessStartMode.detached);
-      launched = true;
       _showSnackBar('Opening in VLC...');
-      return;
+      await VlcLauncher.launchVlc(selectedStream.link, widget.movieTitle);
     } catch (e) {
-      print('Standard VLC not found: $e');
-    }
-
-    if (!launched) {
-      try {
-        await Process.start('flatpak', [
-          'run',
-          'org.videolan.VLC',
-          url,
-        ], mode: ProcessStartMode.detached);
-        launched = true;
-        _showSnackBar('Opening in VLC (Flatpak)...');
-        return;
-      } catch (e) {
-        print('Flatpak VLC not found: $e');
-      }
-    }
-
-    if (!launched) {
-      try {
-        await Process.start('snap', [
-          'run',
-          'vlc',
-          url,
-        ], mode: ProcessStartMode.detached);
-        launched = true;
-        _showSnackBar('Opening in VLC (Snap)...');
-        return;
-      } catch (e) {
-        print('Snap VLC not found: $e');
-      }
-    }
-
-    if (!launched) {
-      try {
-        final whichResult = await Process.run('which', ['vlc']);
-        if (whichResult.exitCode == 0 &&
-            whichResult.stdout.toString().trim().isNotEmpty) {
-          final vlcPath = whichResult.stdout.toString().trim();
-          await Process.start(vlcPath, [url], mode: ProcessStartMode.detached);
-          launched = true;
-          _showSnackBar('Opening in VLC...');
-          return;
-        }
-      } catch (e) {
-        print('Which command failed: $e');
-      }
-    }
-
-    if (!launched) {
-      try {
-        await Process.start('xdg-open', [url], mode: ProcessStartMode.detached);
-        _showSnackBar('Opening video in default player...');
-      } catch (e) {
-        _showSnackBar(
-          'VLC not found. Please install VLC: sudo apt install vlc',
-        );
-      }
+      _showSnackBar(e.toString());
     }
   }
 
-  Future<void> _openVLCOnAndroid(String url) async {
-    const platform = MethodChannel('com.example.screenscapetv/vlc');
 
-    try {
-      final bool? result = await platform.invokeMethod('launchVLC', {
-        'url': url,
-        'title': widget.movieTitle,
-      });
-
-      if (result == true) {
-        _showSnackBar('Opening in VLC...');
-        return;
-      }
-    } catch (e) {
-      print('Platform channel failed: $e');
-    }
-
-    bool launched = false;
-
-    try {
-      final vlcScheme = 'vlc://${Uri.encodeComponent(url)}';
-      final vlcUri = Uri.parse(vlcScheme);
-      launched = await launchUrl(vlcUri, mode: LaunchMode.externalApplication);
-      if (launched) {
-        _showSnackBar('Opening in VLC...');
-        return;
-      }
-    } catch (e) {
-      print('VLC URL scheme failed: $e');
-    }
-
-    try {
-      final videoUri = Uri.parse(url);
-      launched = await launchUrl(
-        videoUri,
-        mode: LaunchMode.externalApplication,
-      );
-      if (launched) {
-        _showSnackBar('Opening video (choose VLC from app list)...');
-        return;
-      }
-    } catch (e) {
-      print('Direct URL launch failed: $e');
-    }
-
-    if (!launched) {
-      _showSnackBar(
-        'Could not open VLC. Ensure VLC is installed from Play Store.',
-      );
-    }
-  }
-
-  Future<void> _openVLCOnIOS(String url) async {
-    try {
-      final vlcUri = Uri.parse(
-        'vlc-x-callback://x-callback-url/stream?url=${Uri.encodeComponent(url)}',
-      );
-
-      if (await canLaunchUrl(vlcUri)) {
-        await launchUrl(vlcUri, mode: LaunchMode.externalApplication);
-        _showSnackBar('Opening in VLC...');
-      } else {
-        _showSnackBar('VLC not installed. Please install VLC from App Store.');
-      }
-    } catch (e) {
-      _showSnackBar('Error: VLC app not found');
-    }
-  }
 
   void _showSnackBar(String message) {
     if (mounted) {
@@ -507,22 +369,12 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Image.asset(
-                                        'assets/vlc_icon.png',
-                                        width: 28,
-                                        height: 28,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                              return Icon(
-                                                Icons.live_tv,
-                                                color:
-                                                    isCurrentStream &&
-                                                        _isVLCSelected
-                                                    ? Colors.white
-                                                    : Colors.orange,
-                                                size: 28,
-                                              );
-                                            },
+                                      Icon(
+                                        Icons.open_in_new,
+                                        color: isCurrentStream && _isVLCSelected
+                                            ? Colors.white
+                                            : Colors.orange,
+                                        size: 28,
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
@@ -572,7 +424,6 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
               color: accent,
               fontSize: 11,
               fontWeight: FontWeight.w900,
-              fontFamily: Platform.isWindows ? 'Segoe UI' : null,
             ),
           ),
         ),

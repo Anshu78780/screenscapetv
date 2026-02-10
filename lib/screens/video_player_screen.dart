@@ -3,12 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'dart:async';
+import '../provider/extractors/stream_types.dart' as stream_types;
+import '../utils/vlc_launcher.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String title;
   final String server;
   final Map<String, String>? headers;
+  final List<stream_types.Stream>? streams;
+  final int? currentStreamIndex;
 
   const VideoPlayerScreen({
     super.key,
@@ -16,6 +20,8 @@ class VideoPlayerScreen extends StatefulWidget {
     required this.title,
     required this.server,
     this.headers,
+    this.streams,
+    this.currentStreamIndex,
   });
 
   @override
@@ -40,6 +46,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Timer? _hideControlsTimer;
   bool _showSettings = false;
   bool _showTracks = false;
+  bool _showServers = false;
+  
+  // Server Management
+  late int _currentStreamIndex;
+  late String _currentVideoUrl;
+  late String _currentServerName;
+  late Map<String, String>? _currentHeaders;
 
   // Focus Management
   final FocusNode _backgroundFocusNode = FocusNode();
@@ -48,6 +61,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   final FocusNode _forwardFocusNode = FocusNode();
   final FocusNode _progressBarFocusNode = FocusNode(); 
   final FocusNode _settingsFocusNode = FocusNode();
+  final FocusNode _serversFocusNode = FocusNode();
+  final FocusNode _vlcFocusNode = FocusNode(); // For error screen
   
   List<BetterPlayerAsmsAudioTrack>? _audioTracks;
   BetterPlayerAsmsAudioTrack? _selectedAudioTrack;
@@ -55,6 +70,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _currentStreamIndex = widget.currentStreamIndex ?? 0;
+    _currentVideoUrl = widget.videoUrl;
+    _currentServerName = widget.server;
+    _currentHeaders = widget.headers;
+    
     WakelockPlus.enable();
     _initializePlayer();
     _startHideControlsTimer();
@@ -69,6 +89,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _forwardFocusNode.dispose();
     _progressBarFocusNode.dispose();
     _settingsFocusNode.dispose();
+    _serversFocusNode.dispose();
+    _vlcFocusNode.dispose();
     WakelockPlus.disable();
     _betterPlayerController.dispose();
     super.dispose();
@@ -92,23 +114,23 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       // Merge custom headers with default User-Agent
       final Map<String, String> requestHeaders = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        ...?widget.headers, // Spread operator to include headers from Stream (if provided)
+        ...?_currentHeaders, 
       };
 
-      print('[VideoPlayer] Initializing player for: ${widget.server}');
-      print('[VideoPlayer] Video URL: ${widget.videoUrl}');
+      print('[VideoPlayer] Initializing player for: $_currentServerName');
+      print('[VideoPlayer] Video URL: $_currentVideoUrl');
       print('[VideoPlayer] Headers: $requestHeaders');
 
       BetterPlayerDataSource dataSource = BetterPlayerDataSource(
         BetterPlayerDataSourceType.network,
-        widget.videoUrl,
+        _currentVideoUrl,
         headers: requestHeaders,
         useAsmsTracks: true,
         useAsmsSubtitles: true,
         notificationConfiguration: BetterPlayerNotificationConfiguration(
           showNotification: true,
           title: widget.title,
-          author: widget.server,
+          author: _currentServerName,
         ),
       );
 
@@ -214,6 +236,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         _showControls = false;
         _showSettings = false;
         _showTracks = false;
+        _showServers = false;
       });
       // Return focus to background for shortcuts
       _backgroundFocusNode.requestFocus();
@@ -223,10 +246,68 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void _startHideControlsTimer() {
     _hideControlsTimer?.cancel();
     _hideControlsTimer = Timer(const Duration(seconds: 4), () {
-      if (_isPlaying && !_showSettings && !_showTracks && mounted) {
+      if (_isPlaying && !_showSettings && !_showTracks && !_showServers && mounted) {
         _hideControls();
       }
     });
+  }
+
+  Future<void> _changeStream(int index) async {
+    if (widget.streams == null || index < 0 || index >= widget.streams!.length) return;
+    
+    final stream = widget.streams![index];
+    
+    setState(() {
+       _currentStreamIndex = index;
+       _currentVideoUrl = stream.link;
+       _currentServerName = stream.server;
+       _currentHeaders = stream.headers;
+       _isInitialized = false;
+       _isBuffering = true;
+       _hasError = false;
+       _errorMessage = '';
+       _showServers = false;
+    });
+
+    final Map<String, String> requestHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      ...?_currentHeaders,
+    };
+    
+    BetterPlayerDataSource dataSource = BetterPlayerDataSource(
+      BetterPlayerDataSourceType.network,
+      _currentVideoUrl,
+      headers: requestHeaders,
+      useAsmsTracks: true,
+      useAsmsSubtitles: true,
+      notificationConfiguration: BetterPlayerNotificationConfiguration(
+        showNotification: true,
+        title: widget.title,
+        author: _currentServerName,
+      ),
+    );
+
+    try {
+      await _betterPlayerController.setupDataSource(dataSource);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = e.toString();
+          _isBuffering = false;
+        });
+      }
+    }
+    
+    _showControlsAndResetTimer();
+  }
+
+  void _toggleServers() {
+     setState(() {
+        _showServers = !_showServers;
+        _showTracks = false;
+        _showSettings = false;
+     });
   }
 
   KeyEventResult _handleBackgroundKeyPress(FocusNode node, KeyEvent event) {
@@ -292,6 +373,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     setState(() {
       _showSettings = !_showSettings;
       _showTracks = false;
+      _showServers = false;
     });
   }
   
@@ -304,6 +386,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
            _selectedAudioTrack = current ?? _selectedAudioTrack;
            _showTracks = !_showTracks;
            _showSettings = false;
+           _showServers = false;
       });
   }
   
@@ -327,19 +410,56 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48),
-              const SizedBox(height: 16),
-              const Text("Playback Error", style: TextStyle(color: Colors.white)),
-              Text(_errorMessage, style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Go Back"),
-              )
-            ],
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                const Text("Playback Error", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  "Looks like flutter can't play this stream.\nTry another server or open in VLC.",
+                  style: const TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                if (_errorMessage.isNotEmpty) ...[
+                   const SizedBox(height: 8),
+                   Text(_errorMessage, style: TextStyle(color: Colors.grey[600], fontSize: 12), textAlign: TextAlign.center),
+                ],
+                const SizedBox(height: 24),
+                Row(
+                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                   children: [
+                     ElevatedButton.icon(
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text("Go Back"),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800]),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      Focus(
+                         focusNode: _vlcFocusNode,
+                         autofocus: true,
+                         child: ElevatedButton.icon(
+                            icon: const Icon(Icons.open_in_new),
+                            label: const Text("Open in VLC"),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[900]),
+                            onPressed: () {
+                               VlcLauncher.launchVlc(_currentVideoUrl, widget.title);
+                            },
+                          ),
+                      ),
+                   ],
+                )
+              ],
+            ),
           ),
         ),
       );
@@ -461,7 +581,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               ),
             ),
             
-            Expanded(child: _showSettings || _showTracks ? _buildSettingsPanel() : Container()),
+            Expanded(child: _showSettings || _showTracks || _showServers ? 
+                (_showSettings ? _buildSettingsPanel() : (_showTracks ? _buildSettingsPanel() : _buildServersPanel())) 
+                : Container()),
             
             // Bottom Controls
             GestureDetector(
@@ -510,6 +632,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        if (widget.streams != null && widget.streams!.isNotEmpty) ...[
+                           _buildControlButton(
+                              icon: Icons.dns,
+                              focusNode: _serversFocusNode,
+                              onPressed: _toggleServers,
+                              size: 28,
+                              tooltip: "Servers",
+                           ),
+                           const SizedBox(width: 24),
+                        ],
                         _buildControlButton(
                           icon: Icons.replay_10, 
                           focusNode: _rewindFocusNode,
@@ -528,13 +660,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                           focusNode: _forwardFocusNode,
                           onPressed: _forward,
                         ),
-                        const SizedBox(width: 48),
+                        const SizedBox(width: 24),
                         // Settings / Tracks
                         _buildControlButton(
                           icon: Icons.audiotrack,
                           focusNode: _settingsFocusNode,
                           onPressed: _toggleTracks,
-                          size: 32,
+                          size: 28,
                           tooltip: "Audio Tracks",
                         ),
                       ],
@@ -603,17 +735,47 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           if (_audioTracks == null || _audioTracks!.isEmpty) {
               return Center(
                 child: Container(
-                  width: 300,
-                  padding: const EdgeInsets.all(24),
+                  width: 600,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.black87,
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.white24),
+                    boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
                   ),
-                  child: const Text(
-                    "No audio tracks available",
-                    style: TextStyle(color: Colors.white70),
-                    textAlign: TextAlign.center,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          "No distinct audio tracks found",
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          "Try opening in VLC to access advanced audio options.",
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        Focus(
+                           autofocus: true,
+                           child: ElevatedButton.icon(
+                              icon: const Icon(Icons.open_in_new),
+                              label: const Text("Open in VLC"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange[900],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              ),
+                              onPressed: () {
+                                 VlcLauncher.launchVlc(_currentVideoUrl, widget.title);
+                              },
+                            ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -707,6 +869,159 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         }),
       );
     });
+  }
+
+  Widget _buildServersPanel() {
+     if (widget.streams == null || widget.streams!.isEmpty) return Container();
+     
+     return Center(
+        child: Container(
+           width: 650,
+           constraints: const BoxConstraints(maxHeight: 500),
+           decoration: BoxDecoration(
+              color: const Color(0xFF141414),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white24),
+              boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
+           ),
+           padding: const EdgeInsets.all(16),
+           child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                   Row(
+                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                     children: [
+                       const Text("Select Server", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                       Text("${_currentStreamIndex+1}/${widget.streams!.length}", style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                     ],
+                   ),
+                   const SizedBox(height: 12),
+                   Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: widget.streams!.length,
+                        itemBuilder: (context, index) {
+                           final stream = widget.streams![index];
+                           final isSelected = index == _currentStreamIndex;
+                           
+                           return Padding(
+                             padding: const EdgeInsets.only(bottom: 12),
+                             child: Row(
+                               children: [
+                                 Expanded(
+                                   child: Focus(
+                                      autofocus: isSelected,
+                                      onKeyEvent: (node, event) {
+                                          if (event is KeyDownEvent) {
+                                             if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.select) {
+                                                _changeStream(index);
+                                                return KeyEventResult.handled;
+                                             }
+                                             if (event.logicalKey == LogicalKeyboardKey.escape || event.logicalKey == LogicalKeyboardKey.goBack) {
+                                                setState(() => _showServers = false);
+                                                _serversFocusNode.requestFocus();
+                                                return KeyEventResult.handled;
+                                             }
+                                          }
+                                          return KeyEventResult.ignored;
+                                      },
+                                      child: Builder(builder: (context) {
+                                          final hasFocus = Focus.of(context).hasFocus;
+                                          return InkWell(
+                                             onTap: () => _changeStream(index),
+                                             borderRadius: BorderRadius.circular(8),
+                                             child: Container(
+                                                padding: const EdgeInsets.all(16),
+                                                decoration: BoxDecoration(
+                                                   color: hasFocus ? Colors.white.withOpacity(0.1) : (isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent),
+                                                   borderRadius: BorderRadius.circular(8),
+                                                   border: hasFocus ? Border.all(color: Colors.red, width: 2) : (isSelected ? Border.all(color: Colors.white24) : Border.all(color: Colors.transparent)),
+                                                ),
+                                                child: Row(
+                                                   children: [
+                                                      Icon(
+                                                         isSelected ? Icons.play_circle_filled : Icons.play_circle_outline,
+                                                         color: isSelected ? Colors.red : Colors.white54,
+                                                         size: 28,
+                                                      ),
+                                                      const SizedBox(width: 16),
+                                                      Expanded(
+                                                         child: Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                               Text(
+                                                                  stream.server,
+                                                                  style: TextStyle(
+                                                                     color: isSelected ? Colors.white : Colors.white70,
+                                                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                                     fontSize: 16,
+                                                                  ),
+                                                               ),
+                                                               const SizedBox(height: 4),
+                                                               Text(
+                                                                  stream.type.toUpperCase(),
+                                                                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                                               ),
+                                                            ],
+                                                         ),
+                                                      ),
+                                                   ],
+                                                ),
+                                             ),
+                                          );
+                                      }),
+                                   ),
+                                 ),
+                                 const SizedBox(width: 12),
+                                 Focus(
+                                    onKeyEvent: (node, event) {
+                                       if (event is KeyDownEvent) {
+                                           if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.select) {
+                                               VlcLauncher.launchVlc(stream.link, widget.title);
+                                               return KeyEventResult.handled;
+                                           }
+                                           if (event.logicalKey == LogicalKeyboardKey.escape || event.logicalKey == LogicalKeyboardKey.goBack) {
+                                                setState(() => _showServers = false);
+                                                _serversFocusNode.requestFocus();
+                                                return KeyEventResult.handled;
+                                           }
+                                       }
+                                       return KeyEventResult.ignored;
+                                    },
+                                    child: Builder(builder: (context) {
+                                       final hasFocus = Focus.of(context).hasFocus;
+                                       return InkWell(
+                                          onTap: () => VlcLauncher.launchVlc(stream.link, widget.title),
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                             decoration: BoxDecoration(
+                                                color: hasFocus ? Colors.orange.withOpacity(0.2) : Colors.transparent,
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: hasFocus ? Border.all(color: Colors.orange, width: 2) : Border.all(color: Colors.white12),
+                                             ),
+                                             child: Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                   const Icon(Icons.open_in_new, color: Colors.orange, size: 24),
+                                                   const SizedBox(height: 4),
+                                                   const Text("VLC", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                ],
+                                             ),
+                                          ),
+                                       );
+                                    }),
+                                 ),
+                               ],
+                             ),
+                           );
+                        },
+                      ),
+                   ),
+              ],
+           ),
+        ),
+     );
   }
 
   String _formatDuration(Duration d) {
