@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tha_player/tha_player.dart';
@@ -34,37 +33,22 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   
   bool _hasError = false;
   String _errorMessage = '';
-  bool _isLoading = true;
-  bool _hasLoadedTracks = false;
-  
-  // UI State
-  bool _showControls = true;
   bool _showAudioTracks = false;
-  Timer? _hideTimer;
-  
-  // Navigation State
-  // Row 0: Timeline/SeekBar
-  // Row 1: Buttons [Audio, -30s, Play/Pause, +30s]
-  int _focusRow = 1;
-  int _focusCol = 2; // Start on Play/Pause
-  
-  static const int _controlAudio = 0;
-  static const int _controlRewind = 1;
-  static const int _controlPlay = 2;
-  static const int _controlForward = 3;
-  static const int _maxCols = 4;
-  
-  // Theme
-  static const Color _vlcOrange = Colors.deepOrange;
-  
-  // Audio Tracks
-  List<ThaAudioTrack> _audioTracks = [];
-  String? _selectedAudioTrackId;
-  int _selectedAudioListIndex = 0;
+  bool _isPlaying = false;
+  bool _isLoading = true;
+  bool _showControls = true;
   
   late String _currentVideoUrl;
   late String _currentServerName;
   late Map<String, String>? _currentHeaders;
+  
+  List<ThaAudioTrack> _audioTracks = [];
+  String? _selectedAudioTrackId;
+  int _selectedTrackIndex = 0;
+  int _focusedControlIndex = 0; // 0: play/pause, 1: audio tracks
+  
+  final FocusNode _controlsFocusNode = FocusNode();
+  final FocusNode _audioTracksFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -75,38 +59,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     
     WakelockPlus.enable();
     _initializePlayer();
-    _startHideTimer();
   }
 
   @override
   void dispose() {
-    _hideTimer?.cancel();
-    _playerController?.playbackState.removeListener(_onPlaybackStateChanged);
     WakelockPlus.disable();
+    _controlsFocusNode.dispose();
+    _audioTracksFocusNode.dispose();
     _playerController?.dispose();
     super.dispose();
-  }
-
-  void _onPlaybackStateChanged() {
-    if (_playerController == null || !mounted) return;
-    
-    final state = _playerController!.playbackState.value;
-    
-    // Load audio tracks when player starts playing for the first time
-    if (state.isPlaying && !_hasLoadedTracks) {
-      _hasLoadedTracks = true;
-      // Give a small delay to ensure tracks are fully available
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          _loadAudioTracks();
-        }
-      });
-    }
-    
-    // Hide loading spinner when player starts
-    if (state.isPlaying && _isLoading) {
-      setState(() => _isLoading = false);
-    }
   }
 
   Future<void> _initializePlayer() async {
@@ -116,7 +77,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         ...?_currentHeaders,
       };
 
-      print('[VideoPlayer] Initializing for: $_currentServerName');
+      print('[VideoPlayer] Initializing player for: $_currentServerName');
+      print('[VideoPlayer] Video URL: $_currentVideoUrl');
+      print('[VideoPlayer] Headers: $requestHeaders');
 
       final mediaSource = ThaMediaSource(
         _currentVideoUrl,
@@ -131,19 +94,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       setState(() {
         _hasError = false;
         _isLoading = true;
-        _hasLoadedTracks = false;
+        _isPlaying = true; // Auto-play is enabled
       });
 
-      // Add listener to detect when player is ready
-      _playerController!.playbackState.addListener(_onPlaybackStateChanged);
+      // Load audio tracks immediately
+      _loadAudioTracks();
       
-      // Fallback: Try loading tracks after a delay if not loaded yet
-      Future.delayed(const Duration(seconds: 5), () {
-        if (mounted && !_hasLoadedTracks) {
-          print('[VideoPlayer] Fallback: Loading audio tracks after delay');
-          _hasLoadedTracks = true;
-          _loadAudioTracks();
+      // Stop showing loading after a delay
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
           setState(() => _isLoading = false);
+          // Try loading audio tracks again after video starts
+          _loadAudioTracks();
         }
       });
     } catch (e) {
@@ -160,612 +122,569 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Future<void> _loadAudioTracks() async {
     if (_playerController == null) return;
     
-    print('[VideoPlayer] Attempting to load audio tracks...');
-    
     try {
       final tracks = await _playerController!.getAudioTracks();
-      print('[VideoPlayer] Found ${tracks.length} audio tracks');
-      
-      if (mounted) {
+      if (mounted && tracks.isNotEmpty) {
         setState(() {
           _audioTracks = tracks;
-          if (tracks.isNotEmpty) {
-            _selectedAudioTrackId = _playerController!.preferences.value.manualAudioTrackId;
-            print('[VideoPlayer] Selected audio track: $_selectedAudioTrackId');
-          } else {
-            print('[VideoPlayer] No audio tracks available');
-          }
+          _selectedAudioTrackId = _playerController!.preferences.value.manualAudioTrackId;
         });
       }
     } catch (e) {
-      print('[VideoPlayer] Error loading audio tracks: $e');
-      
-      // Retry once after a delay
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted && _audioTracks.isEmpty) {
-          print('[VideoPlayer] Retrying audio track load...');
-          _loadAudioTracks();
-        }
-      });
+      print('Error loading audio tracks: $e');
     }
-  }
-
-  void _startHideTimer() {
-    _hideTimer?.cancel();
-    if (_showAudioTracks) return; // Don't hide if audio menu is open
-    
-    _hideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _showControls) {
-        setState(() => _showControls = false);
-      }
-    });
-  }
-
-  void _resetControls() {
-    setState(() {
-      _showControls = true;
-    });
-    _startHideTimer();
   }
 
   void _togglePlayPause() {
     if (_playerController == null) return;
-    final state = _playerController!.playbackState.value;
-    if (state.isPlaying) {
+    
+    if (_isPlaying) {
       _playerController!.pause();
+      setState(() => _isPlaying = false);
     } else {
       _playerController!.play();
+      setState(() => _isPlaying = true);
     }
-    _resetControls();
   }
-
-  void _seekRelative(int seconds) {
-    if (_playerController == null) return;
-    final state = _playerController!.playbackState.value;
-    final newPos = state.position + Duration(seconds: seconds);
-    final dur = state.duration;
+  
+  void _toggleAudioTracks() {
+    // Always try to load audio tracks when opening
+    _loadAudioTracks();
     
-    // Clamp
-    if (newPos < Duration.zero) {
-      _playerController!.seekTo(Duration.zero);
-    } else if (newPos > dur) {
-      _playerController!.seekTo(dur);
-    } else {
-      _playerController!.seekTo(newPos);
-    }
-    _resetControls();
+    setState(() {
+      _showAudioTracks = !_showAudioTracks;
+      if (_showAudioTracks) {
+        _selectedTrackIndex = 0;
+      }
+    });
   }
-
-  void _onSelectAudioTrack(ThaAudioTrack track) {
-    _playerController!.selectAudioTrack(track.id);
+  
+  void _selectAudioTrack(ThaAudioTrack track, int index) {
+    // Update preferences to set the audio track
+    final currentPrefs = _playerController!.preferences.value;
+    _playerController!.preferences.value = currentPrefs.copyWith(
+      manualAudioTrackId: track.id,
+    );
+    
     setState(() {
       _selectedAudioTrackId = track.id;
+      _selectedTrackIndex = index;
       _showAudioTracks = false;
     });
-    _resetControls();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Audio: ${track.label ?? track.language ?? track.id}'),
-        backgroundColor: _vlcOrange,
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
-  // --- Key Handling ---
-
-  void _handleLeft() {
-    if (_showAudioTracks) return; // Audio Menu handled separately if needed, currently pure ListView
-    
-    if (!_showControls) {
-      _resetControls(); // Show controls
-      _seekRelative(-10); // And regular seek
-      return;
-    }
-    
-    _resetControls();
-    
-    if (_focusRow == 0) {
-      // Timeline focus: seek small amount
-      _seekRelative(-10);
-    } else {
-      // Buttons focus
-      setState(() {
-        _focusCol = (_focusCol - 1 + _maxCols) % _maxCols;
-      });
-    }
-  }
-
-  void _handleRight() {
-    if (_showAudioTracks) return;
-
-    if (!_showControls) {
-      _resetControls();
-      _seekRelative(30); // Quick skip forward
-      return;
-    }
-
-    _resetControls();
-
-    if (_focusRow == 0) {
-      // Timeline focus: seek small amount
-      _seekRelative(10);
-    } else {
-      // Buttons focus
-      setState(() {
-        _focusCol = (_focusCol + 1) % _maxCols;
-      });
-    }
-  }
-
-  void _handleUp() {
-    _resetControls();
-    if (_showAudioTracks) {
-       setState(() {
-         _selectedAudioListIndex = (_selectedAudioListIndex - 1).clamp(0, _audioTracks.length - 1);
-       });
-       return;
-    }
-    
-    if (_focusRow == 1) {
-      setState(() => _focusRow = 0);
-    }
-  }
-
-  void _handleDown() {
-    _resetControls();
-    if (_showAudioTracks) {
-       setState(() {
-         _selectedAudioListIndex = (_selectedAudioListIndex + 1).clamp(0, _audioTracks.length - 1);
-       });
-       return;
-    }
-    
-    if (_focusRow == 0) {
-      setState(() => _focusRow = 1);
-    }
-  }
-
-  void _handleEnter() {
-    _resetControls();
-    if (_showAudioTracks) {
-      if (_audioTracks.isNotEmpty) {
-        _onSelectAudioTrack(_audioTracks[_selectedAudioListIndex]);
+  void _handleControlNavigation({required bool isRight}) {
+    setState(() {
+      // Always have 2 controls: play/pause (0) and audio (1)
+      if (isRight) {
+        _focusedControlIndex = (_focusedControlIndex + 1) % 2;
+      } else {
+        _focusedControlIndex = (_focusedControlIndex - 1);
+        if (_focusedControlIndex < 0) _focusedControlIndex = 1;
       }
-      return;
-    }
+    });
+  }
 
-    if (_focusRow == 0) {
-      // Seek bar enter -> Toggle play/pause or just show controls? 
-      // Usually enter on seekbar doesn't do much, maybe Play/Pause is safer
+  void _handleControlSelect() {
+    if (_focusedControlIndex == 0) {
       _togglePlayPause();
-    } else {
-      // Buttons
-      switch (_focusCol) {
-        case _controlAudio:
-          setState(() {
-             _showAudioTracks = true;
-             _selectedAudioListIndex = 0;
-          });
-          break;
-        case _controlRewind:
-          _seekRelative(-30);
-          break;
-        case _controlPlay:
-          _togglePlayPause();
-          break;
-        case _controlForward:
-          _seekRelative(30);
-          break;
+    } else if (_focusedControlIndex == 1) {
+      _toggleAudioTracks();
+    }
+  }
+
+  void _handleAudioTrackNavigation({required bool isDown}) {
+    setState(() {
+      if (isDown) {
+        _selectedTrackIndex = (_selectedTrackIndex + 1).clamp(0, _audioTracks.length - 1);
+      } else {
+        _selectedTrackIndex = (_selectedTrackIndex - 1).clamp(0, _audioTracks.length - 1);
       }
-    }
-  }
-
-  void _handleBack() {
-    if (_showAudioTracks) {
-      setState(() => _showAudioTracks = false);
-      _resetControls();
-    } else {
-      Navigator.pop(context);
-    }
-  }
-
-  String _formatDuration(Duration d) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
-    if (d.inHours > 0) {
-      return "${twoDigits(d.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
-    }
-    return "$twoDigitMinutes:$twoDigitSeconds";
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_hasError) {
-      return _buildErrorScreen();
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  "Playback Error",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Looks like the player can't play this stream.\nTry another server or open in VLC.",
+                  style: TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                if (_errorMessage.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text("Go Back"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[800],
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text("Open in VLC"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange[900],
+                      ),
+                      onPressed: () {
+                        VlcLauncher.launchVlc(_currentVideoUrl, widget.title);
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     if (_playerController == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(color: _vlcOrange)),
+        body: const Center(
+          child: CircularProgressIndicator(color: Colors.red),
+        ),
       );
     }
 
     return KeyEventHandler(
-      onLeftKey: _handleLeft,
-      onRightKey: _handleRight,
-      onUpKey: _handleUp,
-      onDownKey: _handleDown,
-      onEnterKey: _handleEnter,
-      onBackKey: _handleBack,
-      onEscapeKey: _handleBack,
+      onLeftKey: _showAudioTracks ? null : () => _handleControlNavigation(isRight: false),
+      onRightKey: _showAudioTracks ? null : () => _handleControlNavigation(isRight: true),
+      onUpKey: _showAudioTracks ? () => _handleAudioTrackNavigation(isDown: false) : null,
+      onDownKey: _showAudioTracks ? () => _handleAudioTrackNavigation(isDown: true) : null,
+      onEnterKey: () {
+        if (_showAudioTracks) {
+          if (_audioTracks.isNotEmpty) {
+            _selectAudioTrack(_audioTracks[_selectedTrackIndex], _selectedTrackIndex);
+          }
+        } else {
+          _handleControlSelect();
+        }
+      },
+      onBackKey: () {
+        if (_showAudioTracks) {
+          setState(() => _showAudioTracks = false);
+        } else {
+          Navigator.pop(context);
+        }
+      },
+      onEscapeKey: () {
+        if (_showAudioTracks) {
+          setState(() => _showAudioTracks = false);
+        } else {
+          Navigator.pop(context);
+        }
+      },
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
           children: [
-            // Video Surface
+            // Video player with built-in controls (we'll cover them with our custom UI)
             ThaModernPlayer(
               controller: _playerController!,
-              onError: (msg) {
-                setState(() {
-                  _hasError = true;
-                  _errorMessage = msg ?? 'Unknown Error';
-                });
+              onError: (error) {
+                if (mounted) {
+                  setState(() {
+                    _hasError = true;
+                    _errorMessage = error ?? 'Unknown playback error';
+                  });
+                }
               },
             ),
 
-            // Invisible Overlay to block taps if needed, or detect taps to show controls
+            // Overlay to hide built-in controls and show only our custom ones
             Positioned.fill(
               child: GestureDetector(
                 onTap: () {
-                  if (_showControls) {
-                    setState(() => _showControls = false);
-                  } else {
-                    _resetControls();
-                  }
+                  // Tap to toggle controls visibility if needed
                 },
-                behavior: HitTestBehavior.translucent,
-                child: Container(color: Colors.transparent),
+                child: Container(
+                  color: Colors.transparent,
+                ),
               ),
             ),
             
-            // UI Overlay
-            if (_showControls && !_showAudioTracks)
-              _buildControlsOverlay(),
-              
-            // Audio Selection Overlay
-            if (_showAudioTracks)
-              _buildAudioTracksOverlay(),
-              
-            // Loading Overlay
+            // Loading indicator
             if (_isLoading)
-               const Center(
-                 child: CircularProgressIndicator(color: _vlcOrange),
-               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControlsOverlay() {
-    return ValueListenableBuilder<ThaPlaybackState>(
-      valueListenable: _playerController!.playbackState,
-      builder: (context, state, child) {
-        final duration = state.duration;
-        final position = state.position;
-        final isPlaying = state.isPlaying;
-
-        // Ensure slider values are valid
-        final maxMs = duration.inMilliseconds.toDouble();
-        final currentMs = position.inMilliseconds.toDouble().clamp(0.0, maxMs);
-
-        return Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black54,
-                Colors.transparent, 
-                Colors.transparent, 
-                Colors.black87
-              ],
-              stops: [0.0, 0.2, 0.6, 1.0],
-            ),
-          ),
-          child: Column(
-            children: [
-              // Top Bar
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
+              Container(
+                color: Colors.black54,
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      CircularProgressIndicator(
+                        color: Colors.red,
+                        strokeWidth: 3,
+                      ),
+                      SizedBox(height: 16),
                       Text(
-                        widget.title,
-                        style: const TextStyle(
-                          color: Colors.white, 
-                          fontSize: 18, 
-                          fontWeight: FontWeight.bold,
-                          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                        'Loading video...',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
               ),
-              
-              const Spacer(),
-              
-              // Bottom Controls
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // --- Row 0: Seek Bar ---
-                    Row(
-                      children: [
-                        Text(
-                          _formatDuration(position),
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace'),
-                        ),
-                        Expanded(
-                          child: SliderTheme(
-                            data: SliderThemeData(
-                              trackHeight: 4,
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                              // Highlight color if focused
-                              thumbColor: _focusRow == 0 ? _vlcOrange : Colors.white,
-                              activeTrackColor: _focusRow == 0 ? _vlcOrange : Colors.white70,
-                              inactiveTrackColor: Colors.white24,
-                            ),
-                            child: Slider(
-                              value: currentMs,
-                              min: 0.0,
-                              max: maxMs > 0 ? maxMs : 1.0,
-                              onChanged: (val) {
-                                _startHideTimer(); // Reset timer on drag
-                                _playerController!.seekTo(Duration(milliseconds: val.toInt()));
-                              },
-                            ),
-                          ),
-                        ),
-                        Text(
-                          _formatDuration(duration),
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    // --- Row 1: Buttons ---
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildButton(
-                          index: _controlAudio,
-                          icon: Icons.audiotrack, 
-                          label: "Audio",
-                        ),
-                        const SizedBox(width: 20),
-                        _buildButton(
-                          index: _controlRewind,
-                          icon: Icons.replay_30, 
-                          label: "-30s",
-                        ),
-                        const SizedBox(width: 20),
-                        _buildMainPlayButton(isPlaying),
-                        const SizedBox(width: 20),
-                        _buildButton(
-                          index: _controlForward,
-                          icon: Icons.forward_30, 
-                          label: "+30s",
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+            
+            // Bottom controls bar
+            if (!_showAudioTracks && _showControls)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildBottomControls(),
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildButton({required int index, required IconData icon, required String label}) {
-    final isFocused = (_focusRow == 1 && _focusCol == index);
-    
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _focusRow = 1;
-          _focusCol = index;
-        });
-        _handleEnter();
-      },
-      child: Column(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isFocused ? _vlcOrange : Colors.transparent,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isFocused ? Colors.white : Colors.white38, 
-                width: 2
-              ),
-            ),
-            child: Icon(icon, color: Colors.white, size: 24),
-          ),
-          const SizedBox(height: 4),
-          if (isFocused)
-            Text(
-              label, 
-              style: const TextStyle(color: _vlcOrange, fontSize: 10, fontWeight: FontWeight.bold)
-            )
-          else
-             const SizedBox(height: 14), // Placeholder to prevent jump
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildMainPlayButton(bool isPlaying) {
-    final isFocused = (_focusRow == 1 && _focusCol == _controlPlay);
-    
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _focusRow = 1;
-          _focusCol = _controlPlay;
-        });
-        _togglePlayPause();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isFocused ? _vlcOrange : Colors.white10,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isFocused ? Colors.white : Colors.white54,
-            width: isFocused ? 3 : 2,
-          ),
-          boxShadow: isFocused ? [
-            const BoxShadow(color: _vlcOrange, blurRadius: 12)
-          ] : null,
-        ),
-        child: Icon(
-          isPlaying ? Icons.pause : Icons.play_arrow,
-          color: Colors.white,
-          size: 32,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAudioTracksOverlay() {
-    return Container(
-      color: Colors.black87,
-      alignment: Alignment.center,
-      child: Container(
-        width: 350,
-        constraints: const BoxConstraints(maxHeight: 500),
-        decoration: BoxDecoration(
-          color: Colors.grey[900],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _vlcOrange, width: 2),
-          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: _vlcOrange.withOpacity(0.1),
-              child: const Text(
-                'Audio Tracks',
-                style: TextStyle(
-                  color: _vlcOrange, 
-                  fontSize: 18, 
-                  fontWeight: FontWeight.bold
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const Divider(height: 1, color: Colors.white24),
-            Flexible(
-              child: _audioTracks.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text("No audio tracks found.", style: TextStyle(color: Colors.white54)),
-                )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: _audioTracks.length,
-                  itemBuilder: (context, index) {
-                    final track = _audioTracks[index];
-                    final isSelected = track.id == _selectedAudioTrackId;
-                    final isFocused = index == _selectedAudioListIndex;
-                    
-                    return Container(
-                      color: isFocused ? _vlcOrange.withOpacity(0.7) : Colors.transparent,
-                      child: ListTile(
-                        leading: isSelected 
-                            ? const Icon(Icons.check, color: Colors.white)
-                            : const SizedBox(width: 24),
-                        title: Text(
-                          track.label ?? track.language ?? 'Track ${track.id}',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        dense: true,
-                        onTap: () => _onSelectAudioTrack(track),
-                      ),
-                    );
-                  },
-                ),
-            ),
+            
+            // Audio tracks picker overlay
+            if (_showAudioTracks)
+              _buildAudioTracksOverlay(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildErrorScreen() {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.red.withOpacity(0.5)),
+  Widget _buildBottomControls() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            Colors.black.withOpacity(0.9),
+            Colors.black.withOpacity(0.7),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Title
+          Text(
+            widget.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: 16),
+          
+          // Controls row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48),
-              const SizedBox(height: 16),
-              const Text("Playback Error", style: TextStyle(color: Colors.white, fontSize: 18)),
-              if (_errorMessage.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _errorMessage, 
-                  style: const TextStyle(color: Colors.white70),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              const SizedBox(height: 24),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[700]),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Go Back"),
-                  ),
-                  const SizedBox(width: 16),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: _vlcOrange),
-                    onPressed: () => VlcLauncher.launchVlc(_currentVideoUrl, widget.title),
-                    child: const Text("Open VLC"),
-                  ),
-                ],
-              )
+              // Play/Pause button
+              _buildControlButton(
+                icon: _isPlaying ? Icons.pause : Icons.play_arrow,
+                label: _isPlaying ? 'Pause' : 'Play',
+                isFocused: _focusedControlIndex == 0,
+                onTap: _togglePlayPause,
+              ),
+              
+              const SizedBox(width: 24),
+              
+              // Audio tracks button (always visible)
+              _buildControlButton(
+                icon: Icons.audiotrack,
+                label: 'Audio',
+                isFocused: _focusedControlIndex == 1,
+                onTap: _toggleAudioTracks,
+              ),
             ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Navigation hint
+          Text(
+            '← → Navigate  •  Enter Select  •  Back Exit',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required bool isFocused,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isFocused 
+              ? Colors.red
+              : Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isFocused ? Colors.red : Colors.white.withOpacity(0.3),
+            width: isFocused ? 3 : 1,
+          ),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.5),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: isFocused ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildAudioTracksOverlay() {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () => setState(() => _showAudioTracks = false),
+        child: Container(
+          color: Colors.black87,
+          child: Center(
+            child: GestureDetector(
+              onTap: () {}, // Prevent closing when tapping inside
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+                margin: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.3),
+                      blurRadius: 24,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: Colors.white12),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.audiotrack, color: Colors.red, size: 28),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Audio Tracks',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${_audioTracks.length} available',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Tracks list
+                    Flexible(
+                      child: _audioTracks.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.all(40),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.music_off, color: Colors.white30, size: 48),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No audio tracks available',
+                                    style: TextStyle(color: Colors.white60),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: _audioTracks.length,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              itemBuilder: (context, index) {
+                                final track = _audioTracks[index];
+                                final isSelected = track.id == _selectedAudioTrackId;
+                                final isFocused = index == _selectedTrackIndex;
+                                
+                                return GestureDetector(
+                                  onTap: () => _selectAudioTrack(track, index),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    decoration: BoxDecoration(
+                                      color: isFocused
+                                          ? Colors.red.withOpacity(0.2)
+                                          : isSelected
+                                              ? Colors.white.withOpacity(0.1)
+                                              : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isFocused
+                                            ? Colors.red
+                                            : isSelected
+                                                ? Colors.white.withOpacity(0.3)
+                                                : Colors.transparent,
+                                        width: isFocused ? 2 : 1,
+                                      ),
+                                      boxShadow: isFocused
+                                          ? [
+                                              BoxShadow(
+                                                color: Colors.red.withOpacity(0.4),
+                                                blurRadius: 8,
+                                                spreadRadius: 1,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                                          color: isSelected ? Colors.red : Colors.white54,
+                                          size: 22,
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Text(
+                                            track.label ?? track.language ?? 'Track ${track.id}',
+                                            style: TextStyle(
+                                              color: isFocused || isSelected ? Colors.white : Colors.white70,
+                                              fontSize: 15,
+                                              fontWeight: isFocused ? FontWeight.bold : (isSelected ? FontWeight.w600 : FontWeight.normal),
+                                            ),
+                                          ),
+                                        ),
+                                        if (isFocused)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'FOCUSED',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    
+                    // Footer hint
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Colors.white12),
+                        ),
+                      ),
+                      child: const Text(
+                        '↑↓ Navigate  •  Enter Select  •  Back/ESC Close',
+                        style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
