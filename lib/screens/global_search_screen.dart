@@ -12,6 +12,7 @@ import '../provider/zinkmovies/getpost.dart';
 import '../provider/animesalt/getpost.dart';
 import '../provider/movies4u/getpost.dart';
 import '../provider/filmycab/getpost.dart';
+import '../provider/zeefliz/getpost.dart';
 import 'info.dart';
 
 class GlobalSearchScreen extends StatefulWidget {
@@ -128,6 +129,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           break;
         case 'Filmycab':
           movies = await FilmyCabGetPost.searchMovies(query);
+          break;
+        case 'Zeefliz':
+          movies = await ZeeflizGetPost.searchMovies(query);
           break;
         default:
           print('Unknown provider: $providerId');

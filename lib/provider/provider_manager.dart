@@ -67,6 +67,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'FilmyCab',
       'icon': Icons.local_movies,
     },
+    {
+      'id': 'Zeefliz',
+      'name': 'Zeefliz',
+      'icon': Icons.video_collection,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

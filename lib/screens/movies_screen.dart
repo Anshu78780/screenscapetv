@@ -10,6 +10,7 @@ import '../provider/animesalt/index.dart';
 import '../provider/movies4u/index.dart';
 import '../provider/vega/index.dart';
 import '../provider/filmycab/index.dart';
+import '../provider/zeefliz/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -68,6 +69,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return VegaCatalog.categories;
       case 'Filmycab':
         return FilmyCabCatalog.categories;
+      case 'Zeefliz':
+        return ZeeflizCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -132,6 +135,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'Filmycab':
           movies = await FilmyCabGetPost.fetchMovies(category['path']!);
           break;
+        case 'Zeefliz':
+          movies = await ZeeflizGetPost.fetchMovies(category['path']!);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -190,6 +196,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Filmycab':
           movies = await FilmyCabGetPost.searchMovies(query);
+          break;
+        case 'Zeefliz':
+          movies = await ZeeflizGetPost.searchMovies(query);
           break;
         case 'Xdmovies':
           movies = await XdmoviesGetPost.searchMovies(query);

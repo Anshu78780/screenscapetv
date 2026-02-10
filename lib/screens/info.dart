@@ -16,6 +16,9 @@ import '../provider/vega/geteps.dart' as vega_eps;
 import '../provider/vega/getstream.dart' as vega_stream;
 import '../provider/filmycab/info.dart' as filmycab_info;
 import '../provider/filmycab/getstream.dart' as filmycab_stream;
+import '../provider/zeefliz/info.dart' as zeefliz_info;
+import '../provider/zeefliz/getstream.dart' as zeefliz_stream;
+import '../provider/zeefliz/geteps.dart' as zeefliz_eps;
 import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
@@ -112,6 +115,9 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Filmycab':
           movieInfo = await filmycab_info.FilmyCabInfo.fetchMovieInfo(widget.movieUrl);
+          break;
+        case 'Zeefliz':
+          movieInfo = await zeefliz_info.ZeeflizInfo.fetchMovieInfo(widget.movieUrl);
           break;
         case 'Drive':
         default:
@@ -417,6 +423,9 @@ class _InfoScreenState extends State<InfoScreen> {
                 .map((e) => Episode(title: e.title, link: e.link))
                 .toList();
           }
+          break;
+        case 'Zeefliz':
+          episodes = await zeefliz_eps.ZeeflizGetEps.fetchEpisodes(processedUrl);
           break;
         default:
           episodes = await EpisodeParser.fetchEpisodes(processedUrl);
@@ -1615,6 +1624,25 @@ class _InfoScreenState extends State<InfoScreen> {
         return;
       }
 
+      if (_currentProvider == 'Zeefliz') {
+        final streams = await zeefliz_stream.zeeflizGetStream(
+          downloadLink.url,
+          downloadLink.quality,
+        );
+        setState(() => _isLoadingLinks = false);
+        if (streams.isNotEmpty) {
+          _showStreamingLinksDialog(streams, downloadLink.quality);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No streams found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       if (_currentProvider == 'Moviesmod') {
         // Episodes are already loaded via _loadEpisodesIfNeeded()
         // This is called when clicking on an individual episode
@@ -1779,6 +1807,9 @@ class _InfoScreenState extends State<InfoScreen> {
                 .map((e) => Episode(title: e.title, link: e.link))
                 .toList();
           }
+          break;
+        case 'Zeefliz':
+          episodes = await zeefliz_eps.ZeeflizGetEps.fetchEpisodes(processedUrl);
           break;
         default:
           episodes = await EpisodeParser.fetchEpisodes(processedUrl);
