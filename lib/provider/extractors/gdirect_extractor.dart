@@ -48,7 +48,7 @@ class GDirectExtractor {
 
       // Make request to the redirect API
       final encodedUrl = Uri.encodeComponent(url);
-      final apiUrl = 'https://net-cookie-kacj.vercel.app/api/redirect?url=$encodedUrl';
+      final apiUrl = 'https://ssbackend-2r7z.onrender.com/api/redirect?url=$encodedUrl';
       
       print('Making request to redirect API: $apiUrl');
       final response = await http.get(
@@ -63,14 +63,13 @@ class GDirectExtractor {
 
       final responseData = json.decode(response.body);
       
-      if (responseData == null || 
-          responseData['data'] == null || 
-          responseData['data']['finalUrl'] == null) {
+      // Response format: {"finalUrl": "...", "redirectCount": 1, "maxRedirectsReached": false}
+      if (responseData == null || responseData['finalUrl'] == null) {
         print('gDirectExtracter: No finalUrl in response');
         return [];
       }
 
-      String finalUrl = responseData['data']['finalUrl'] as String;
+      String finalUrl = responseData['finalUrl'] as String;
       print('gDirectExtracter finalUrl: $finalUrl');
 
       // Remove the fastdl.zip/dl.php?link= prefix if present
@@ -78,14 +77,14 @@ class GDirectExtractor {
         final parts = finalUrl.split('fastdl.zip/dl.php?link=');
         if (parts.length > 1) {
           finalUrl = parts[1];
-          print('Cleaned finalUrl: $finalUrl');
+          print('Cleaned finalUrl (removed fastdl prefix): $finalUrl');
         }
       }
 
       // Return as DRIVE stream
       return [
         Stream(
-          server: 'DRIVE',
+          server: 'DRIVE (G-Direct)',
           link: finalUrl,
           type: 'mkv',
         ),

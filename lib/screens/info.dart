@@ -11,6 +11,9 @@ import '../provider/zinkmovies/getstream.dart' as zinkmovies_stream;
 import '../provider/animesalt/info.dart' as animesalt_info;
 import '../provider/animesalt/getstream.dart' as animesalt_stream;
 import '../provider/movies4u/index.dart';
+import '../provider/vega/info.dart' as vega_info;
+import '../provider/vega/geteps.dart' as vega_eps;
+import '../provider/vega/getstream.dart' as vega_stream;
 import '../provider/provider_manager.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
@@ -101,6 +104,9 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Movies4u':
           movieInfo = await Movies4uInfo.fetchMovieInfo(widget.movieUrl);
+          break;
+        case 'Vega':
+          movieInfo = await vega_info.vegaGetInfo(widget.movieUrl);
           break;
         case 'Drive':
         default:
@@ -365,6 +371,10 @@ class _InfoScreenState extends State<InfoScreen> {
           break;
         case 'Movies4u':
           episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
+          break;
+        case 'Vega':
+          final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
+          episodes = vegaEps.map((e) => Episode(title: e.title, link: e.link)).toList();
           break;
         default:
           episodes = await EpisodeParser.fetchEpisodes(processedUrl);
@@ -1246,11 +1256,36 @@ class _InfoScreenState extends State<InfoScreen> {
           padding: const EdgeInsets.only(bottom: 12),
           child: GestureDetector(
             onTap: () {
-              // For Moviesmod, use moviesmodGetStream directly
+              // For Moviesmod and Vega, use their respective getStream functions directly
               if (_currentProvider == 'Moviesmod') {
                 setState(() => _isLoadingLinks = true);
                 
                 moviesmodGetStream(episode.link).then((streams) {
+                  setState(() => _isLoadingLinks = false);
+                  if (streams.isNotEmpty) {
+                    _showStreamingLinksDialog(streams, _selectedQuality);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No streams found'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }).catchError((e) {
+                  print('Error getting streams: $e');
+                  setState(() => _isLoadingLinks = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                });
+              } else if (_currentProvider == 'Vega') {
+                setState(() => _isLoadingLinks = true);
+                
+                vega_stream.vegaGetStream(episode.link, _selectedQuality).then((streams) {
                   setState(() => _isLoadingLinks = false);
                   if (streams.isNotEmpty) {
                     _showStreamingLinksDialog(streams, _selectedQuality);
@@ -1402,12 +1437,24 @@ class _InfoScreenState extends State<InfoScreen> {
           }
         }
       } else {
-        // Fallback: Use primary link with HubCloud extractor (backward compatibility)
+        // Fallback: Use primary link
         print('Using primary link: ${episode.link}');
-        final processedLink = await _processDownloadUrl(episode.link);
-        final result = await HubCloudExtractor.extractLinks(processedLink);
-        if (result.success && result.streams.isNotEmpty) {
-          allStreams.addAll(result.streams);
+        
+        // Check provider type for proper extraction
+        if (_currentProvider == 'Vega') {
+          print('Vega provider detected, using vegaGetStream for combined links');
+          final vegaStreams = await vega_stream.vegaGetStream(episode.link, _selectedQuality);
+          if (vegaStreams.isNotEmpty) {
+            print('Vega extracted ${vegaStreams.length} streams');
+            allStreams.addAll(vegaStreams);
+          }
+        } else {
+          // Default: HubCloud extractor (backward compatibility)
+          final processedLink = await _processDownloadUrl(episode.link);
+          final result = await HubCloudExtractor.extractLinks(processedLink);
+          if (result.success && result.streams.isNotEmpty) {
+            allStreams.addAll(result.streams);
+          }
         }
       }
 
@@ -1603,6 +1650,10 @@ class _InfoScreenState extends State<InfoScreen> {
       switch (_currentProvider) {
         case 'Movies4u':
           episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
+          break;
+        case 'Vega':
+          final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
+          episodes = vegaEps.map((e) => Episode(title: e.title, link: e.link)).toList();
           break;
         default:
           episodes = await EpisodeParser.fetchEpisodes(processedUrl);

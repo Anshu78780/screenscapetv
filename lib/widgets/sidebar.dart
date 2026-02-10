@@ -68,23 +68,45 @@ class Sidebar extends StatelessWidget {
                         );
                       },
                       borderRadius: BorderRadius.circular(10),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
+                          color: focusedIndex == -1 
+                              ? Colors.white.withOpacity(0.15)
+                              : Colors.white.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white.withOpacity(0.1)),
+                          border: Border.all(
+                            color: focusedIndex == -1 
+                                ? Colors.white.withOpacity(0.3)
+                                : Colors.white.withOpacity(0.1),
+                            width: focusedIndex == -1 ? 2 : 1,
+                          ),
+                          boxShadow: focusedIndex == -1
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.2),
+                                    blurRadius: 12,
+                                    spreadRadius: 1,
+                                  )
+                                ]
+                              : [],
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.search, color: Colors.grey[400], size: 18),
+                            Icon(
+                              Icons.search, 
+                              color: focusedIndex == -1 ? Colors.white : Colors.grey[400], 
+                              size: 18
+                            ),
                             const SizedBox(width: 10),
-                            const Text(
+                            Text(
                               'Global Search',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: focusedIndex == -1 ? Colors.white : Colors.white.withOpacity(0.9),
                                 fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                                fontWeight: focusedIndex == -1 ? FontWeight.w700 : FontWeight.w500,
                               ),
                             ),
                           ],

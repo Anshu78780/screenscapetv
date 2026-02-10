@@ -91,8 +91,43 @@ class FilepressExtractor {
     try {
       print('filepressExtractor: $link');
 
-      final fileIdMatch = RegExp(r'(?:filepress\.cloud|filebee\.xyz)\/file\/([a-zA-Z0-9]+)')
-          .firstMatch(link);
+      // If it's a filebee.xyz link, convert to filepress first using redirect API
+      String processedLink = link;
+      if (link.contains('filebee.xyz')) {
+        print('filebee.xyz link detected, converting to filepress using redirect API');
+        try {
+          final encodedUrl = Uri.encodeComponent(link);
+          final redirectApiUrl = 'https://ssbackend-2r7z.onrender.com/api/redirect?url=$encodedUrl';
+          print('Redirect API URL: $redirectApiUrl');
+          
+          final redirectResponse = await http.get(
+            Uri.parse(redirectApiUrl),
+            headers: {
+              'Accept': 'application/json',
+            },
+          ).timeout(const Duration(seconds: 15));
+
+          if (redirectResponse.statusCode == 200) {
+            final redirectData = json.decode(redirectResponse.body);
+            final finalUrl = redirectData['finalUrl'];
+            
+            if (finalUrl != null && finalUrl.isNotEmpty) {
+              print('Converted filebee.xyz to: $finalUrl');
+              processedLink = finalUrl;
+            } else {
+              print('No finalUrl in redirect response, using original link');
+            }
+          } else {
+            print('Redirect API request failed: ${redirectResponse.statusCode}');
+          }
+        } catch (redirectError) {
+          print('Error converting filebee to filepress: $redirectError');
+          print('Continuing with original link');
+        }
+      }
+
+      final fileIdMatch = RegExp(r'(?:filepress\.cloud|filepress\.wiki|filebee\.xyz)\/file\/([a-zA-Z0-9]+)')
+          .firstMatch(processedLink);
       
       if (fileIdMatch == null) {
         print('Could not extract file ID from FilePress URL');
@@ -100,7 +135,7 @@ class FilepressExtractor {
       }
 
       final fileId = fileIdMatch.group(1)!;
-      final baseUrlMatch = RegExp(r'(https:\/\/[^\/]+)').firstMatch(link);
+      final baseUrlMatch = RegExp(r'(https:\/\/[^\/]+)').firstMatch(processedLink);
       final baseUrl = baseUrlMatch?.group(1) ?? 'https://new1.filepress.cloud';
 
       // Step 1: Get file information
@@ -108,7 +143,7 @@ class FilepressExtractor {
         Uri.parse('$baseUrl/api/file/get/$fileId'),
         headers: {
           ...headers,
-          'Referer': link,
+          'Referer': processedLink,
         },
       );
 
@@ -137,7 +172,7 @@ class FilepressExtractor {
       final step2Headers = {
         ...headers,
         'Content-Type': 'application/json',
-        'Referer': link,
+        'Referer': processedLink,
         'Cookie': '_gid=GA1.2.44308207.1770031912; _ga=GA1.2.602607768.1768639441; _gat_gtag_UA_100946746_41=1; _ga_KLTKGHZXJG=GS2.1.s1770114360\$o3\$g1\$t1770115116\$j51\$l0\$h0; prefetchAd_9110779=true',
         'Origin': 'https://new5.filepress.cloud',
       };
@@ -186,7 +221,7 @@ class FilepressExtractor {
       final step3Headers = {
         ...headers,
         'Content-Type': 'application/json',
-        'Referer': link,
+        'Referer': processedLink,
       };
 
       final step3Url = '$baseUrl/api/file/downlaod2/';
@@ -262,7 +297,7 @@ class FilepressExtractor {
           link: downloadLink,
           type: 'mkv',
           headers: {
-            'Referer': link,
+            'Referer': processedLink,
             'Origin': 'https://new1.filepress.cloud',
           },
         ));

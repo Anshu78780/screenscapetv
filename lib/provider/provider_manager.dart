@@ -57,6 +57,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'Movies4u',
       'icon': Icons.video_library_outlined,
     },
+    {
+      'id': 'Vega',
+      'name': 'VegaMovies',
+      'icon': Icons.videocam_outlined,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

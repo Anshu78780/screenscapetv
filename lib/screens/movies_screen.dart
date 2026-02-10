@@ -8,10 +8,12 @@ import '../provider/moviesmod/index.dart';
 import '../provider/zinkmovies/index.dart';
 import '../provider/animesalt/index.dart';
 import '../provider/movies4u/index.dart';
+import '../provider/vega/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
 import 'info.dart';
+import 'global_search_screen.dart';
 
 class MoviesScreen extends StatefulWidget {
   const MoviesScreen({super.key});
@@ -61,6 +63,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return AnimeSaltCatalog.categories;
       case 'Movies4u':
         return Movies4uCatalog.categories;
+      case 'Vega':
+        return VegaCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -119,6 +123,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           final categoryUrl = await Movies4uCatalog.getCategoryUrl(category['path']!);
           movies = await Movies4uGetPost.fetchMovies(categoryUrl);
           break;
+        case 'Vega':
+          movies = await vegaGetPosts(category['filter']!, 1, 'Vega');
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -171,6 +178,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Movies4u':
           movies = await Movies4uGetPost.searchMovies(query);
+          break;
+        case 'Vega':
+          movies = await vegaGetPostsSearch(query, 1, 'Vega');
           break;
         case 'Xdmovies':
           movies = await XdmoviesGetPost.searchMovies(query);
@@ -280,9 +290,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
   void _navigateSidebar(int delta) {
     final providerCount = ProviderManager.availableProviders.length;
     setState(() {
-      _selectedSidebarIndex = (_selectedSidebarIndex + delta) % providerCount;
-      if (_selectedSidebarIndex < 0) {
+      // Allow -1 for Global Search, 0 to providerCount-1 for providers
+      _selectedSidebarIndex = (_selectedSidebarIndex + delta);
+      
+      // Wrap around: if going below -1, wrap to last provider
+      if (_selectedSidebarIndex < -1) {
         _selectedSidebarIndex = providerCount - 1;
+      }
+      // If going above last provider, wrap to Global Search (-1)
+      else if (_selectedSidebarIndex >= providerCount) {
+        _selectedSidebarIndex = -1;
       }
     });
   }
@@ -447,10 +464,22 @@ class _MoviesScreenState extends State<MoviesScreen> {
             return;
         }
         
-        // If sidebar is open, select the provider
+        // If sidebar is open, select the provider or navigate to Global Search
         if (_isSidebarOpen) {
-          final selectedProvider = ProviderManager.availableProviders[_selectedSidebarIndex];
-          _handleProviderChange(selectedProvider['id'] as String);
+          if (_selectedSidebarIndex == -1) {
+            // Global Search is selected
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const GlobalSearchScreen()),
+            );
+            setState(() {
+              _isSidebarOpen = false;
+            });
+          } else {
+            // Provider is selected
+            final selectedProvider = ProviderManager.availableProviders[_selectedSidebarIndex];
+            _handleProviderChange(selectedProvider['id'] as String);
+          }
           return;
         }
         // If menu button is focused, open sidebar
