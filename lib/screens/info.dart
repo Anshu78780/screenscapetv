@@ -1,31 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/movie_info.dart';
-import '../provider/drive/index.dart';
-import '../provider/hdhub/index.dart';
-import '../provider/xdmovies/index.dart';
-import '../provider/desiremovies/index.dart';
-import '../provider/moviesmod/index.dart';
-import '../provider/zinkmovies/info.dart' as zinkmovies_info;
-import '../provider/zinkmovies/getstream.dart' as zinkmovies_stream;
-import '../provider/animesalt/info.dart' as animesalt_info;
-import '../provider/animesalt/getstream.dart' as animesalt_stream;
-import '../provider/movies4u/index.dart';
-import '../provider/vega/info.dart' as vega_info;
-import '../provider/vega/geteps.dart' as vega_eps;
-import '../provider/vega/getstream.dart' as vega_stream;
-import '../provider/filmycab/info.dart' as filmycab_info;
-import '../provider/filmycab/getstream.dart' as filmycab_stream;
-import '../provider/zeefliz/info.dart' as zeefliz_info;
-import '../provider/zeefliz/getstream.dart' as zeefliz_stream;
-import '../provider/zeefliz/geteps.dart' as zeefliz_eps;
 import '../provider/provider_manager.dart';
+import '../provider/provider_factory.dart';
+import '../provider/provider_service.dart';
+import '../provider/episode_stream_extractor.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
 import '../widgets/episode_selection_dialog.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
-import '../provider/extractors/vcloud_extractor.dart';
 
 class InfoScreen extends StatefulWidget {
   final String movieUrl;
@@ -61,6 +45,10 @@ class _InfoScreenState extends State<InfoScreen> {
   final ProviderManager _providerManager = ProviderManager();
   String get _currentProvider => _providerManager.activeProvider;
 
+  // Provider service for handling provider-specific logic
+  ProviderService get _providerService =>
+      ProviderFactory.getProvider(_currentProvider);
+
   // Episode loading state
   List<Episode> _episodes = [];
   bool _isLoadingEpisodes = false;
@@ -85,45 +73,8 @@ class _InfoScreenState extends State<InfoScreen> {
     });
 
     try {
-      // Load movie info based on active provider
-      MovieInfo movieInfo;
-
-      switch (_currentProvider) {
-        case 'Hdhub':
-          movieInfo = await HdhubInfoParser.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Xdmovies':
-          movieInfo = await XdmoviesInfo.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Desiremovies':
-          movieInfo = await DesireMoviesInfo.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Moviesmod':
-          movieInfo = await MoviesmodInfo.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Zinkmovies':
-          movieInfo = await zinkmovies_info.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Animesalt':
-          movieInfo = await animesalt_info.animesaltGetInfo(widget.movieUrl);
-          break;
-        case 'Movies4u':
-          movieInfo = await Movies4uInfo.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Vega':
-          movieInfo = await vega_info.vegaGetInfo(widget.movieUrl);
-          break;
-        case 'Filmycab':
-          movieInfo = await filmycab_info.FilmyCabInfo.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Zeefliz':
-          movieInfo = await zeefliz_info.ZeeflizInfo.fetchMovieInfo(widget.movieUrl);
-          break;
-        case 'Drive':
-        default:
-          movieInfo = await MovieInfoParser.fetchMovieInfo(widget.movieUrl);
-          break;
-      }
+      // Load movie info using provider service
+      final movieInfo = await _providerService.fetchMovieInfo(widget.movieUrl);
 
       setState(() {
         _movieInfo = movieInfo;
@@ -155,31 +106,9 @@ class _InfoScreenState extends State<InfoScreen> {
     }
   }
 
-  /// Process download URL for hdhub provider (only for gadgetsweb.xyz links)
+  /// Process download URL using provider-specific logic
   Future<String> _processDownloadUrl(String url) async {
-    // Only process for Hdhub provider
-    if (_currentProvider != 'Hdhub') {
-      return url;
-    }
-
-    // Only call external API for gadgetsweb.xyz links
-    if (url.contains('gadgetsweb.xyz') && url.contains('?id=')) {
-      try {
-        print('Processing gadgetsweb.xyz URL with external API: $url');
-
-        // Use getRedirectLinks which calls the external API for gadgetsweb
-        final processedUrl = await getRedirectLinks(url);
-        print('Got processed URL from API: $processedUrl');
-
-        return processedUrl;
-      } catch (e) {
-        print('Error processing gadgetsweb URL: $e');
-        return url;
-      }
-    }
-
-    // For all other links, return as-is (HubCloudExtractor will handle them)
-    return url;
+    return await _providerService.processDownloadUrl(url);
   }
 
   List<DownloadLink> _getFilteredDownloads() {
@@ -353,14 +282,13 @@ class _InfoScreenState extends State<InfoScreen> {
     });
 
     try {
-      // Process the URL if it's a gadgetsweb.xyz link for Hdhub provider
+      // Process the URL if needed
       final processedUrl = await _processDownloadUrl(downloadUrl);
       print('Fetching episodes from processed URL: $processedUrl');
 
-      // If the processed URL is a hubcloud link, don't try to fetch episodes
-      // Hubcloud links don't contain episode lists, they ARE the final link
-      if (processedUrl.contains('hubcloud')) {
-        print('Processed URL is a hubcloud link, skipping episode fetch');
+      // Check if we should skip episode fetching for this URL
+      if (_providerService.shouldSkipEpisodeFetch(processedUrl)) {
+        print('Processed URL should skip episode fetch');
         setState(() {
           _episodes = [];
           _isLoadingEpisodes = false;
@@ -368,69 +296,8 @@ class _InfoScreenState extends State<InfoScreen> {
         return;
       }
 
-      // Fetch episodes based on provider
-      List<Episode> episodes;
-
-      switch (_currentProvider) {
-        case 'Moviesmod':
-          // For Moviesmod, fetch episode list from the stored URL
-          final episodeData = await MoviesmodGetEpisodes.getEpisodeLinks(
-            processedUrl,
-          );
-          episodes = episodeData
-              .map((ep) => Episode(title: ep['title']!, link: ep['link']!))
-              .toList();
-          break;
-        case 'Movies4u':
-          episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
-          break;
-        case 'Vega':
-          // Handle pipe-delimited URLs (G-Direct|V-Cloud)
-          if (processedUrl.contains('|')) {
-            print('Processing multiple episode URLs (G-Direct + V-Cloud)');
-            final urls = processedUrl.split('|');
-            final episodeMap = <String, String>{}; // title -> combined links
-
-            // Fetch episodes from each URL
-            for (final url in urls) {
-              if (url.trim().isEmpty) continue;
-
-              try {
-                print('Fetching from: $url');
-                final vegaEps = await vega_eps.vegaGetEpisodeLinks(url.trim());
-
-                for (final ep in vegaEps) {
-                  if (episodeMap.containsKey(ep.title)) {
-                    // Merge links with pipe delimiter
-                    episodeMap[ep.title] = '${episodeMap[ep.title]}|${ep.link}';
-                  } else {
-                    episodeMap[ep.title] = ep.link;
-                  }
-                }
-              } catch (e) {
-                print('Error fetching from $url: $e');
-              }
-            }
-
-            // Convert map to episodes list
-            episodes = episodeMap.entries
-                .map((e) => Episode(title: e.key, link: e.value))
-                .toList();
-          } else {
-            // Single URL
-            final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
-            episodes = vegaEps
-                .map((e) => Episode(title: e.title, link: e.link))
-                .toList();
-          }
-          break;
-        case 'Zeefliz':
-          episodes = await zeefliz_eps.ZeeflizGetEps.fetchEpisodes(processedUrl);
-          break;
-        default:
-          episodes = await EpisodeParser.fetchEpisodes(processedUrl);
-          break;
-      }
+      // Fetch episodes using provider service
+      final episodes = await _providerService.loadEpisodes(processedUrl);
 
       setState(() {
         _episodes = episodes;
@@ -586,38 +453,7 @@ class _InfoScreenState extends State<InfoScreen> {
           // If episodes are loaded, play the selected episode
           if (_episodes.isNotEmpty &&
               _selectedDownloadIndex < _episodes.length) {
-            // For Moviesmod, use moviesmodGetStream directly
-            if (_currentProvider == 'Moviesmod') {
-              final episode = _episodes[_selectedDownloadIndex];
-              setState(() => _isLoadingLinks = true);
-
-              moviesmodGetStream(episode.link)
-                  .then((streams) {
-                    setState(() => _isLoadingLinks = false);
-                    if (streams.isNotEmpty) {
-                      _showStreamingLinksDialog(streams, _selectedQuality);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('No streams found'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  })
-                  .catchError((e) {
-                    print('Error getting streams: $e');
-                    setState(() => _isLoadingLinks = false);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  });
-            } else {
-              _playEpisode(_episodes[_selectedDownloadIndex]);
-            }
+            _playEpisode(_episodes[_selectedDownloadIndex]);
           } else {
             // Otherwise, open download link
             final downloads = _getFilteredDownloads();
@@ -1313,67 +1149,7 @@ class _InfoScreenState extends State<InfoScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: GestureDetector(
-            onTap: () {
-              // For Moviesmod and Vega, use their respective getStream functions directly
-              if (_currentProvider == 'Moviesmod') {
-                setState(() => _isLoadingLinks = true);
-
-                moviesmodGetStream(episode.link)
-                    .then((streams) {
-                      setState(() => _isLoadingLinks = false);
-                      if (streams.isNotEmpty) {
-                        _showStreamingLinksDialog(streams, _selectedQuality);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No streams found'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    })
-                    .catchError((e) {
-                      print('Error getting streams: $e');
-                      setState(() => _isLoadingLinks = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    });
-              } else if (_currentProvider == 'Vega') {
-                setState(() => _isLoadingLinks = true);
-
-                vega_stream
-                    .vegaGetStream(episode.link, _selectedQuality)
-                    .then((streams) {
-                      setState(() => _isLoadingLinks = false);
-                      if (streams.isNotEmpty) {
-                        _showStreamingLinksDialog(streams, _selectedQuality);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No streams found'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    })
-                    .catchError((e) {
-                      print('Error getting streams: $e');
-                      setState(() => _isLoadingLinks = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    });
-              } else {
-                _playEpisode(episode);
-              }
-            },
+            onTap: () => _playEpisode(episode),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,
@@ -1447,82 +1223,12 @@ class _InfoScreenState extends State<InfoScreen> {
     });
 
     try {
-      // Collect all streams from all available links
-      List<stream_types.Stream> allStreams = [];
-
-      // If episode has multiple links, process all of them
-      if (episode.links != null && episode.links!.isNotEmpty) {
-        print(
-          'Processing ${episode.links!.length} links for episode: ${episode.title}',
-        );
-
-        for (var episodeLink in episode.links!) {
-          try {
-            print('Processing ${episodeLink.server} link: ${episodeLink.url}');
-
-            // Process the link
-            final processedLink = await _processDownloadUrl(episodeLink.url);
-
-            // Extract streams based on server type
-            if (episodeLink.server == 'VCloud') {
-              print('Extracting streams from VCloud: $processedLink');
-              final vcloudStreams = await VCloudExtractor.extractStreams(
-                processedLink,
-              );
-              if (vcloudStreams.isNotEmpty) {
-                print('VCloud extracted ${vcloudStreams.length} streams');
-                allStreams.addAll(vcloudStreams);
-              }
-            } else if (episodeLink.server == 'GDFlix') {
-              print('Extracting streams from GDFlix: $processedLink');
-              final gdflixStreams = await GdFlixExtractor.extractStreams(
-                processedLink,
-              );
-              if (gdflixStreams.isNotEmpty) {
-                print('GDFlix extracted ${gdflixStreams.length} streams');
-                allStreams.addAll(gdflixStreams);
-              }
-            } else if (episodeLink.server == 'HubCloud') {
-              print('Extracting streams from HubCloud: $processedLink');
-              final result = await HubCloudExtractor.extractLinks(
-                processedLink,
-              );
-              if (result.success && result.streams.isNotEmpty) {
-                print('HubCloud extracted ${result.streams.length} streams');
-                allStreams.addAll(result.streams);
-              }
-            }
-          } catch (e) {
-            print('Error extracting from ${episodeLink.server}: $e');
-            // Continue to next link even if this one fails
-          }
-        }
-      } else {
-        // Fallback: Use primary link
-        print('Using primary link: ${episode.link}');
-
-        // Check provider type for proper extraction
-        if (_currentProvider == 'Vega') {
-          print(
-            'Vega provider detected, using vegaGetStream for combined links',
-          );
-          final vegaStreams = await vega_stream.vegaGetStream(
-            episode.link,
-            _selectedQuality,
-          );
-          if (vegaStreams.isNotEmpty) {
-            print('Vega extracted ${vegaStreams.length} streams');
-            allStreams.addAll(vegaStreams);
-          }
-        } else {
-          // Default: HubCloud extractor (backward compatibility)
-          final processedLink = await _processDownloadUrl(episode.link);
-          final result = await HubCloudExtractor.extractLinks(processedLink);
-          if (result.success && result.streams.isNotEmpty) {
-            allStreams.addAll(result.streams);
-          }
-        }
-      }
+      // Use the episode stream extractor to get all streams
+      final allStreams = await EpisodeStreamExtractor.extractStreams(
+        episode,
+        _providerService,
+        _selectedQuality,
+      );
 
       setState(() {
         _isLoadingLinks = false;
@@ -1530,7 +1236,6 @@ class _InfoScreenState extends State<InfoScreen> {
 
       if (allStreams.isNotEmpty) {
         print('Total streams extracted: ${allStreams.length}');
-        // Show dialog with all collected streaming links
         _showStreamingLinksDialog(allStreams, _selectedQuality);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1567,186 +1272,37 @@ class _InfoScreenState extends State<InfoScreen> {
     });
 
     try {
-      if (_currentProvider == 'Xdmovies') {
-        final streams = await xdmoviesGetStream(
-          downloadLink.url,
-          downloadLink.quality,
-        );
+      // Try to get streams directly from the download link using provider service
+      final streams = await _providerService.getStreams(
+        downloadLink.url,
+        downloadLink.quality,
+      );
+
+      if (streams.isNotEmpty) {
         setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _showStreamingLinksDialog(streams, downloadLink.quality);
         return;
       }
 
-      if (_currentProvider == 'Desiremovies') {
-        final streams = await desireMoviesGetStream(
-          downloadLink.url,
-          downloadLink.quality,
-        );
-        setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      if (_currentProvider == 'Filmycab') {
-        final streams = await filmycab_stream.filmyCabGetStream(
-          downloadLink.url,
-          downloadLink.quality,
-        );
-        setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      if (_currentProvider == 'Zeefliz') {
-        final streams = await zeefliz_stream.zeeflizGetStream(
-          downloadLink.url,
-          downloadLink.quality,
-        );
-        setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      if (_currentProvider == 'Moviesmod') {
-        // Episodes are already loaded via _loadEpisodesIfNeeded()
-        // This is called when clicking on an individual episode
-        // Just get streams directly from the link
-        final streams = await moviesmodGetStream(downloadLink.url);
-        setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      if (_currentProvider == 'Zinkmovies') {
-        final streams = await zinkmovies_stream.getStream(
-          downloadLink.url,
-          downloadLink.quality,
-        );
-        setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      if (_currentProvider == 'Animesalt') {
-        final streams = await animesalt_stream.animesaltGetStream(
-          downloadLink.url,
-          downloadLink.quality,
-        );
-        setState(() => _isLoadingLinks = false);
-        if (streams.isNotEmpty) {
-          _showStreamingLinksDialog(streams, downloadLink.quality);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No streams found'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Step 1: Process the download URL
-      print('Step 1: Processing download URL: ${downloadLink.url}');
+      // If no streams found, process the URL and try extracting
+      print('Processing download URL: ${downloadLink.url}');
       final processedUrl = await _processDownloadUrl(downloadLink.url);
       print('Processed URL: $processedUrl');
 
-      // If the processed URL is a hubcloud, gdflix, or vcloud link, directly extract streams from it
+      // Check if it's a direct link (hubcloud, gdflix, or vcloud)
       if (processedUrl.contains('hubcloud') ||
           processedUrl.contains('gdflix') ||
           processedUrl.contains('vcloud.zip') ||
           processedUrl.contains('vcloud.lol')) {
         print('Processed URL is a direct link, extracting streams');
 
-        List<stream_types.Stream> allStreams = [];
+        final directStreams =
+            await EpisodeStreamExtractor.extractFromDirectLink(processedUrl);
 
-        if (processedUrl.contains('vcloud.zip') ||
-            processedUrl.contains('vcloud.lol')) {
-          print('Processing VCloud link');
-          final vcloudStreams = await VCloudExtractor.extractStreams(
-            processedUrl,
-          );
-          if (vcloudStreams.isNotEmpty) {
-            allStreams.addAll(vcloudStreams);
-          }
-        } else if (processedUrl.contains('gdflix')) {
-          print('Processing GDFlix link');
-          final gdflixStreams = await GdFlixExtractor.extractStreams(
-            processedUrl,
-          );
-          if (gdflixStreams.isNotEmpty) {
-            allStreams.addAll(gdflixStreams);
-          }
-        } else if (processedUrl.contains('hubcloud')) {
-          print('Processing HubCloud link');
-          final result = await HubCloudExtractor.extractLinks(processedUrl);
-          if (result.success && result.streams.isNotEmpty) {
-            allStreams.addAll(result.streams);
-          }
-        }
+        setState(() => _isLoadingLinks = false);
 
-        print('Extractor result - Streams count: ${allStreams.length}');
-
-        setState(() {
-          _isLoadingLinks = false;
-        });
-
-        if (allStreams.isNotEmpty) {
-          _showStreamingLinksDialog(allStreams, downloadLink.quality);
+        if (directStreams.isNotEmpty) {
+          _showStreamingLinksDialog(directStreams, downloadLink.quality);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1761,67 +1317,12 @@ class _InfoScreenState extends State<InfoScreen> {
       // Otherwise, fetch episodes from the processed URL
       print('Fetching episodes from processed URL: $processedUrl');
 
-      // Fetch episodes based on provider
-      List<Episode> episodes;
-
-      switch (_currentProvider) {
-        case 'Movies4u':
-          episodes = await Movies4uGetEps.fetchEpisodes(processedUrl);
-          break;
-        case 'Vega':
-          // Handle pipe-delimited URLs (G-Direct|V-Cloud)
-          if (processedUrl.contains('|')) {
-            print('Processing multiple episode URLs (G-Direct + V-Cloud)');
-            final urls = processedUrl.split('|');
-            final episodeMap = <String, String>{}; // title -> combined links
-
-            // Fetch episodes from each URL
-            for (final url in urls) {
-              if (url.trim().isEmpty) continue;
-
-              try {
-                print('Fetching from: $url');
-                final vegaEps = await vega_eps.vegaGetEpisodeLinks(url.trim());
-
-                for (final ep in vegaEps) {
-                  if (episodeMap.containsKey(ep.title)) {
-                    // Merge links with pipe delimiter
-                    episodeMap[ep.title] = '${episodeMap[ep.title]}|${ep.link}';
-                  } else {
-                    episodeMap[ep.title] = ep.link;
-                  }
-                }
-              } catch (e) {
-                print('Error fetching from $url: $e');
-              }
-            }
-
-            // Convert map to episodes list
-            episodes = episodeMap.entries
-                .map((e) => Episode(title: e.key, link: e.value))
-                .toList();
-          } else {
-            // Single URL
-            final vegaEps = await vega_eps.vegaGetEpisodeLinks(processedUrl);
-            episodes = vegaEps
-                .map((e) => Episode(title: e.title, link: e.link))
-                .toList();
-          }
-          break;
-        case 'Zeefliz':
-          episodes = await zeefliz_eps.ZeeflizGetEps.fetchEpisodes(processedUrl);
-          break;
-        default:
-          episodes = await EpisodeParser.fetchEpisodes(processedUrl);
-          break;
-      }
+      final episodes = await _providerService.loadEpisodes(processedUrl);
 
       print('Found ${episodes.length} episodes');
 
       if (episodes.isEmpty) {
-        setState(() {
-          _isLoadingLinks = false;
-        });
+        setState(() => _isLoadingLinks = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No episodes found on download page'),
@@ -1836,9 +1337,7 @@ class _InfoScreenState extends State<InfoScreen> {
       if (episodes.length == 1) {
         selectedEpisode = episodes.first;
       } else {
-        setState(() {
-          _isLoadingLinks = false;
-        });
+        setState(() => _isLoadingLinks = false);
 
         selectedEpisode = await showDialog<Episode>(
           context: context,
@@ -1850,30 +1349,20 @@ class _InfoScreenState extends State<InfoScreen> {
         );
 
         if (selectedEpisode != null) {
-          setState(() {
-            _isLoadingLinks = true;
-          });
+          setState(() => _isLoadingLinks = true);
         }
       }
 
       if (selectedEpisode == null) {
-        // User cancelled selection or no selection made
-        // No need to set isLoadingLinks to false as it was set to false before dialog
         return;
       }
 
-      // Step 2: Process all links from the selected episode
-      print(
-        'Step 2: Processing selected episode with all available links: ${selectedEpisode.title}',
-      );
-
-      // Use the _playEpisode method which processes all links
+      // Process all links from the selected episode
+      print('Processing selected episode: ${selectedEpisode.title}');
       await _playEpisode(selectedEpisode);
     } catch (e) {
       print('Error in download link processing: $e');
-      setState(() {
-        _isLoadingLinks = false;
-      });
+      setState(() => _isLoadingLinks = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
