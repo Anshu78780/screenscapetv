@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/movies_screen.dart';
+import 'screens/startup_check.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +36,7 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const MoviesScreen(),
+      home: const StartupCheck(),
     );
   }
 }

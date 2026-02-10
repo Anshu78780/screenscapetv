@@ -1,0 +1,165 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../utils/vlc_checker.dart';
+import 'movies_screen.dart';
+
+class StartupCheck extends StatefulWidget {
+  const StartupCheck({super.key});
+
+  @override
+  State<StartupCheck> createState() => _StartupCheckState();
+}
+
+class _StartupCheckState extends State<StartupCheck> {
+  @override
+  void initState() {
+    super.initState();
+    _checkVlc();
+  }
+
+  Future<void> _checkVlc() async {
+    // Add a small delay to ensure context is ready and splash is seen
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
+
+    final installed = await VlcChecker.isVlcInstalled();
+
+    if (installed) {
+      _navigateToHome();
+    } else {
+      _showInstallDialog();
+    }
+  }
+
+  void _navigateToHome() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const MoviesScreen()),
+    );
+  }
+
+  void _showInstallDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber),
+              SizedBox(width: 10),
+              Text('VLC Needed', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Hey, to play stream VLC is needed.',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.amber, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Please restart the app after installation.',
+                        style: TextStyle(
+                          color: Colors.amber,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                 Uri url;
+                 if (Platform.isAndroid) {
+                    url = Uri.parse('market://details?id=org.videolan.vlc');
+                 } else {
+                    url = Uri.parse('https://www.videolan.org/vlc/'); 
+                 }
+                 
+                 try {
+                   if (await canLaunchUrl(url)) {
+                     await launchUrl(url, mode: LaunchMode.externalApplication);
+                   } else if (Platform.isAndroid) {
+                      // Fallback to web link
+                      final webUrl = Uri.parse('https://play.google.com/store/apps/details?id=org.videolan.vlc');
+                      if (await canLaunchUrl(webUrl)) {
+                         await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+                      }
+                   }
+                 } catch (e) {
+                   debugPrint('Could not launch URL: $e');
+                 }
+              },
+              child: const Text('Download', style: TextStyle(color: Colors.amber)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                final installed = await VlcChecker.isVlcInstalled();
+                if (!context.mounted) return;
+                
+                if (installed) {
+                   Navigator.of(context).pop();
+                   _navigateToHome();
+                } else {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(
+                       content: Text('VLC not detected. Please install and restart the app.'),
+                       backgroundColor: Colors.red,
+                     ),
+                   );
+                   // We don't verify forcefully if they say "Already Downloaded" but check fails.
+                   // But since the requirement implies checking: "if user has installed vlc... cache... if no vlc... dialog"
+                   // It implies we shouldn't proceed until we confirm it. 
+                }
+              },
+               child: const Text('Already Downloaded'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+             CircularProgressIndicator(color: Colors.amber),
+             SizedBox(height: 20),
+             Text('Checking requirements...', style: TextStyle(color: Colors.white54)),
+          ],
+        ),
+      ),
+    );
+  }
+}

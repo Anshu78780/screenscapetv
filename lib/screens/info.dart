@@ -572,7 +572,7 @@ class _InfoScreenState extends State<InfoScreen> {
               // Content
               _isLoading
                   ? const Center(
-                      child: CircularProgressIndicator(color: Colors.red),
+                      child: CircularProgressIndicator(color: Colors.amber),
                     )
                   : _error.isNotEmpty
                   ? Center(
@@ -740,7 +740,7 @@ class _InfoScreenState extends State<InfoScreen> {
                                       ? loadingProgress.cumulativeBytesLoaded /
                                             loadingProgress.expectedTotalBytes!
                                       : null,
-                                  color: Colors.red,
+                                  color: Colors.amber,
                                   strokeWidth: 2,
                                 ),
                               ),
@@ -973,7 +973,7 @@ class _InfoScreenState extends State<InfoScreen> {
         alignment: Alignment.center,
         child: const Column(
           children: [
-            CircularProgressIndicator(color: Colors.red),
+            CircularProgressIndicator(color: Colors.amber),
             SizedBox(height: 16),
             Text(
               'Loading episodes...',
@@ -1019,19 +1019,19 @@ class _InfoScreenState extends State<InfoScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? const Color(0xFFD32F2F) // Cleaner solid red
+                    ? Colors.amber // Yellowish
                     : const Color(0xFF212121), // Dark grey
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected
-                      ? Colors.white
+                      ? Colors.amber
                       : Colors.white.withOpacity(0.05),
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: Colors.red.withOpacity(0.4),
+                          color: Colors.amber.withOpacity(0.4),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -1073,7 +1073,7 @@ class _InfoScreenState extends State<InfoScreen> {
                             Icons.movie_creation_outlined,
                             size: 16,
                             color: isSelected
-                                ? Colors.white70
+                                ? Colors.black54
                                 : Colors.grey[500],
                           ),
                           const SizedBox(width: 8),
@@ -1082,7 +1082,7 @@ class _InfoScreenState extends State<InfoScreen> {
                               download.season!,
                               style: TextStyle(
                                 color: isSelected
-                                    ? Colors.white
+                                    ? Colors.black87
                                     : Colors.grey[300],
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
@@ -1096,7 +1096,7 @@ class _InfoScreenState extends State<InfoScreen> {
                               ),
                               child: Text(
                                 '•',
-                                style: TextStyle(color: Colors.white24),
+                                style: TextStyle(color: isSelected ? Colors.black26 : Colors.white24),
                               ),
                             ),
                           if (download.episodeInfo != null)
@@ -1105,7 +1105,7 @@ class _InfoScreenState extends State<InfoScreen> {
                                 download.episodeInfo!,
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.white70
+                                      ? Colors.black54
                                       : Colors.grey[500],
                                   fontSize: 13,
                                 ),
@@ -1124,13 +1124,13 @@ class _InfoScreenState extends State<InfoScreen> {
                       Icon(
                         Icons.data_usage,
                         size: 16,
-                        color: isSelected ? Colors.white70 : Colors.grey[600],
+                        color: isSelected ? Colors.black54 : Colors.grey[600],
                       ),
                       const SizedBox(width: 6),
                       Text(
                         download.size,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.grey[400],
+                          color: isSelected ? Colors.black87 : Colors.grey[400],
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1150,7 +1150,7 @@ class _InfoScreenState extends State<InfoScreen> {
                     ),
                     child: Icon(
                       Icons.download_rounded,
-                      color: isSelected ? Colors.white : Colors.grey[500],
+                      color: isSelected ? Colors.black87 : Colors.grey[500],
                       size: 20,
                     ),
                   ),
@@ -1170,7 +1170,7 @@ class _InfoScreenState extends State<InfoScreen> {
         alignment: Alignment.center,
         child: const Column(
           children: [
-            CircularProgressIndicator(color: Colors.red),
+            CircularProgressIndicator(color: Colors.amber),
             SizedBox(height: 16),
             Text(
               'Loading episodes...',
@@ -1216,19 +1216,19 @@ class _InfoScreenState extends State<InfoScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? const Color(0xFFD32F2F)
+                    ? Colors.amber
                     : const Color(0xFF212121),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected
-                      ? Colors.white
+                      ? Colors.amber
                       : Colors.white.withOpacity(0.05),
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: Colors.red.withOpacity(0.4),
+                          color: Colors.amber.withOpacity(0.4),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -1247,7 +1247,7 @@ class _InfoScreenState extends State<InfoScreen> {
                     ),
                     child: Icon(
                       Icons.play_circle_fill,
-                      color: isSelected ? Colors.white : Colors.grey[500],
+                      color: isSelected ? Colors.black87 : Colors.grey[500],
                       size: 24,
                     ),
                   ),
@@ -1258,7 +1258,7 @@ class _InfoScreenState extends State<InfoScreen> {
                     child: Text(
                       episode.title,
                       style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.grey[300],
+                        color: isSelected ? Colors.black87 : Colors.grey[300],
                         fontSize: 16,
                         fontWeight: isSelected
                             ? FontWeight.bold

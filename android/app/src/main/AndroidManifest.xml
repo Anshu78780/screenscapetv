@@ -27,6 +27,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Wake lock permission to keep screen on during video playback -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <queries>
+        <package android:name="org.videolan.vlc" />
+    </queries>
     
     <application
         android:label="ScreenScape TV"
