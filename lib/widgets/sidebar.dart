@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../provider/provider_manager.dart';
 import '../screens/global_search_screen.dart';
+// import '../screens/extractor_test_screen.dart';
 
 class Sidebar extends StatelessWidget {
   final String selectedProvider;
@@ -91,6 +92,41 @@ class Sidebar extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // const SizedBox(height: 10),
+                  // Material(
+                  //   color: Colors.transparent,
+                  //   child: InkWell(
+                  //     onTap: () {
+                  //       Navigator.push(
+                  //         context,
+                  //         MaterialPageRoute(builder: (context) => const ExtractorTestScreen()),
+                  //       );
+                  //     },
+                  //     borderRadius: BorderRadius.circular(10),
+                  //     child: Container(
+                  //       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  //       decoration: BoxDecoration(
+                  //         color: Colors.white.withOpacity(0.08),
+                  //         borderRadius: BorderRadius.circular(10),
+                  //         border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  //       ),
+                  //       child: Row(
+                  //         children: [
+                  //           Icon(Icons.science_outlined, color: Colors.grey[400], size: 18),
+                  //           const SizedBox(width: 10),
+                  //           const Text(
+                  //             'Extractor Test',
+                  //             style: TextStyle(
+                  //               color: Colors.white,
+                  //               fontSize: 14,
+                  //               fontWeight: FontWeight.w500,
+                  //             ),
+                  //           ),
+                  //         ],
+                  //       ),
+                  //     ),
+                  //   ),
+                  // ),
                   const SizedBox(height: 20),
                   Text(
                     'SELECT PROVIDER',

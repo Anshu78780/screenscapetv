@@ -162,7 +162,9 @@ class Movies4uGetEps {
 
   /// Determine server type from URL or link text
   static String _determineServer(String url, String linkText) {
-    if (url.contains('hubcloud') || linkText.contains('Hub-Cloud')) {
+    if (url.contains('vcloud.zip') || url.contains('vcloud.lol') || linkText.contains('VCloud')) {
+      return 'VCloud';
+    } else if (url.contains('hubcloud') || linkText.contains('Hub-Cloud')) {
       return 'HubCloud';
     } else if (url.contains('gdflix') || linkText.contains('GDFlix')) {
       return 'GDFlix';

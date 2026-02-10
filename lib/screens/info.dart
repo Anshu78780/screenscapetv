@@ -17,6 +17,7 @@ import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
 import '../widgets/episode_selection_dialog.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
+import '../provider/extractors/vcloud_extractor.dart';
 
 class InfoScreen extends StatefulWidget {
   final String movieUrl;
@@ -1300,7 +1301,16 @@ class _InfoScreenState extends State<InfoScreen> {
             final processedLink = await _processDownloadUrl(episodeLink.url);
 
             // Extract streams based on server type
-            if (episodeLink.server == 'GDFlix') {
+            if (episodeLink.server == 'VCloud') {
+              print('Extracting streams from VCloud: $processedLink');
+              final vcloudStreams = await VCloudExtractor.extractStreams(
+                processedLink,
+              );
+              if (vcloudStreams.isNotEmpty) {
+                print('VCloud extracted ${vcloudStreams.length} streams');
+                allStreams.addAll(vcloudStreams);
+              }
+            } else if (episodeLink.server == 'GDFlix') {
               print('Extracting streams from GDFlix: $processedLink');
               final gdflixStreams = await GdFlixExtractor.extractStreams(
                 processedLink,
@@ -1462,14 +1472,24 @@ class _InfoScreenState extends State<InfoScreen> {
       final processedUrl = await _processDownloadUrl(downloadLink.url);
       print('Processed URL: $processedUrl');
 
-      // If the processed URL is a hubcloud or gdflix link, directly extract streams from it
+      // If the processed URL is a hubcloud, gdflix, or vcloud link, directly extract streams from it
       if (processedUrl.contains('hubcloud') ||
-          processedUrl.contains('gdflix')) {
+          processedUrl.contains('gdflix') ||
+          processedUrl.contains('vcloud.zip') ||
+          processedUrl.contains('vcloud.lol')) {
         print('Processed URL is a direct link, extracting streams');
 
         List<stream_types.Stream> allStreams = [];
 
-        if (processedUrl.contains('gdflix')) {
+        if (processedUrl.contains('vcloud.zip') || processedUrl.contains('vcloud.lol')) {
+          print('Processing VCloud link');
+          final vcloudStreams = await VCloudExtractor.extractStreams(
+            processedUrl,
+          );
+          if (vcloudStreams.isNotEmpty) {
+            allStreams.addAll(vcloudStreams);
+          }
+        } else if (processedUrl.contains('gdflix')) {
           print('Processing GDFlix link');
           final gdflixStreams = await GdFlixExtractor.extractStreams(
             processedUrl,
