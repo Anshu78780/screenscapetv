@@ -263,10 +263,7 @@ class HubCloudExtractor {
         '.btn-success.btn-lg.h6,.btn-danger,.btn-secondary',
         '.btn-success,.btn-danger,.btn-secondary',
         'a.btn',
-        'a[href*="download"]',
-        'a[href*="pixeld"]',
-        'a[href*="hubcdn"]',
-        'a[href*=".dev"]',
+        'a[href*="hubcloud"],a[href*="gdflix"],a[href*="download"],a[href*="pixeld"],a[href*="hubcdn"],a[href*=".dev"]',
       ];
 
       List<dynamic> linkElements = [];
@@ -298,6 +295,13 @@ class HubCloudExtractor {
       for (final element in linkElements) {
         String? link = element.attributes['href'];
         if (link == null || link.isEmpty) continue;
+
+        // Check for GDFlix first (before generic .dev check)
+        if (link.contains('gdflix')) {
+          streamLinks.add(Stream(server: 'GDFlix', link: link, type: 'mkv'));
+          print('Added GDFlix link: $link');
+          continue; // Skip other checks for this link
+        }
 
         if (link.contains('.dev') && !link.contains('/?id=')) {
           streamLinks.add(Stream(server: 'Cf Worker', link: link, type: 'mkv'));

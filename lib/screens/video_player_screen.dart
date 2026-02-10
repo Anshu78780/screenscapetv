@@ -5,6 +5,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
 import '../utils/vlc_launcher.dart';
 import '../utils/key_event_handler.dart';
+import 'dart:async';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
@@ -34,6 +35,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _hasError = false;
   String _errorMessage = '';
   bool _showAudioTracks = false;
+  bool _showServers = false;
   bool _isPlaying = false;
   bool _isLoading = true;
   bool _showControls = true;
@@ -42,17 +44,24 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   late String _currentServerName;
   late Map<String, String>? _currentHeaders;
   
+  int _currentStreamIndex = 0;
   List<ThaAudioTrack> _audioTracks = [];
   String? _selectedAudioTrackId;
   int _selectedTrackIndex = 0;
-  int _focusedControlIndex = 0; // 0: play/pause, 1: audio tracks
+  int _selectedServerIndex = 0;
+  
+  // 0: -30s, 1: Play/Pause, 2: +30s, 3: Audio, 4: Servers
+  int _focusedControlIndex = 1; 
   
   final FocusNode _controlsFocusNode = FocusNode();
   final FocusNode _audioTracksFocusNode = FocusNode();
+  
+  Timer? _controlsTimer;
 
   @override
   void initState() {
     super.initState();
+    _currentStreamIndex = widget.currentStreamIndex ?? 0;
     _currentVideoUrl = widget.videoUrl;
     _currentServerName = widget.server;
     _currentHeaders = widget.headers;
@@ -63,11 +72,29 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   @override
   void dispose() {
+    _controlsTimer?.cancel();
     WakelockPlus.disable();
     _controlsFocusNode.dispose();
     _audioTracksFocusNode.dispose();
     _playerController?.dispose();
     super.dispose();
+  }
+  
+  void _resetControlsTimer() {
+    _controlsTimer?.cancel();
+    if (!_showControls) {
+      setState(() => _showControls = true);
+    }
+    _controlsTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _isPlaying && !_showAudioTracks && !_showServers) {
+        setState(() => _showControls = false);
+      }
+    });
+  }
+  
+  void _showControlsTemporarily() {
+    setState(() => _showControls = true);
+    _resetControlsTimer();
   }
 
   Future<void> _initializePlayer() async {
@@ -79,7 +106,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       print('[VideoPlayer] Initializing player for: $_currentServerName');
       print('[VideoPlayer] Video URL: $_currentVideoUrl');
-      print('[VideoPlayer] Headers: $requestHeaders');
 
       final mediaSource = ThaMediaSource(
         _currentVideoUrl,
@@ -100,6 +126,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       // Load audio tracks immediately
       _loadAudioTracks();
       
+      // Start controls timer
+      _resetControlsTimer();
+      
       // Stop showing loading after a delay
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) {
@@ -117,6 +146,32 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         });
       }
     }
+  }
+
+  Future<void> _switchServer(int index) async {
+    if (widget.streams == null || index < 0 || index >= widget.streams!.length) return;
+    
+    // Close overlay
+    setState(() {
+      _showServers = false;
+      _isLoading = true;
+      _currentStreamIndex = index;
+    });
+
+    // Update current stream info
+    final stream = widget.streams![index];
+    _currentServerName = stream.server;
+    _currentVideoUrl = stream.link;
+    _currentHeaders = stream.headers;
+
+    // Dispose old controller
+    _playerController?.pause();
+    await Future.delayed(const Duration(milliseconds: 100)); // Grace period
+    _playerController?.dispose();
+    _playerController = null;
+    
+    // Re-initialize
+    await _initializePlayer();
   }
 
   Future<void> _loadAudioTracks() async {
@@ -141,26 +196,56 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (_isPlaying) {
       _playerController!.pause();
       setState(() => _isPlaying = false);
+      _controlsTimer?.cancel();
     } else {
       _playerController!.play();
       setState(() => _isPlaying = true);
+      _resetControlsTimer();
     }
+    _showControlsTemporarily();
+  }
+
+  void _seekRelative(int seconds) async {
+    if (_playerController == null) return;
+    final state = _playerController!.playbackState.value;
+    
+    final newPos = state.position + Duration(seconds: seconds);
+    final duration = state.duration;
+    
+    if (newPos.inSeconds < 0) {
+      _playerController!.seekTo(Duration.zero);
+    } else if (newPos > duration) {
+      _playerController!.seekTo(duration);
+    } else {
+      _playerController!.seekTo(newPos);
+    }
+    _showControlsTemporarily();
   }
   
   void _toggleAudioTracks() {
-    // Always try to load audio tracks when opening
     _loadAudioTracks();
-    
     setState(() {
       _showAudioTracks = !_showAudioTracks;
+      _showServers = false;
       if (_showAudioTracks) {
         _selectedTrackIndex = 0;
       }
     });
+    _controlsTimer?.cancel();
+  }
+
+  void _toggleServers() {
+    setState(() {
+      _showServers = !_showServers;
+      _showAudioTracks = false;
+      if (_showServers) {
+        _selectedServerIndex = _currentStreamIndex;
+      }
+    });
+    _controlsTimer?.cancel();
   }
   
   void _selectAudioTrack(ThaAudioTrack track, int index) {
-    // Update preferences to set the audio track
     final currentPrefs = _playerController!.preferences.value;
     _playerController!.preferences.value = currentPrefs.copyWith(
       manualAudioTrackId: track.id,
@@ -171,108 +256,79 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       _selectedTrackIndex = index;
       _showAudioTracks = false;
     });
+    _showControlsTemporarily();
   }
 
   void _handleControlNavigation({required bool isRight}) {
+    _showControlsTemporarily();
     setState(() {
-      // Always have 2 controls: play/pause (0) and audio (1)
+      const totalButtons = 5;
       if (isRight) {
-        _focusedControlIndex = (_focusedControlIndex + 1) % 2;
+        _focusedControlIndex = (_focusedControlIndex + 1) % totalButtons;
       } else {
-        _focusedControlIndex = (_focusedControlIndex - 1);
-        if (_focusedControlIndex < 0) _focusedControlIndex = 1;
+        _focusedControlIndex = (_focusedControlIndex - 1 + totalButtons) % totalButtons;
       }
     });
   }
 
   void _handleControlSelect() {
-    if (_focusedControlIndex == 0) {
-      _togglePlayPause();
-    } else if (_focusedControlIndex == 1) {
-      _toggleAudioTracks();
+    _showControlsTemporarily();
+    switch (_focusedControlIndex) {
+      case 0: // -30s
+        _seekRelative(-30);
+        break;
+      case 1: // Play/Pause
+        _togglePlayPause();
+        break;
+      case 2: // +30s
+        _seekRelative(30);
+        break;
+      case 3: // Audio Tracks
+        _toggleAudioTracks();
+        break;
+      case 4: // Servers
+        if (widget.streams != null && widget.streams!.isNotEmpty) {
+          _toggleServers();
+        }
+        break;
     }
   }
 
-  void _handleAudioTrackNavigation({required bool isDown}) {
+  void _handleListNavigation({required bool isDown, required bool isServerList}) {
     setState(() {
-      if (isDown) {
-        _selectedTrackIndex = (_selectedTrackIndex + 1).clamp(0, _audioTracks.length - 1);
+      if (isServerList) {
+        if (widget.streams == null) return;
+        if (isDown) {
+          _selectedServerIndex = (_selectedServerIndex + 1).clamp(0, widget.streams!.length - 1);
+        } else {
+          _selectedServerIndex = (_selectedServerIndex - 1).clamp(0, widget.streams!.length - 1);
+        }
       } else {
-        _selectedTrackIndex = (_selectedTrackIndex - 1).clamp(0, _audioTracks.length - 1);
+        // Audio Track List
+        if (isDown) {
+          _selectedTrackIndex = (_selectedTrackIndex + 1).clamp(0, _audioTracks.length - 1);
+        } else {
+          _selectedTrackIndex = (_selectedTrackIndex - 1).clamp(0, _audioTracks.length - 1);
+        }
       }
     });
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+    } else {
+      return "$twoDigitMinutes:$twoDigitSeconds";
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_hasError) {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.red.withOpacity(0.3)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                const SizedBox(height: 16),
-                const Text(
-                  "Playback Error",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Looks like the player can't play this stream.\nTry another server or open in VLC.",
-                  style: TextStyle(color: Colors.white70),
-                  textAlign: TextAlign.center,
-                ),
-                if (_errorMessage.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _errorMessage,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.arrow_back),
-                      label: const Text("Go Back"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[800],
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.open_in_new),
-                      label: const Text("Open in VLC"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange[900],
-                      ),
-                      onPressed: () {
-                        VlcLauncher.launchVlc(_currentVideoUrl, widget.title);
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return _buildErrorScreen();
     }
 
     if (_playerController == null) {
@@ -284,16 +340,36 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       );
     }
 
+    bool allowControlNav = !_showAudioTracks && !_showServers;
+
     return KeyEventHandler(
-      onLeftKey: _showAudioTracks ? null : () => _handleControlNavigation(isRight: false),
-      onRightKey: _showAudioTracks ? null : () => _handleControlNavigation(isRight: true),
-      onUpKey: _showAudioTracks ? () => _handleAudioTrackNavigation(isDown: false) : null,
-      onDownKey: _showAudioTracks ? () => _handleAudioTrackNavigation(isDown: true) : null,
+      onLeftKey: allowControlNav ? () => _handleControlNavigation(isRight: false) : null,
+      onRightKey: allowControlNav ? () => _handleControlNavigation(isRight: true) : null,
+      onUpKey: () {
+        if (_showAudioTracks) {
+          _handleListNavigation(isDown: false, isServerList: false);
+        } else if (_showServers) {
+          _handleListNavigation(isDown: false, isServerList: true);
+        } else {
+          _showControlsTemporarily();
+        }
+      },
+      onDownKey: () {
+         if (_showAudioTracks) {
+          _handleListNavigation(isDown: true, isServerList: false);
+        } else if (_showServers) {
+          _handleListNavigation(isDown: true, isServerList: true);
+        } else {
+          _showControlsTemporarily();
+        }
+      },
       onEnterKey: () {
         if (_showAudioTracks) {
           if (_audioTracks.isNotEmpty) {
             _selectAudioTrack(_audioTracks[_selectedTrackIndex], _selectedTrackIndex);
           }
+        } else if (_showServers) {
+          _switchServer(_selectedServerIndex);
         } else {
           _handleControlSelect();
         }
@@ -301,6 +377,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       onBackKey: () {
         if (_showAudioTracks) {
           setState(() => _showAudioTracks = false);
+        } else if (_showServers) {
+          setState(() => _showServers = false);
         } else {
           Navigator.pop(context);
         }
@@ -308,6 +386,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       onEscapeKey: () {
         if (_showAudioTracks) {
           setState(() => _showAudioTracks = false);
+        } else if (_showServers) {
+          setState(() => _showServers = false);
         } else {
           Navigator.pop(context);
         }
@@ -316,7 +396,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         backgroundColor: Colors.black,
         body: Stack(
           children: [
-            // Video player with built-in controls (we'll cover them with our custom UI)
+            // Video player
             ThaModernPlayer(
               controller: _playerController!,
               onError: (error) {
@@ -329,12 +409,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               },
             ),
 
-            // Overlay to hide built-in controls and show only our custom ones
+            // Tap to toggle controls
             Positioned.fill(
               child: GestureDetector(
-                onTap: () {
-                  // Tap to toggle controls visibility if needed
-                },
+                onTap: () => _togglePlayPause(), // Tap toggles play/pause and shows controls
                 child: Container(
                   color: Colors.transparent,
                 ),
@@ -367,7 +445,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               ),
             
             // Bottom controls bar
-            if (!_showAudioTracks && _showControls)
+            if (!_showAudioTracks && !_showServers && _showControls)
               Positioned(
                 left: 0,
                 right: 0,
@@ -377,156 +455,509 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             
             // Audio tracks picker overlay
             if (_showAudioTracks)
-              _buildAudioTracksOverlay(),
+              _buildOverlay(
+                title: 'Audio Tracks',
+                icon: Icons.audiotrack,
+                itemCount: _audioTracks.length,
+                isEmpty: _audioTracks.isEmpty,
+                emptyMessage: 'No audio tracks available',
+                itemBuilder: _buildAudioTrackItem,
+                onClose: () => setState(() => _showAudioTracks = false),
+              ),
+
+             // Server picker overlay
+            if (_showServers)
+              _buildOverlay(
+                title: 'Select Server',
+                icon: Icons.dns_rounded,
+                itemCount: widget.streams?.length ?? 0,
+                isEmpty: widget.streams?.isEmpty ?? true,
+                emptyMessage: 'No other servers available',
+                itemBuilder: _buildServerItem,
+                onClose: () => setState(() => _showServers = false),
+              )
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.red.withOpacity(0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              const Text(
+                "Playback Error",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Looks like the player can't play this stream.\nTry another server or open in VLC.",
+                style: TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              if (_errorMessage.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _errorMessage,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text("Go Back"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[800],
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text("Open in VLC"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange[900],
+                    ),
+                    onPressed: () {
+                      VlcLauncher.launchVlc(_currentVideoUrl, widget.title);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildBottomControls() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            Colors.black.withOpacity(0.9),
-            Colors.black.withOpacity(0.7),
-            Colors.transparent,
-          ],
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Title
-          Text(
-            widget.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+    return ValueListenableBuilder<ThaPlaybackState?>(
+      valueListenable: _playerController!.playbackState,
+      builder: (context, state, child) {
+        final position = state?.position ?? Duration.zero;
+        final duration = state?.duration ?? Duration.zero;
+        final maxDuration = duration.inSeconds.toDouble();
+        final currentValue = position.inSeconds.toDouble().clamp(0.0, maxDuration > 0 ? maxDuration : 0.0);
+        
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [
+                Colors.black.withOpacity(0.95),
+                Colors.black.withOpacity(0.7),
+                Colors.transparent,
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
-          
-          // Controls row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Play/Pause button
-              _buildControlButton(
-                icon: _isPlaying ? Icons.pause : Icons.play_arrow,
-                label: _isPlaying ? 'Pause' : 'Play',
-                isFocused: _focusedControlIndex == 0,
-                onTap: _togglePlayPause,
+              // Seek Bar
+              Row(
+                children: [
+                  Text(
+                    _formatDuration(position),
+                    style: const TextStyle(
+                      color: Color(0xFFFF6B00),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: const Color(0xFFFF6B00),
+                        inactiveTrackColor: Colors.white24,
+                        thumbColor: const Color(0xFFFF6B00),
+                        overlayColor: const Color(0xFFFF6B00).withOpacity(0.3),
+                        trackHeight: 4.0,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12.0),
+                      ),
+                      child: Slider(
+                        min: 0.0,
+                        max: maxDuration > 0 ? maxDuration : 1.0,
+                        value: currentValue,
+                        onChanged: (value) {
+                          _showControlsTemporarily();
+                          _playerController?.seekTo(Duration(seconds: value.toInt()));
+                        },
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _formatDuration(duration),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 4),
+
+              // Controls row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // -30s
+                  _buildVlcControlButton(
+                    icon: Icons.replay_30,
+                    isFocused: _focusedControlIndex == 0,
+                    onTap: () => _seekRelative(-30),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Play/Pause button
+                  _buildVlcControlButton(
+                    icon: _isPlaying ? Icons.pause : Icons.play_arrow,
+                    isFocused: _focusedControlIndex == 1,
+                    onTap: _togglePlayPause,
+                    isLarge: true,
+                  ),
+                  
+                  const SizedBox(width: 16),
+
+                  // +30s
+                  _buildVlcControlButton(
+                    icon: Icons.forward_30,
+                    isFocused: _focusedControlIndex == 2,
+                    onTap: () => _seekRelative(30),
+                  ),
+                  
+                  const SizedBox(width: 24),
+                  
+                  // Audio tracks button
+                  _buildVlcControlButton(
+                    icon: Icons.audiotrack,
+                    isFocused: _focusedControlIndex == 3,
+                    onTap: _toggleAudioTracks,
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  // Servers button
+                  _buildVlcControlButton(
+                    icon: Icons.dns_rounded,
+                    isFocused: _focusedControlIndex == 4,
+                    onTap: () {
+                      if (widget.streams != null && widget.streams!.isNotEmpty) {
+                        _toggleServers();
+                      }
+                    },
+                  ),
+                ],
               ),
               
-              const SizedBox(width: 24),
+              const SizedBox(height: 14),
               
-              // Audio tracks button (always visible)
-              _buildControlButton(
-                icon: Icons.audiotrack,
-                label: 'Audio',
-                isFocused: _focusedControlIndex == 1,
-                onTap: _toggleAudioTracks,
+              // Bottom info bar
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Title
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // Server info
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6B00).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: const Color(0xFFFF6B00).withOpacity(0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      _currentServerName,
+                      style: const TextStyle(
+                        color: Color(0xFFFF6B00),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          
-          const SizedBox(height: 12),
-          
-          // Navigation hint
-          Text(
-            '← → Navigate  •  Enter Select  •  Back Exit',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
+        );
+      }
     );
   }
 
-  Widget _buildControlButton({
+  Widget _buildVlcControlButton({
     required IconData icon,
-    required String label,
     required bool isFocused,
     required VoidCallback onTap,
+    bool isLarge = false,
   }) {
+    final size = isLarge ? 56.0 : 44.0;
+    final iconSize = isLarge ? 32.0 : 24.0;
+    
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        duration: const Duration(milliseconds: 150),
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: isFocused 
-              ? Colors.red
-              : Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isFocused ? Colors.red : Colors.white.withOpacity(0.3),
-            width: isFocused ? 3 : 1,
-          ),
+              ? const Color(0xFFFF6B00) // VLC orange
+              : Colors.white.withOpacity(0.12),
+          shape: BoxShape.circle,
+          border: isFocused 
+              ? Border.all(
+                  color: const Color(0xFFFF6B00),
+                  width: 3,
+                )
+              : Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
           boxShadow: isFocused
               ? [
                   BoxShadow(
-                    color: Colors.red.withOpacity(0.5),
-                    blurRadius: 12,
+                    color: const Color(0xFFFF6B00).withOpacity(0.6),
+                    blurRadius: 16,
                     spreadRadius: 2,
                   ),
                 ]
               : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: Colors.white,
-              size: 24,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: isFocused ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: iconSize,
         ),
       ),
     );
   }
+
+  Widget _buildAudioTrackItem(BuildContext context, int index) {
+      final track = _audioTracks[index];
+      final isSelected = track.id == _selectedAudioTrackId;
+      final isFocused = index == _selectedTrackIndex;
+      
+      String displayName = track.label ?? '';
+      if (displayName.isEmpty) {
+        if (track.language != null && track.language!.isNotEmpty) {
+          displayName = track.language!;
+        } else {
+          displayName = 'Track ${track.id}';
+        }
+      } else if (track.language != null && track.language!.isNotEmpty) {
+        // Show language text if it's different from label (case-insensitive)
+        if (displayName.toLowerCase() != track.language!.toLowerCase()) {
+           displayName = '$displayName [${track.language}]';
+        }
+      }
+
+      return GestureDetector(
+        onTap: () => _selectAudioTrack(track, index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isFocused
+                ? const Color(0xFFFF6B00).withOpacity(0.25)
+                : isSelected
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isFocused
+                  ? const Color(0xFFFF6B00)
+                  : isSelected
+                      ? Colors.white.withOpacity(0.25)
+                      : Colors.transparent,
+              width: isFocused ? 2 : 1,
+            ),
+            boxShadow: isFocused
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFFF6B00).withOpacity(0.4),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected ? const Color(0xFFFF6B00) : Colors.white.withOpacity(0.5),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  displayName,
+                  style: TextStyle(
+                    color: isFocused || isSelected ? Colors.white : Colors.white70,
+                    fontSize: 14,
+                    fontWeight: isFocused ? FontWeight.w600 : (isSelected ? FontWeight.w500 : FontWeight.normal),
+                  ),
+                ),
+              ),
+              if (isFocused)
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF6B00),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+  }
+
+  Widget _buildServerItem(BuildContext context, int index) {
+      final stream = widget.streams![index];
+      final isSelected = index == _currentStreamIndex;
+      final isFocused = index == _selectedServerIndex;
+      
+      return GestureDetector(
+        onTap: () => _switchServer(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isFocused
+                ? const Color(0xFFFF6B00).withOpacity(0.25)
+                : isSelected
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isFocused
+                  ? const Color(0xFFFF6B00)
+                  : isSelected
+                      ? Colors.white.withOpacity(0.25)
+                      : Colors.transparent,
+              width: isFocused ? 2 : 1,
+            ),
+             boxShadow: isFocused
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFFF6B00).withOpacity(0.4),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected ? const Color(0xFFFF6B00) : Colors.white.withOpacity(0.5),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      stream.server,
+                      style: TextStyle(
+                        color: isFocused || isSelected ? Colors.white : Colors.white70,
+                        fontSize: 14,
+                        fontWeight: isFocused ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      stream.type.toUpperCase(),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
   
-  Widget _buildAudioTracksOverlay() {
+  Widget _buildOverlay({
+    required String title,
+    required IconData icon,
+    required int itemCount,
+    required bool isEmpty,
+    required String emptyMessage,
+    required Widget Function(BuildContext, int) itemBuilder,
+    required VoidCallback onClose,
+  }) {
     return Positioned.fill(
       child: GestureDetector(
-        onTap: () => setState(() => _showAudioTracks = false),
+        onTap: onClose,
         child: Container(
-          color: Colors.black87,
+          color: Colors.black.withOpacity(0.85),
           child: Center(
             child: GestureDetector(
               onTap: () {}, // Prevent closing when tapping inside
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+                constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
                 margin: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.red, width: 2),
+                  color: const Color(0xFF2A2A2A), // VLC dark gray
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFF6B00), width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.red.withOpacity(0.3),
-                      blurRadius: 24,
-                      spreadRadius: 4,
+                      color: const Color(0xFFFF6B00).withOpacity(0.3),
+                      blurRadius: 20,
+                      spreadRadius: 3,
                     ),
                   ],
                 ),
@@ -535,150 +966,96 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                   children: [
                     // Header
                     Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.white12),
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F1F1F),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(10),
+                          topRight: Radius.circular(10),
+                        ),
+                        border: const Border(
+                          bottom: BorderSide(color: Color(0xFFFF6B00), width: 2),
                         ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.audiotrack, color: Colors.red, size: 28),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Audio Tracks',
-                            style: TextStyle(
+                          Icon(icon, color: const Color(0xFFFF6B00), size: 24),
+                          const SizedBox(width: 10),
+                          Text(
+                            title,
+                            style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const Spacer(),
-                          Text(
-                            '${_audioTracks.length} available',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
-                              fontSize: 12,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF6B00).withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '$itemCount',
+                              style: const TextStyle(
+                                color: Color(0xFFFF6B00),
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
                     
-                    // Tracks list
+                    // List
                     Flexible(
-                      child: _audioTracks.isEmpty
-                          ? const Padding(
-                              padding: EdgeInsets.all(40),
+                      child: isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(40),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.music_off, color: Colors.white30, size: 48),
-                                  SizedBox(height: 16),
+                                  const Icon(Icons.do_not_disturb_on, color: Colors.white30, size: 48),
+                                  const SizedBox(height: 16),
                                   Text(
-                                    'No audio tracks available',
-                                    style: TextStyle(color: Colors.white60),
+                                    emptyMessage,
+                                    style: const TextStyle(color: Colors.white60),
                                   ),
                                 ],
                               ),
                             )
                           : ListView.builder(
                               shrinkWrap: true,
-                              itemCount: _audioTracks.length,
+                              itemCount: itemCount,
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              itemBuilder: (context, index) {
-                                final track = _audioTracks[index];
-                                final isSelected = track.id == _selectedAudioTrackId;
-                                final isFocused = index == _selectedTrackIndex;
-                                
-                                return GestureDetector(
-                                  onTap: () => _selectAudioTrack(track, index),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    decoration: BoxDecoration(
-                                      color: isFocused
-                                          ? Colors.red.withOpacity(0.2)
-                                          : isSelected
-                                              ? Colors.white.withOpacity(0.1)
-                                              : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: isFocused
-                                            ? Colors.red
-                                            : isSelected
-                                                ? Colors.white.withOpacity(0.3)
-                                                : Colors.transparent,
-                                        width: isFocused ? 2 : 1,
-                                      ),
-                                      boxShadow: isFocused
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.red.withOpacity(0.4),
-                                                blurRadius: 8,
-                                                spreadRadius: 1,
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                                          color: isSelected ? Colors.red : Colors.white54,
-                                          size: 22,
-                                        ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Text(
-                                            track.label ?? track.language ?? 'Track ${track.id}',
-                                            style: TextStyle(
-                                              color: isFocused || isSelected ? Colors.white : Colors.white70,
-                                              fontSize: 15,
-                                              fontWeight: isFocused ? FontWeight.bold : (isSelected ? FontWeight.w600 : FontWeight.normal),
-                                            ),
-                                          ),
-                                        ),
-                                        if (isFocused)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.red,
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: const Text(
-                                              'FOCUSED',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
+                              itemBuilder: itemBuilder,
                             ),
                     ),
                     
                     // Footer hint
                     Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: Colors.white12),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F1F1F),
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(10),
+                          bottomRight: Radius.circular(10),
+                        ),
+                        border: const Border(
+                          top: BorderSide(color: Color(0xFFFF6B00), width: 1),
                         ),
                       ),
-                      child: const Text(
-                        '↑↓ Navigate  •  Enter Select  •  Back/ESC Close',
-                        style: TextStyle(
-                          color: Colors.white38,
-                          fontSize: 12,
-                        ),
-                        textAlign: TextAlign.center,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildKeyHint('↑↓', 'Navigate'),
+                          const SizedBox(width: 16),
+                          _buildKeyHint('Enter', 'Select'),
+                          const SizedBox(width: 16),
+                          _buildKeyHint('Back', 'Close'),
+                        ],
                       ),
                     ),
                   ],
@@ -688,6 +1065,38 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           ),
         ),
       ),
+    );
+  }
+  
+  Widget _buildKeyHint(String key, String action) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: Text(
+            key,
+            style: const TextStyle(
+              color: Color(0xFFFF6B00),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          action,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.6),
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 }
