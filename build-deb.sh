@@ -352,6 +352,10 @@ build_deb_package() {
         exit 1
     fi
     
+    # Fix package file permissions (make it readable by all users)
+    chmod 644 "$output_dir/$deb_file"
+    print_message "$GREEN" "✓ Package permissions set correctly"
+    
     # Get package info
     local size=$(du -h "$output_dir/$deb_file" | cut -f1)
     

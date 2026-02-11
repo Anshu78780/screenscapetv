@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/movie_info.dart';
 import '../provider/provider_manager.dart';
@@ -54,6 +55,10 @@ class _InfoScreenState extends State<InfoScreen> {
   bool _isLoadingEpisodes = false;
   String _currentEpisodeUrl = '';
 
+  // Countdown timer for stream extraction
+  Timer? _countdownTimer;
+  int _remainingSeconds = 60;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +68,7 @@ class _InfoScreenState extends State<InfoScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -573,13 +579,50 @@ class _InfoScreenState extends State<InfoScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            const Text(
-                              'FETCHING LINKS...',
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'FETCHING LINKS...',
+                                  style: TextStyle(
+                                    color: kGoldColor,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: kGoldColor.withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${_remainingSeconds}s',
+                                    style: const TextStyle(
+                                      color: kGoldColor,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      fontFeatures: [FontFeature.tabularFigures()],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Please wait...',
                               style: TextStyle(
-                                color: kGoldColor,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5,
+                                color: Colors.grey[400],
+                                fontSize: 12,
                               ),
                             ),
                           ],
@@ -1236,7 +1279,9 @@ class _InfoScreenState extends State<InfoScreen> {
   Future<void> _playEpisode(Episode episode) async {
     setState(() {
       _isLoadingLinks = true;
+      _remainingSeconds = 60;
     });
+    _startCountdownTimer();
 
     try {
       // Use the episode stream extractor to get all streams
@@ -1246,6 +1291,7 @@ class _InfoScreenState extends State<InfoScreen> {
         _selectedQuality,
       );
 
+      _stopCountdownTimer();
       setState(() {
         _isLoadingLinks = false;
       });
@@ -1263,6 +1309,7 @@ class _InfoScreenState extends State<InfoScreen> {
       }
     } catch (e) {
       print('Error playing episode: $e');
+      _stopCountdownTimer();
       setState(() {
         _isLoadingLinks = false;
       });
@@ -1285,7 +1332,9 @@ class _InfoScreenState extends State<InfoScreen> {
 
     setState(() {
       _isLoadingLinks = true;
+      _remainingSeconds = 60;
     });
+    _startCountdownTimer();
 
     try {
       // Try to get streams directly from the download link using provider service
@@ -1295,6 +1344,7 @@ class _InfoScreenState extends State<InfoScreen> {
       );
 
       if (streams.isNotEmpty) {
+        _stopCountdownTimer();
         setState(() => _isLoadingLinks = false);
         _showStreamingLinksDialog(streams, downloadLink.quality);
         return;
@@ -1318,6 +1368,7 @@ class _InfoScreenState extends State<InfoScreen> {
         final directStreams =
             await EpisodeStreamExtractor.extractFromDirectLink(processedUrl);
 
+        _stopCountdownTimer();
         setState(() => _isLoadingLinks = false);
 
         if (directStreams.isNotEmpty) {
@@ -1341,6 +1392,7 @@ class _InfoScreenState extends State<InfoScreen> {
       print('Found ${episodes.length} episodes');
 
       if (episodes.isEmpty) {
+        _stopCountdownTimer();
         setState(() => _isLoadingLinks = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1356,6 +1408,7 @@ class _InfoScreenState extends State<InfoScreen> {
       if (episodes.length == 1) {
         selectedEpisode = episodes.first;
       } else {
+        _stopCountdownTimer();
         setState(() => _isLoadingLinks = false);
 
         selectedEpisode = await showDialog<Episode>(
@@ -1368,7 +1421,11 @@ class _InfoScreenState extends State<InfoScreen> {
         );
 
         if (selectedEpisode != null) {
-          setState(() => _isLoadingLinks = true);
+          setState(() {
+            _isLoadingLinks = true;
+            _remainingSeconds = 60;
+          });
+          _startCountdownTimer();
         }
       }
 
@@ -1381,6 +1438,7 @@ class _InfoScreenState extends State<InfoScreen> {
       await _playEpisode(selectedEpisode);
     } catch (e) {
       print('Error in download link processing: $e');
+      _stopCountdownTimer();
       setState(() => _isLoadingLinks = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1390,6 +1448,28 @@ class _InfoScreenState extends State<InfoScreen> {
         ),
       );
     }
+  }
+
+  void _startCountdownTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  void _stopCountdownTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
   }
 
   void _showStreamingLinksDialog(
