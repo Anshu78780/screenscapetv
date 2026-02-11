@@ -8,7 +8,7 @@ class NfHeaders {
       'accept': 'application/json',
       'accept-language': 'en-US,en;q=0.9',
       'cache-control': 'no-cache, no-store, must-revalidate',
-      'cookie': '${cookie} hd=on; ott=nf;',
+      'cookie': '$cookie hd=on; ott=nf;',
       'pragma': 'no-cache',
       'sec-ch-ua':
           '"Chromium";v="130", "Microsoft Edge";v="130", "Not?A_Brand";v="99"',

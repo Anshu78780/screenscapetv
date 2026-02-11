@@ -42,8 +42,9 @@ class NfGetPost {
         final searchResults = data['searchResult'] as List;
 
         // Limit results for catalog view to avoid overwhelming
-        final resultLimit = isForCatalog ? 8 : searchResults.length;
-        final limitedResults = searchResults.take(resultLimit);
+        // For non-catalog (search), limit to 40 posts for performance
+        final resultLimit = isForCatalog ? 8 : 40;
+        final limitedResults = searchResults.take(resultLimit.clamp(0, searchResults.length));
 
         for (var result in limitedResults) {
           final id = result['id']?.toString() ?? '';
@@ -196,11 +197,18 @@ class NfGetPost {
       // Parse slider content items within each row
       final lolomoRows = document.querySelectorAll('.lolomoRow');
 
+      // Limit to 40 posts for performance on low-end devices
+      const maxPosts = 40;
+      
       for (var rowElement in lolomoRows) {
+        if (catalog.length >= maxPosts) break;
+        
         final sliderItems =
             rowElement.querySelectorAll('.slider-item.open-modal[data-post]');
 
         for (var element in sliderItems) {
+          if (catalog.length >= maxPosts) break;
+          
           final id = element.attributes['data-post'] ?? '';
           final imgElement = element.querySelector('img.boxart-image');
           final image = imgElement?.attributes['data-src'] ??
