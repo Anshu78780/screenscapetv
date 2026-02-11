@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/vlc_checker.dart';
+import '../utils/update_checker.dart';
+import '../widgets/update_dialog.dart';
 import 'movies_screen.dart';
 
 class StartupCheck extends StatefulWidget {
@@ -12,6 +14,8 @@ class StartupCheck extends StatefulWidget {
 }
 
 class _StartupCheckState extends State<StartupCheck> {
+  String _statusMessage = 'Checking requirements...';
+
   @override
   void initState() {
     super.initState();
@@ -23,12 +27,39 @@ class _StartupCheckState extends State<StartupCheck> {
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
 
+    setState(() {
+      _statusMessage = 'Checking VLC installation...';
+    });
+
     final installed = await VlcChecker.isVlcInstalled();
 
     if (installed) {
-      _navigateToHome();
+      // Check for updates before navigating to home
+      if (mounted) {
+        setState(() {
+          _statusMessage = 'Checking for updates...';
+        });
+      }
+      await _checkForUpdates();
+      if (mounted) {
+        _navigateToHome();
+      }
     } else {
       _showInstallDialog();
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      final updateInfo = await UpdateChecker.checkForUpdate();
+      
+      if (updateInfo != null && mounted) {
+        // Show update dialog if new version is available
+        await UpdateDialog.show(context, updateInfo);
+      }
+    } catch (e) {
+      // Silently fail if update check fails - don't block app startup
+      debugPrint('Update check failed: $e');
     }
   }
 
@@ -148,15 +179,18 @@ class _StartupCheckState extends State<StartupCheck> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: Colors.black,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-             CircularProgressIndicator(color: Colors.amber),
-             SizedBox(height: 20),
-             Text('Checking requirements...', style: TextStyle(color: Colors.white54)),
+            const CircularProgressIndicator(color: Colors.amber),
+            const SizedBox(height: 20),
+            Text(
+              _statusMessage,
+              style: const TextStyle(color: Colors.white54),
+            ),
           ],
         ),
       ),
