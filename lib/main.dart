@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'screens/startup_check.dart';
 
 void main() {
@@ -34,6 +35,9 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.red,
           brightness: Brightness.dark,
+        ),
+        textTheme: GoogleFonts.outfitTextTheme(
+          ThemeData.dark().textTheme,
         ),
       ),
       home: const StartupCheck(),

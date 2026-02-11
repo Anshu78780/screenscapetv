@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/movie.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
@@ -246,10 +247,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedVertical() {
     if (!_verticalScrollController.hasClients) return;
     
-    const double sectionHeight = 310.0; // Reduced height
-    const double headerHeight = 120.0;
+    // Revised dimensions based on new UI
+    // Header (76px) + List (320px) = 396px height per provider section
+    const double sectionHeight = 396.0; 
     
-    final targetOffset = (_selectedProviderIndex * sectionHeight) + headerHeight - 100;
+    // Calculate target offset to align the selected provider to top
+    // Adjusted by a small padding to show the section clearly
+    final targetOffset = (_selectedProviderIndex * sectionHeight);
     
     _verticalScrollController.animateTo(
       targetOffset.clamp(0.0, _verticalScrollController.position.maxScrollExtent),
@@ -261,11 +265,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedHorizontal(String providerId) {
     final controller = _horizontalScrollControllers[providerId];
     if (controller != null && controller.hasClients) {
-      const double cardWidth = 130.0; // Reduced width
-      const double gap = 20.0; // Reduced gap
+      const double cardWidth = 160.0; 
+      const double gap = 25.0; 
       const double itemExtent = cardWidth + gap;
       
-      final targetOffset = (_selectedMovieIndex * itemExtent) - 75; 
+      // Scroll to the selected item
+      final targetOffset = (_selectedMovieIndex * itemExtent); 
       
       controller.animateTo(
         targetOffset.clamp(0.0, controller.position.maxScrollExtent),
@@ -316,80 +321,143 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0D0D0D),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          title: const Text('Global Search', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-          centerTitle: false,
-        ),
-        body: Column(
+        backgroundColor: Colors.black,
+        body: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+            // Ambient Background
+            Positioned.fill(
+              child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: _searchFocusNode.hasFocus 
-                      ? [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.2), blurRadius: 16, spreadRadius: 1)]
-                      : [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))],
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                  decoration: InputDecoration(
-                    hintText: 'Search movies & shows...',
-                    hintStyle: TextStyle(color: Colors.grey[600]),
-                    prefixIcon: Icon(
-                      Icons.search, 
-                      color: _searchFocusNode.hasFocus ? const Color(0xFFFFD700) : Colors.grey[500]
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFF1E1E1E),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Color(0xFFFFD700), width: 1.5),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF1E1E1E),
+                      Colors.black,
+                      Colors.black,
+                    ],
+                    stops: const [0.0, 0.4, 1.0],
                   ),
-                  onSubmitted: _performGlobalSearch,
-                  textInputAction: TextInputAction.search,
                 ),
               ),
             ),
             
-            if (!_hasSearched)
-              Expanded(
-                child: Center(
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(25, 50, 25, 20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.7),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.movie_filter_outlined, size: 80, color: Colors.grey[900]),
+                      Row(
+                        children: [
+                          Container(
+                             padding: const EdgeInsets.all(8),
+                             decoration: BoxDecoration(
+                               color: const Color(0xFFFFD700).withOpacity(0.1),
+                               borderRadius: BorderRadius.circular(12),
+                             ),
+                             child: const Icon(Icons.public, color: Color(0xFFFFD700), size: 24),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            'Global Search', 
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 24, 
+                              color: Colors.white,
+                              letterSpacing: 1.0
+                            )
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 24),
-                      Text(
-                        'Discover content across all providers',
-                        style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                      CallbackShortcuts(
+                        bindings: {
+                          const SingleActivator(LogicalKeyboardKey.arrowDown): () {
+                             // Pass arrow down to vertical navigation
+                             _navigateVertical(1);
+                          },
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E1E),
+                            borderRadius: BorderRadius.circular(16),
+                            border: _searchFocusNode.hasFocus 
+                                ? Border.all(color: const Color(0xFFFFD700), width: 2)
+                                : Border.all(color: Colors.white12, width: 1),
+                            boxShadow: _searchFocusNode.hasFocus 
+                                ? [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.2), blurRadius: 20, spreadRadius: 1)]
+                                : [],
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w500),
+                            decoration: InputDecoration(
+                              hintText: 'Search across all providers...',
+                              hintStyle: TextStyle(color: Colors.white24),
+                              prefixIcon: Icon(
+                                Icons.search_rounded, 
+                                color: _searchFocusNode.hasFocus ? const Color(0xFFFFD700) : Colors.white54
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+                            ),
+                            onSubmitted: _performGlobalSearch,
+                            textInputAction: TextInputAction.search,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-              )
-            else
-              Expanded(
-                child: ListView(
-                  controller: _verticalScrollController,
-                  padding: const EdgeInsets.only(bottom: 50),
-                  children: ProviderManager.availableProviders.map((provider) {
-                    return _buildProviderSection(provider);
-                  }).toList(),
-                ),
-              ),
+                
+                if (!_hasSearched)
+                  Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(30),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.03),
+                            ),
+                            child: Icon(Icons.manage_search_rounded, size: 80, color: Colors.white10),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Search everywhere',
+                            style: TextStyle(color: Colors.white38, fontSize: 18, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView(
+                      controller: _verticalScrollController,
+                      padding: const EdgeInsets.only(bottom: 50, top: 10),
+                      children: ProviderManager.availableProviders.map((provider) {
+                        return _buildProviderSection(provider);
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -414,153 +482,144 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       _horizontalScrollControllers[providerId] = ScrollController();
     }
 
+    // Colors & Styles
+    final headerColor = isProviderSelected ? Colors.white : Colors.white60;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Provider Header
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+          padding: const EdgeInsets.fromLTRB(30, 24, 30, 16),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isProviderSelected ? const Color(0xFFFFD700).withOpacity(0.1) : Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  provider['icon'] as IconData, 
-                  size: 20, 
-                  color: isProviderSelected ? const Color(0xFFFFD700) : Colors.grey[400],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                provider['name'] as String,
-                style: TextStyle(
-                  color: isProviderSelected ? Colors.white : Colors.white70,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              if (isLoading) ...[
-                const SizedBox(width: 12),
-                const SizedBox(
-                  width: 16, 
-                  height: 16, 
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFD700))
-                ),
-              ] else if (results.isNotEmpty) ...[
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isProviderSelected 
-                        ? const Color(0xFFFFD700).withOpacity(0.2)
-                        : Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isProviderSelected ? const Color(0xFFFFD700).withOpacity(0.3) : Colors.transparent,
-                      width: 1,
-                    )
-                  ),
-                  child: Text(
-                    '${results.length}',
-                    style: TextStyle(
-                      color: isProviderSelected ? const Color(0xFFFFD700) : Colors.white60,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ]
+               AnimatedContainer(
+                 duration: const Duration(milliseconds: 200),
+                 padding: const EdgeInsets.all(8),
+                 decoration: BoxDecoration(
+                   color: isProviderSelected ? const Color(0xFFFFD700).withOpacity(0.2) : Colors.transparent,
+                   borderRadius: BorderRadius.circular(8),
+                   border: isProviderSelected ? Border.all(color: const Color(0xFFFFD700).withOpacity(0.5)) : null
+                 ),
+                 child: Icon(
+                    provider['icon'] as IconData, // Ensure icons are valid
+                    size: 20, 
+                    color: isProviderSelected ? const Color(0xFFFFD700) : Colors.white30
+                 ),
+               ),
+               const SizedBox(width: 12),
+               Text(
+                 (provider['name'] as String).toUpperCase(),
+                 style: TextStyle(
+                   color: headerColor,
+                   fontSize: 16,
+                   fontWeight: FontWeight.bold,
+                   letterSpacing: 2.0,
+                 ),
+               ),
+               if (results.isNotEmpty) ...[
+                 const SizedBox(width: 12),
+                 Container(
+                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                   decoration: BoxDecoration(
+                     color: Colors.white10,
+                     borderRadius: BorderRadius.circular(12),
+                   ),
+                   child: Text(
+                     '${results.length}',
+                     style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
+                   ),
+                 ),
+               ],
+               const Spacer(),
+               if (isLoading)
+                 const SizedBox(
+                    height: 16, width: 16,
+                    child: CircularProgressIndicator(color: Color(0xFFFFD700), strokeWidth: 2),
+                 ),
             ],
           ),
         ),
-        
-        if (isLoading && results.isEmpty)
-          SizedBox(
-            height: 210, // Reduced placeholder height
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: 3,
-              separatorBuilder: (_, __) => const SizedBox(width: 20),
-              itemBuilder: (context, index) => _buildShimmerCard(),
-            ),
-          )
-        else if (results.isNotEmpty)
-          SizedBox(
-            height: 270, // Reduced container height
-            child: ListView.separated(
-              controller: _horizontalScrollControllers[providerId],
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
-              itemCount: results.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 20),
-              itemBuilder: (context, index) {
-                final isSelected = isProviderSelected && _selectedMovieIndex == index;
-                return _buildMovieCard(results[index], providerId, isSelected);
-              },
-            ),
-          ),
+
+        // Horizontal List
+        SizedBox(
+          height: 320, 
+          child: isLoading && results.isEmpty
+            ? ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 30),
+                itemCount: 4,
+                separatorBuilder: (_, __) => const SizedBox(width: 25),
+                itemBuilder: (context, index) => _buildShimmerCard(),
+              )
+            : ListView.separated(
+                controller: _horizontalScrollControllers[providerId],
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                itemCount: results.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 25),
+                itemBuilder: (context, index) {
+                  final isSelected = isProviderSelected && _selectedMovieIndex == index;
+                  return _buildMovieCard(results[index], providerId, isSelected);
+                },
+              ),
+        ),
       ],
     );
   }
 
   Widget _buildShimmerCard() {
     return Container(
-      width: 130, // Reduced width
+      width: 160,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white10,
         borderRadius: BorderRadius.circular(16),
       ),
     );
   }
 
   Widget _buildMovieCard(Movie movie, String providerId, bool isSelected) {
-    return Center(
-      child: AnimatedScale(
-        scale: isSelected ? 1.15 : 1.0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.fastOutSlowIn,
+    // 0.62 Aspect Ratio matching movies_screen
+    // Width 160 approx results in Height 258
+    const double cardWidth = 160.0;
+    
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => _navigateToInfo(movie, providerId),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          width: 130, // Reduced width
-          curve: Curves.fastOutSlowIn,
+          curve: Curves.easeOutCubic,
+          width: cardWidth,
+          transform: Matrix4.identity()..scale(isSelected ? 1.05 : 1.0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFFFD700).withOpacity(0.4),
-                      blurRadius: 24,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 12),
+                      color: const Color(0xFFFFD700).withOpacity(0.3),
+                      blurRadius: 25,
+                      spreadRadius: -5,
+                      offset: const Offset(0, 10),
                     ),
                   ]
                 : [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.3),
-                      blurRadius: 8,
+                      blurRadius: 10,
                       offset: const Offset(0, 4),
-                    )
+                    ),
                   ],
           ),
-          child: Material(
-            color: const Color(0xFF1E1E1E),
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              onTap: () => _navigateToInfo(movie, providerId),
-              borderRadius: BorderRadius.circular(16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      movie.imageUrl,
-                      headers: {
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (movie.imageUrl.isNotEmpty)
+                  Image.network(
+                    movie.imageUrl,
+                    headers: {
                         'User-Agent': 'Mozilla/5.0',
                         if (movie.imageUrl.contains('yomovies'))
                           'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
@@ -569,92 +628,87 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                             : movie.imageUrl.contains('yomovies')
                             ? 'https://yomovies.beer/'
                             : 'https://www.reddit.com/',
-                      },
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: const Color(0xFF2A2A2A),
-                        child: Icon(Icons.movie, color: Colors.white.withOpacity(0.1), size: 40),
-                      ),
+                    },
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFF2A2A2A),
+                      child: const Icon(Icons.broken_image, color: Colors.white24, size: 40),
                     ),
-                    
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.0),
-                            Colors.black.withOpacity(0.6),
-                            Colors.black.withOpacity(0.95),
-                          ],
-                          stops: const [0.0, 0.5, 0.8, 1.0],
-                        ),
-                      ),
-                    ),
+                  )
+                else
+                  Container(
+                    color: const Color(0xFF2A2A2A),
+                    child: const Icon(Icons.movie, color: Colors.white24, size: 40),
+                  ),
 
-                    if (isSelected)
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFFFD700),
-                            width: 3.0,
-                          ),
-                        ),
-                      ),
-
-                    Positioned(
-                      bottom: 16,
-                      left: 12,
-                      right: 12,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (movie.quality.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFD700),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                movie.quality,
-                                style: const TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Text(
-                            movie.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.white.withOpacity(0.8),
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                              height: 1.2,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.8),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                // Gradient
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                         Colors.transparent,
+                         Colors.black.withOpacity(0.0),
+                         Colors.black.withOpacity(0.6),
+                         Colors.black.withOpacity(0.95),
+                      ],
+                      stops: const [0.0, 0.5, 0.75, 1.0],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                
+                // Border
+                if (isSelected)
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFFD700), width: 3),
+                    ),
+                  ),
+
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                       if (movie.quality.isNotEmpty)
+                         Container(
+                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                           margin: const EdgeInsets.only(bottom: 6),
+                           decoration: BoxDecoration(
+                             color: const Color(0xFFFFD700),
+                             borderRadius: BorderRadius.circular(4),
+                           ),
+                           child: Text(
+                             movie.quality,
+                             style: const TextStyle(
+                               color: Colors.black,
+                               fontSize: 10,
+                               fontWeight: FontWeight.bold,
+                             ),
+                           ),
+                         ),
+                       Text(
+                         movie.title,
+                         maxLines: 2,
+                         overflow: TextOverflow.ellipsis,
+                         style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.white70,
+                            fontSize: isSelected ? 14 : 13,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
+                            shadows: [
+                              Shadow(blurRadius: 2, color: Colors.black, offset: const Offset(1,1))
+                            ]
+                         )
+                       ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),

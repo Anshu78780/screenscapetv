@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/movie.dart';
 import '../provider/drive/index.dart';
 import '../provider/hdhub/index.dart';
@@ -34,7 +36,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
   List<Movie> _movies = [];
   bool _isLoading = false;
   String _error = '';
-  
+
   // Navigation & Search State
   bool _isNavigatingCategories = false;
   bool _isSidebarOpen = false;
@@ -44,10 +46,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
   int _selectedSidebarIndex = 0;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  
+
   final ScrollController _scrollController = ScrollController();
-  final int _crossAxisCount = 6;
-  
+  final int _crossAxisCount = 7;
+
   // Provider Manager
   final ProviderManager _providerManager = ProviderManager();
   String get _currentProvider => _providerManager.activeProvider;
@@ -113,22 +115,30 @@ class _MoviesScreenState extends State<MoviesScreen> {
     try {
       final category = _categories[_selectedCategoryIndex];
       List<Movie> movies;
-      
+
       switch (_currentProvider) {
         case 'Hdhub':
-          final categoryUrl = await HdhubCatalog.getCategoryUrl(category['path']!);
+          final categoryUrl = await HdhubCatalog.getCategoryUrl(
+            category['path']!,
+          );
           movies = await HdhubGetPost.fetchMovies(categoryUrl);
           break;
         case 'Xdmovies':
-          final categoryUrl = await XdmoviesCatalog.getCategoryUrl(category['path']!);
+          final categoryUrl = await XdmoviesCatalog.getCategoryUrl(
+            category['path']!,
+          );
           movies = await XdmoviesGetPost.fetchMovies(categoryUrl);
           break;
         case 'Desiremovies':
-          final categoryUrl = await DesireMoviesCatalog.getCategoryUrl(category['path']!);
+          final categoryUrl = await DesireMoviesCatalog.getCategoryUrl(
+            category['path']!,
+          );
           movies = await DesireMoviesGetPost.fetchMovies(categoryUrl);
           break;
         case 'Moviesmod':
-          final categoryUrl = await MoviesmodCatalog.getCategoryUrl(category['path']!);
+          final categoryUrl = await MoviesmodCatalog.getCategoryUrl(
+            category['path']!,
+          );
           movies = await MoviesmodGetPost.fetchMovies(categoryUrl);
           break;
         case 'Zinkmovies':
@@ -138,7 +148,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           movies = await animesaltGetPosts(category['filter']!, 1);
           break;
         case 'Movies4u':
-          final categoryUrl = await Movies4uCatalog.getCategoryUrl(category['path']!);
+          final categoryUrl = await Movies4uCatalog.getCategoryUrl(
+            category['path']!,
+          );
           movies = await Movies4uGetPost.fetchMovies(categoryUrl);
           break;
         case 'Vega':
@@ -164,11 +176,13 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Drive':
         default:
-          final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
+          final categoryUrl = await DriveCatalog.getCategoryUrl(
+            category['path']!,
+          );
           movies = await GetPost.fetchMovies(categoryUrl);
           break;
       }
-      
+
       setState(() {
         _movies = movies;
         _isLoading = false;
@@ -184,18 +198,18 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
   Future<void> _performSearch(String query) async {
     if (query.isEmpty) return;
-    
+
     // Keep focus on search bar until navigation
     // _searchFocusNode.unfocus();
-    
+
     setState(() {
       _isLoading = true;
       _error = '';
     });
-    
+
     try {
       List<Movie> movies;
-      
+
       switch (_currentProvider) {
         case 'Hdhub':
           movies = await HdhubGetPost.searchMovies(query);
@@ -244,18 +258,18 @@ class _MoviesScreenState extends State<MoviesScreen> {
           movies = await GetPost.searchMovies(query);
           break;
       }
-      
+
       setState(() {
         _movies = movies;
         _isLoading = false;
         _selectedMovieIndex = 0;
-        // Stay in search mode until user navigates down
-        // _isNavigatingCategories = false; 
-        // _isSearchFocused = false;
+        // Automatically focus the grid results when search completes
+        _isNavigatingCategories = false;
+        _isSearchFocused = false;
       });
-      // _searchFocusNode.unfocus();
-      // FocusScope.of(context).unfocus(); 
-      
+      _searchFocusNode.unfocus();
+      FocusScope.of(context).unfocus();
+
       // Ensure scrolling is reset
       if (movies.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -263,7 +277,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
         });
       }
     } catch (e) {
-         setState(() {
+      setState(() {
         _error = e.toString();
         _isLoading = false;
       });
@@ -285,59 +299,71 @@ class _MoviesScreenState extends State<MoviesScreen> {
         _isNavigatingCategories = true;
         _isMenuButtonFocused = false;
         // Optional: reload category movies if cancelling search?
-        // _loadMovies(); 
+        // _loadMovies();
       }
     });
   }
 
   void _changeCategory(int delta) {
     if (_categories.isEmpty) return;
-    
+
     setState(() {
-      if (_isMenuButtonFocused) {
-        // Navigate from menu button
-        if (delta > 0) {
-          _isMenuButtonFocused = false;
-          _selectedCategoryIndex = 0;
-        }
-      } else if (_isSearchFocused) {
-        if (delta < 0) {
-          _isSearchFocused = false;
-          _selectedCategoryIndex = _categories.length - 1;
-          if (!_isSearchActive) _loadMovies();
-        } else if (delta > 0) {
-          // Can't go further right from search
-        }
-      } else {
-        int newIndex = _selectedCategoryIndex + delta;
-        if (newIndex >= _categories.length) {
-          _isSearchFocused = true;
-        } else if (newIndex < 0) {
-          _isMenuButtonFocused = true;
-        } else {
-          _selectedCategoryIndex = newIndex;
-          if (!_isSearchActive) _loadMovies();
-        }
+      int newIndex = _selectedCategoryIndex + delta;
+      if (newIndex >= 0 && newIndex < _categories.length) {
+        _selectedCategoryIndex = newIndex;
+        if (!_isSearchActive) _loadMovies();
       }
     });
   }
 
-  void _navigateGrid(int delta) {
-    if (_isNavigatingCategories) {
-      // Navigate categories when in category mode
-      _changeCategory(delta);
-    } else {
-      // Navigate movies normally
-      if (_movies.isEmpty) return;
-      
-      setState(() {
-        _selectedMovieIndex = (_selectedMovieIndex + delta) % _movies.length;
-        if (_selectedMovieIndex < 0) {
-          _selectedMovieIndex = _movies.length - 1;
-        }
-      });
-      _scrollToSelected();
+  void _navigateHorizontal(int delta) {
+    // 1. Top Bar Navigation (Menu <-> Search)
+    if (_isMenuButtonFocused || (_isSearchFocused && !_isSearchActive)) {
+       if (delta > 0) { // Right
+         if (_isMenuButtonFocused) {
+            setState(() {
+              _isMenuButtonFocused = false;
+              _isSearchFocused = true;
+            });
+         }
+       } else { // Left
+         if (_isSearchFocused) {
+            setState(() {
+              _isSearchFocused = false;
+              _isMenuButtonFocused = true;
+            });
+         }
+       }
+       return;
     }
+
+    // 2. Category Navigation
+    if (_isNavigatingCategories) {
+      // Allow navigation to Search button from the last category
+      if (delta > 0 &&
+          _selectedCategoryIndex >= _categories.length - 1 &&
+          !_isSearchActive) {
+        setState(() {
+          _isNavigatingCategories = false;
+          _isSearchFocused = true;
+        });
+        return;
+      }
+
+      _changeCategory(delta);
+      return;
+    }
+
+    // 3. Movie Grid Navigation
+    if (_movies.isEmpty) return;
+
+    setState(() {
+      _selectedMovieIndex = (_selectedMovieIndex + delta) % _movies.length;
+      if (_selectedMovieIndex < 0) {
+        _selectedMovieIndex = _movies.length - 1;
+      }
+    });
+    _scrollToSelected();
   }
 
   void _navigateSidebar(int delta) {
@@ -345,7 +371,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
     setState(() {
       // Allow -1 for Global Search, 0 to providerCount-1 for providers
       _selectedSidebarIndex = (_selectedSidebarIndex + delta);
-      
+
       // Wrap around: if going below -1, wrap to last provider
       if (_selectedSidebarIndex < -1) {
         _selectedSidebarIndex = providerCount - 1;
@@ -363,11 +389,31 @@ class _MoviesScreenState extends State<MoviesScreen> {
       _navigateSidebar(-1);
       return;
     }
+
+    // 1. In Categories -> Go to Header (Menu or Search)
+    if (_isNavigatingCategories) {
+      if (_isSearchActive) {
+         _searchFocusNode.requestFocus();
+         setState(() {
+            _isNavigatingCategories = false;
+            _isSearchFocused = true;
+         });
+      } else {
+         setState(() {
+            _isNavigatingCategories = false;
+            _isMenuButtonFocused = true;
+            _isSearchFocused = false;
+         });
+      }
+      return;
+    }
     
-    if (_isNavigatingCategories) return; // Already in category mode
-    
+    // 2. In Header -> Cannot go up
+    if (_isMenuButtonFocused || (_isSearchFocused && !_isSearchActive)) return;
+
+    // 3. In Grid -> Go up or to Categories
     if (_movies.isEmpty) return;
-    
+
     final currentRow = _selectedMovieIndex ~/ _crossAxisCount;
     if (currentRow > 0) {
       // Move up one row
@@ -376,10 +422,20 @@ class _MoviesScreenState extends State<MoviesScreen> {
       });
       _scrollToSelected();
     } else {
-      // On first row, switch to category navigation
-      setState(() {
-        _isNavigatingCategories = true;
-      });
+      // On first row
+      if (_isSearchActive) {
+        // If search is active, skip categories and go straight to search bar
+        _searchFocusNode.requestFocus();
+        setState(() {
+          _isNavigatingCategories = false;
+          _isSearchFocused = true;
+        });
+      } else {
+        // Switch to category navigation
+        setState(() {
+          _isNavigatingCategories = true;
+        });
+      }
     }
   }
 
@@ -391,40 +447,47 @@ class _MoviesScreenState extends State<MoviesScreen> {
     }
 
     if (_searchFocusNode.hasFocus) {
-        if (_movies.isNotEmpty) {
-           _searchFocusNode.unfocus();
-           setState(() {
-             _isNavigatingCategories = false;
-             _isSearchFocused = false;
-             _selectedMovieIndex = 0;
-           });
-           _scrollToSelected();
-        }
-        return;
+      if (_movies.isNotEmpty) {
+        _searchFocusNode.unfocus();
+        setState(() {
+          _isNavigatingCategories = false;
+          _isSearchFocused = false;
+          _selectedMovieIndex = 0;
+        });
+        _scrollToSelected();
+      }
+      return;
     }
-    
+
+    // 1. In Header -> Go to Categories
+    if (_isMenuButtonFocused || (_isSearchFocused && !_isSearchActive)) {
+       setState(() {
+          _isMenuButtonFocused = false;
+          _isSearchFocused = false;
+          _isNavigatingCategories = true;
+       });
+       return;
+    }
+
+    // 2. In Categories -> Go to Grid
     if (_isNavigatingCategories) {
       if (_isMenuButtonFocused) {
         // Open sidebar when pressing down on menu button
-        setState(() {
-          _isSidebarOpen = true;
-          _selectedSidebarIndex = ProviderManager.availableProviders.indexWhere(
-            (p) => p['id'] == _currentProvider
-          );
-          if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
-        });
-        return;
+        // Logic moved: pressing down on menu button goes to categories now
+        // If sidebar opening logic on down was desired, it conflicts with layout
+        // Let's assume standard behavior: Down from Menu = Category List
+        // Sidebar trigger is 'Enter' on Menu button usually.
       }
-      
+
       if (_isSearchActive) {
-         if (_movies.isNotEmpty) {
-             _searchFocusNode.unfocus();
-             setState(() {
-                _isNavigatingCategories = false;
-                _selectedMovieIndex = 0;
-             });
-         }
-         return;
+        if (_movies.isNotEmpty) {
+          _searchFocusNode.unfocus();
+          setState(() {
+            _isNavigatingCategories = false;
+            _selectedMovieIndex = 0;
+          });
+        }
+        return;
       }
 
       // Exit category mode and go back to movies
@@ -433,17 +496,19 @@ class _MoviesScreenState extends State<MoviesScreen> {
       });
       return;
     }
-    
+
     if (_movies.isEmpty) return;
-    
+
     final totalRows = (_movies.length / _crossAxisCount).ceil();
     final currentRow = _selectedMovieIndex ~/ _crossAxisCount;
-    
+
     if (currentRow < totalRows - 1) {
       // Move down one row
       final newIndex = _selectedMovieIndex + _crossAxisCount;
       setState(() {
-        _selectedMovieIndex = newIndex < _movies.length ? newIndex : _movies.length - 1;
+        _selectedMovieIndex = newIndex < _movies.length
+            ? newIndex
+            : _movies.length - 1;
       });
       _scrollToSelected();
     }
@@ -453,7 +518,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
     if (!_scrollController.hasClients) return;
 
     // Calculate approximate position of selected item
-    const double itemHeight = 280.0; // Approximate card height including spacing
+    const double itemHeight =
+        360.0; // Approximate card height including spacing (adjusted for new UI)
     final int row = _selectedMovieIndex ~/ _crossAxisCount;
     final double targetPosition = row * itemHeight;
 
@@ -461,184 +527,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
     final double viewportHeight = _scrollController.position.viewportDimension;
     final double currentScroll = _scrollController.offset;
 
-    // Check if item is visible
-    if (targetPosition < currentScroll || targetPosition > currentScroll + viewportHeight - itemHeight) {
+    // Center the selected item comfortably in the viewport
+    // If wrapping or huge list, basic scroll into view logic:
+    if (targetPosition < currentScroll ||
+        targetPosition > currentScroll + viewportHeight - itemHeight) {
       _scrollController.animateTo(
-        targetPosition - 100, // Offset for header
+        targetPosition - (viewportHeight / 3), // Center it a bit better
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (!didPop) {
-          // Prevent app from closing on back button
-          // Could show an exit confirmation dialog here if needed
-        }
-      },
-      child: KeyEventHandler(
-        onLeftKey: () {
-          // Don't intercept if search field is focused
-          if (_searchFocusNode.hasFocus) return;
-          _navigateGrid(-1);
-        },
-        onRightKey: () {
-          // Don't intercept if search field is focused
-          if (_searchFocusNode.hasFocus) return;
-          _navigateGrid(1);
-        },
-        onUpKey: () {
-          // Don't intercept if search field is focused
-          if (_searchFocusNode.hasFocus) return;
-          _navigateUp();
-        },
-        onDownKey: () {
-          // Allow navigation down from search
-          // if (_searchFocusNode.hasFocus) return;
-          _navigateDown();
-        },
-        onBackKey: () {
-          // Don't intercept if search field is focused (allow backspace)
-          if (_searchFocusNode.hasFocus) return;
-          
-          // Close sidebar if open
-          if (_isSidebarOpen) {
-            setState(() {
-              _isSidebarOpen = false;
-              _isNavigatingCategories = true;
-              _isMenuButtonFocused = true;
-            });
-            return;
-          }
-          // Close search if active
-          if (_isSearchActive) {
-            _toggleSearch();
-            return;
-          }
-          // Prevent back button from closing the app on home screen
-          // Do nothing or show exit confirmation
-        },
-        onEnterKey: () {
-        // If search field is focused, perform search
-        if (_searchFocusNode.hasFocus && _isSearchActive) {
-            _performSearch(_searchController.text);
-            return;
-        }
-        
-        // If sidebar is open, select the provider or navigate to Global Search
-        if (_isSidebarOpen) {
-          if (_selectedSidebarIndex == -1) {
-            // Global Search is selected
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const GlobalSearchScreen()),
-            );
-            setState(() {
-              _isSidebarOpen = false;
-            });
-          } else {
-            // Provider is selected
-            final selectedProvider = ProviderManager.availableProviders[_selectedSidebarIndex];
-            _handleProviderChange(selectedProvider['id'] as String);
-          }
-          return;
-        }
-        // If menu button is focused, open sidebar
-        if (_isMenuButtonFocused) {
-          setState(() {
-            _isSidebarOpen = true;
-            _selectedSidebarIndex = ProviderManager.availableProviders.indexWhere(
-              (p) => p['id'] == _currentProvider
-            );
-            if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
-          });
-          return;
-        }
-        // If search icon is focused in category navigation, toggle search
-        if (_isNavigatingCategories && _isSearchFocused) {
-            _toggleSearch();
-            return;
-        }
-        // Otherwise, open the selected movie
-        if (_movies.isNotEmpty && !_isNavigatingCategories) {
-          _showMovieDetails(_movies[_selectedMovieIndex]);
-        }
-      },
-        child: Scaffold(
-          backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            // Background Gradient
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.grey[900]!,
-                    Colors.black,
-                  ],
-                ),
-              ),
-            ),
-            
-            // Content
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with categories
-                _buildCategoryTabs(),
-                
-                // Main content
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFC107)))
-                      : _error.isNotEmpty
-                          ? Center(
-                              child: Text(
-                                _error,
-                                style: const TextStyle(color: Colors.red, fontSize: 18),
-                              ),
-                            )
-                          : _buildMoviesGrid(),
-                ),
-              ],
-            ),
-
-            // Sidebar Overlay
-            if (_isSidebarOpen) 
-              GestureDetector(
-                onTap: () => setState(() {
-                  _isSidebarOpen = false;
-                  _isNavigatingCategories = true;
-                  _isMenuButtonFocused = true;
-                }),
-                child: Container(color: Colors.black.withOpacity(0.5)),
-              ),
-
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
-                left: _isSidebarOpen ? 0 : -250,
-                top: 0,
-                bottom: 0,
-                width: 250,
-                child: Sidebar(
-                  selectedProvider: _currentProvider,
-                  focusedIndex: _selectedSidebarIndex,
-                  onProviderSelected: _handleProviderChange,
-                ),
-              ),
-          ],
-        ),
-        ),
-      ),
-    );
   }
 
   void _handleProviderChange(String provider) {
@@ -650,7 +548,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
       _selectedCategoryIndex = 0;
       _selectedMovieIndex = 0;
     });
-    
+
     if (provider != _currentProvider) {
       _providerManager.setProvider(provider);
       // Reload data for the new provider
@@ -658,164 +556,462 @@ class _MoviesScreenState extends State<MoviesScreen> {
     }
   }
 
-  Widget _buildCategoryTabs() {
-    if (_isSearchActive) {
-      return Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-        height: 100,
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(30),
-                  border: _isSearchFocused 
-                      ? Border.all(color: const Color(0xFFFFC107), width: 2)
-                      : null,
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  style: const TextStyle(color: Colors.white, fontSize: 18),
-                  decoration: InputDecoration(
-                    hintText: 'Search movies...',
-                    hintStyle: TextStyle(color: Colors.grey[400]),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white),
-                  ),
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: _performSearch,
-                  onChanged: (value) {
-                    // Auto-focus search field when typing
-                    if (!_isSearchFocused) {
-                      setState(() {
-                        _isSearchFocused = true;
-                        _isNavigatingCategories = true;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 15),
-            // Search Submit Button
-            GestureDetector(
-              onTap: () => _performSearch(_searchController.text),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
-                ),
-                child: const Icon(Icons.send, color: Colors.white, size: 20),
-              ),
-            ),
-            const SizedBox(width: 10),
-            // Close Search Button
-            GestureDetector(
-              onTap: _toggleSearch,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: const Icon(Icons.close, color: Colors.white, size: 24),
-              ),
-            ),
-          ],
-        ),
-      );
+  void _showMovieDetails(Movie movie) {
+    // Navigate to info screen
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => InfoScreen(movieUrl: movie.link)),
+    );
+  }
+
+  // --- UI BUILDERS ---
+
+  @override
+  Widget build(BuildContext context) {
+    // Determine background image from selected movie
+    String? backgroundImg;
+    if (_movies.isNotEmpty && _movies.length > _selectedMovieIndex) {
+      backgroundImg = _movies[_selectedMovieIndex].imageUrl;
     }
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) {
+          // Prevent closing logic here
+        }
+      },
+      child: KeyEventHandler(
+        onLeftKey: () {
+          if (_searchFocusNode.hasFocus) return;
+          _navigateHorizontal(-1);
+        },
+        onRightKey: () {
+          if (_searchFocusNode.hasFocus) return;
+          _navigateHorizontal(1);
+        },
+        onUpKey: () {
+          if (_searchFocusNode.hasFocus) return;
+          _navigateUp();
+        },
+        onDownKey: () {
+          _navigateDown();
+        },
+        onBackKey: () {
+          if (_searchFocusNode.hasFocus) return;
+          if (_isSidebarOpen) {
+            setState(() {
+              _isSidebarOpen = false;
+              _isNavigatingCategories = true;
+              _isMenuButtonFocused = true;
+            });
+            return;
+          }
+          if (_isSearchActive) {
+            _toggleSearch();
+            return;
+          }
+          if (_isMenuButtonFocused || _isSearchFocused) {
+            // Already at top level/header, maybe show exit dialog or nothing
+             setState(() {
+                 _isMenuButtonFocused = false;
+                 _isSearchFocused = false;
+                 _isNavigatingCategories = true;
+             });
+            return;
+          }
+        },
+        onEnterKey: () {
+          if (_searchFocusNode.hasFocus && _isSearchActive) {
+            _performSearch(_searchController.text);
+            return;
+          }
+
+          if (_isSidebarOpen) {
+            if (_selectedSidebarIndex == -1) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const GlobalSearchScreen(),
+                ),
+              );
               setState(() {
-                _isSidebarOpen = !_isSidebarOpen;
-                if (_isSidebarOpen) {
-                  _selectedSidebarIndex = ProviderManager.availableProviders.indexWhere(
-                    (p) => p['id'] == _currentProvider
-                  );
-                  if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
-                }
+                _isSidebarOpen = false;
               });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.all(10),
+            } else {
+              final selectedProvider =
+                  ProviderManager.availableProviders[_selectedSidebarIndex];
+              _handleProviderChange(selectedProvider['id'] as String);
+            }
+            return;
+          }
+
+          if (_isMenuButtonFocused) {
+            setState(() {
+              _isSidebarOpen = true;
+              _selectedSidebarIndex = ProviderManager.availableProviders
+                  .indexWhere((p) => p['id'] == _currentProvider);
+              if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
+            });
+            return;
+          }
+          
+          if (_isSearchFocused) {
+             _toggleSearch();
+             return;
+          }
+
+          if (_movies.isNotEmpty && !_isNavigatingCategories && !_isMenuButtonFocused && !_isSearchFocused) {
+            _showMovieDetails(_movies[_selectedMovieIndex]);
+          }
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 1. Dynamic Background with Blur
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 700),
+                child: Container(
+                  key: ValueKey<String>(backgroundImg ?? 'default_bg'),
+                  decoration: BoxDecoration(
+                    image: backgroundImg != null && backgroundImg.isNotEmpty
+                        ? DecorationImage(
+                            image: NetworkImage(
+                              backgroundImg,
+                              headers: {
+                                'User-Agent': 'Mozilla/5.0',
+                                if (backgroundImg.contains('yomovies'))
+                                  'Cookie':
+                                      '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
+                                'Referer': backgroundImg.contains('animepahe')
+                                    ? 'https://animepahe.si/'
+                                    : backgroundImg.contains('yomovies')
+                                    ? 'https://yomovies.beer/'
+                                    : 'https://www.reddit.com/',
+                              },
+                            ),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                    color: Colors.black,
+                  ),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(color: Colors.black.withOpacity(0.7)),
+                  ),
+                ),
+              ),
+
+              // 2. Ambient Gradient Overlay
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.6),
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.8),
+                      Colors.black,
+                    ],
+                    stops: const [0.0, 0.3, 0.8, 1.0],
+                  ),
+                ),
+              ),
+
+              // 3. Main Content Area
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFFFFC107),
+                            ),
+                          )
+                        : _error.isNotEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.amber,
+                                  size: 48,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _error,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                        : _buildMoviesGrid(),
+                  ),
+                ],
+              ),
+
+              // 4. Sidebar Overlay
+              if (_isSidebarOpen)
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _isSidebarOpen = false;
+                    _isNavigatingCategories = true;
+                    _isMenuButtonFocused = true;
+                  }),
+                  child: Container(color: Colors.black.withOpacity(0.7)),
+                ),
+
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                left: _isSidebarOpen ? 0 : -300,
+                top: 0,
+                bottom: 0,
+                width: 280,
+                child: Sidebar(
+                  selectedProvider: _currentProvider,
+                  focusedIndex: _selectedSidebarIndex,
+                  onProviderSelected: _handleProviderChange,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(25, 30, 25, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Bar with Menu & Title/Logo placeholder
+          Row(
+            children: [
+              // Sidebar / Provider Menu Button
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isSidebarOpen = !_isSidebarOpen;
+                    if (_isSidebarOpen) {
+                      _selectedSidebarIndex = ProviderManager.availableProviders
+                          .indexWhere((p) => p['id'] == _currentProvider);
+                      if (_selectedSidebarIndex < 0) _selectedSidebarIndex = 0;
+                    }
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isMenuButtonFocused
+                        ? const Color(0xFFFFC107)
+                        : Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: _isMenuButtonFocused
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFFFFC107).withOpacity(0.4),
+                              blurRadius: 12,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : [],
+                    border: Border.all(
+                      color: _isMenuButtonFocused
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.1),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.menu,
+                        color: _isMenuButtonFocused
+                            ? Colors.black
+                            : Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _currentProvider,
+                        style: TextStyle(
+                          color: _isMenuButtonFocused
+                              ? Colors.black
+                              : Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Only show Search button if search is not active to avoid clutter
+              if (!_isSearchActive)
+                GestureDetector(
+                  onTap: _toggleSearch,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: _isSearchFocused
+                          ? const Color(0xFFFFC107)
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                      border: _isSearchFocused
+                          ? Border.all(color: Colors.white, width: 2)
+                          : Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: Icon(
+                      Icons.search,
+                      color: _isSearchFocused ? Colors.black : Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Search Bar Expanded
+          if (_isSearchActive)
+            Container(
+              height: 60,
+              margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(
-                color: _isMenuButtonFocused ? const Color(0xFFFFC107) : Colors.white.withOpacity(0.05), // Premium Yellow
-                borderRadius: BorderRadius.circular(12),
-                border: _isMenuButtonFocused
-                    ? Border.all(color: Colors.white, width: 2)
-                    : Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-                boxShadow: _isMenuButtonFocused
+                color: Colors.grey[900],
+                borderRadius: BorderRadius.circular(16),
+                border: _isSearchFocused
+                    ? Border.all(color: const Color(0xFFFFC107), width: 2)
+                    : Border.all(color: Colors.white24),
+                boxShadow: _isSearchFocused
                     ? [
                         BoxShadow(
-                          color: const Color(0xFFFFC107).withOpacity(0.5),
+                          color: const Color(0xFFFFC107).withOpacity(0.2),
                           blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        )
+                        ),
                       ]
                     : [],
               ),
-              child: const Icon(Icons.menu_rounded, color: Colors.white, size: 26),
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  const Icon(Icons.search, color: Colors.white54),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CallbackShortcuts(
+                      bindings: {
+                        const SingleActivator(LogicalKeyboardKey.arrowDown): () {
+                           _navigateDown();
+                        },
+                      },
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        style: const TextStyle(color: Colors.white, fontSize: 18),
+                        decoration: const InputDecoration(
+                          hintText: 'Search for movies, TV shows...',
+                          hintStyle: TextStyle(color: Colors.white30),
+                          border: InputBorder.none,
+                        ),
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: _performSearch,
+                        onChanged: (val) {
+                          if (!_isSearchFocused) {
+                            setState(() {
+                              _isSearchFocused = true;
+                              _isNavigatingCategories = true;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: _toggleSearch,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: SizedBox(
+
+          // Categories Tabs
+          if (_categories.isNotEmpty)
+            SizedBox(
               height: 40,
-              child: ListView.builder(
+              child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: _categories.length,
+                separatorBuilder: (ctx, i) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final category = _categories[index];
                   final isSelected = index == _selectedCategoryIndex;
-                  final isFocused = _isNavigatingCategories && isSelected && !_isSearchFocused && !_isSearchActive && !_isMenuButtonFocused;
-                  
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 20),
-                    child: GestureDetector(
-                        onTap: () {
-                            setState(() {
-                                _isSearchFocused = false;
-                                _isSearchActive = false;
-                                _isMenuButtonFocused = false;
-                                _selectedCategoryIndex = index;
-                                _isNavigatingCategories = false;
-                            });
-                            _loadMovies();
-                        },
-                        child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected && !_isSearchFocused
-                              ? (isFocused ? const Color(0xFFFFC107) : Colors.white.withOpacity(0.1)) 
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: isFocused
-                              ? Border.all(color: Colors.white, width: 2)
-                              : null,
-                        ),
-                        child: Center(
-                          child: Text(
-                            category['name']!,
-                            style: TextStyle(
-                              color: (isSelected && !_isSearchFocused) ? (isFocused ? Colors.black : Colors.white) : Colors.grey[400],
-                              fontSize: 16,
-                              fontWeight: (isSelected && !_isSearchFocused) ? FontWeight.bold : FontWeight.w500,
-                            ),
+                  final isFocused =
+                      _isNavigatingCategories &&
+                      isSelected &&
+                      !_isSearchFocused &&
+                      !_isSearchActive &&
+                      !_isMenuButtonFocused;
+
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isSearchFocused = false;
+                        _isSearchActive = false;
+                        _isMenuButtonFocused = false;
+                        _selectedCategoryIndex = index;
+                        _isNavigatingCategories = false;
+                      });
+                      _loadMovies();
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected && !_isSearchFocused
+                            ? (isFocused
+                                  ? const Color(0xFFFFC107)
+                                  : Colors.white.withOpacity(0.15))
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: isFocused
+                            ? Border.all(color: Colors.white, width: 2)
+                            : Border.all(
+                                color: isSelected && !_isSearchFocused
+                                    ? Colors.transparent
+                                    : Colors.white.withOpacity(0.1),
+                              ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          category['name']!.toUpperCase(),
+                          style: TextStyle(
+                            color: (isSelected && !_isSearchFocused)
+                                ? (isFocused ? Colors.black : Colors.white)
+                                : Colors.grey[400],
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
@@ -824,28 +1020,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 },
               ),
             ),
-          ),
-          const SizedBox(width: 30),
-          // Search Icon Button
-          GestureDetector(
-            onTap: _toggleSearch,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: _isSearchFocused ? const Color(0xFFFFC107) : Colors.transparent,
-                borderRadius: BorderRadius.circular(30),
-                border: _isSearchFocused 
-                    ? Border.all(color: Colors.white, width: 2) 
-                    : Border.all(color: Colors.white.withOpacity(0.3), width: 1),
-              ),
-              child: Icon(
-                Icons.search, 
-                color: _isSearchFocused ? Colors.black : Colors.grey[400],
-                size: 24,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -857,10 +1031,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.movie_filter_outlined, size: 80, color: Colors.grey[800]),
+            Icon(Icons.movie_filter_rounded, size: 80, color: Colors.white10),
             const SizedBox(height: 20),
             Text(
-              'No movies found in this category',
+              'No content available',
               style: TextStyle(color: Colors.grey[500], fontSize: 18),
             ),
           ],
@@ -868,69 +1042,62 @@ class _MoviesScreenState extends State<MoviesScreen> {
       );
     }
 
-    return ListView(
+    return GridView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
-      children: [
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _crossAxisCount,
-            childAspectRatio: 0.65,
-            crossAxisSpacing: 25,
-            mainAxisSpacing: 40,
-          ),
-          itemCount: _movies.length,
-          itemBuilder: (context, index) {
-            return _buildMovieCard(_movies[index], index == _selectedMovieIndex);
-          },
-        ),
-        const SizedBox(height: 50), // Bottom padding
-      ],
+      padding: const EdgeInsets.fromLTRB(30, 10, 30, 50),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: _crossAxisCount,
+        childAspectRatio: 0.62, // Taller cards
+        crossAxisSpacing: 25,
+        mainAxisSpacing: 30,
+      ),
+      itemCount: _movies.length,
+      itemBuilder: (context, index) {
+        return _buildMovieCard(_movies[index], index == _selectedMovieIndex);
+      },
     );
   }
 
   Widget _buildMovieCard(Movie movie, bool isSelected) {
     return GestureDetector(
       onTap: () => _showMovieDetails(movie),
-      child: AnimatedScale(
-        scale: isSelected ? 1.15 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.fastOutSlowIn,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFFFFC107).withOpacity(0.4),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    )
-                  ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-              // Movie poster
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.identity()..scale(isSelected ? 1.1 : 1.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFFFC107).withOpacity(0.3),
+                    blurRadius: 25,
+                    spreadRadius: -5,
+                    offset: const Offset(0, 10),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Image
               movie.imageUrl.isNotEmpty
                   ? Image.network(
                       movie.imageUrl,
                       headers: {
                         'User-Agent': 'Mozilla/5.0',
                         if (movie.imageUrl.contains('yomovies'))
-                          'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
+                          'Cookie':
+                              '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
                         'Referer': movie.imageUrl.contains('animepahe')
                             ? 'https://animepahe.si/'
                             : movie.imageUrl.contains('yomovies')
@@ -938,33 +1105,24 @@ class _MoviesScreenState extends State<MoviesScreen> {
                             : 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        // ... existing loading builder
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: Colors.grey[850],
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                  : null,
-                              color: const Color(0xFFFFC107),
-                              strokeWidth: 2,
-                            ),
-                          ),
-                        );
-                      },
                       errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey[850],
-                        child: Icon(Icons.broken_image, color: Colors.grey[700]),
+                        color: Colors.grey[900],
+                        child: const Icon(
+                          Icons.broken_image,
+                          color: Colors.white24,
+                          size: 40,
+                        ),
                       ),
                     )
                   : Container(
-                      color: Colors.grey[850],
-                      child: Icon(Icons.movie, color: Colors.grey[700], size: 40),
+                      color: Colors.grey[900],
+                      child: const Icon(
+                        Icons.movie,
+                        color: Colors.white24,
+                        size: 40,
+                      ),
                     ),
-              
+
               // Gradient Overlay
               Container(
                 decoration: BoxDecoration(
@@ -977,7 +1135,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                       Colors.black.withOpacity(0.6),
                       Colors.black.withOpacity(0.95),
                     ],
-                    stops: const [0.0, 0.5, 0.8, 1.0],
+                    stops: const [0.0, 0.5, 0.75, 1.0],
                   ),
                 ),
               ),
@@ -986,62 +1144,66 @@ class _MoviesScreenState extends State<MoviesScreen> {
               if (isSelected)
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFFFC107), width: 3),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFFFFC107),
+                      width: 3,
+                    ),
                   ),
                 ),
-              // Title and Info
-              Positioned(
-                bottom: 12,
-                left: 10,
-                right: 10,
+
+              // Content Layout
+              Padding(
+                padding: const EdgeInsets.all(12),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Quality Badge
+                    if (movie.quality.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFC107),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          movie.quality,
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 6),
                     Text(
                       movie.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.white70,
+                        fontSize: isSelected ? 14 : 13,
                         fontWeight: FontWeight.bold,
                         height: 1.2,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 2,
+                            color: Colors.black.withOpacity(0.8),
+                            offset: const Offset(1, 1),
+                          ),
+                        ],
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (isSelected) ...[
-                      const SizedBox(height: 4),
-                       Row(
-                        children: [
-                           const Icon(Icons.play_circle_fill, size: 14, color: Color(0xFFFFC107)),
-                           const SizedBox(width: 4),
-                           Text(
-                            "Watch Now",
-                            style: TextStyle(
-                              color: Colors.grey[300],
-                              fontSize: 10,
-                            ),
-                          )
-                        ],
-                      )
-                    ]
                   ],
                 ),
               ),
             ],
           ),
         ),
-      ),
-      ),
-    );
-  }
-
-  void _showMovieDetails(Movie movie) {
-    // Navigate to info screen
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => InfoScreen(movieUrl: movie.link),
       ),
     );
   }
