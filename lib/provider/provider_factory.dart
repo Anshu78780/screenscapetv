@@ -11,6 +11,7 @@ import 'vega/vega_provider_service.dart';
 import 'filmycab/filmycab_provider_service.dart';
 import 'zeefliz/zeefliz_provider_service.dart';
 import 'nf/nf_provider_service.dart';
+import 'animepahe/animepahe_provider_service.dart';
 
 /// Factory class to create the appropriate provider service
 class ProviderFactory {
@@ -38,6 +39,8 @@ class ProviderFactory {
         return ZeeflizProviderService();
       case 'NfMirror':
         return NfProviderService();
+      case 'Animepahe':
+        return AnimePaheProviderService();
       case 'Drive':
       default:
         return DriveProviderService();

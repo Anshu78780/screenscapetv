@@ -490,9 +490,11 @@ class _InfoScreenState extends State<InfoScreen> {
                     blendMode: BlendMode.darken,
                     child: Image.network(
                       _movieInfo!.imageUrl,
-                      headers: const {
+                      headers: {
                         'User-Agent': 'Mozilla/5.0',
-                        'Referer': 'https://www.reddit.com/',
+                        'Referer': _movieInfo!.imageUrl.contains('animepahe')
+                            ? 'https://animepahe.si/'
+                            : 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,
                       color: Colors.black.withOpacity(0.8),
@@ -661,9 +663,11 @@ class _InfoScreenState extends State<InfoScreen> {
                   child: _movieInfo!.imageUrl.isNotEmpty
                       ? Image.network(
                           _movieInfo!.imageUrl,
-                          headers: const {
+                          headers: {
                             'User-Agent': 'Mozilla/5.0',
-                            'Referer': 'https://www.reddit.com/',
+                            'Referer': _movieInfo!.imageUrl.contains('animepahe')
+                                ? 'https://animepahe.si/'
+                                : 'https://www.reddit.com/',
                           },
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {

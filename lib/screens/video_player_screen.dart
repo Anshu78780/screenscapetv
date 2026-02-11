@@ -92,7 +92,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       // Create controller without auto-play first
       _playerController = ThaNativePlayerController.single(
         mediaSource,
-        autoPlay: false,
+        autoPlay: true,
       );
 
       // Wait for controller to be fully initialized

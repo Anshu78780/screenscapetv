@@ -13,6 +13,7 @@ import '../provider/movies4u/getpost.dart';
 import '../provider/filmycab/getpost.dart';
 import '../provider/zeefliz/getpost.dart';
 import '../provider/nf/getpost.dart';
+import '../provider/animepahe/getpost.dart';
 import 'info.dart';
 
 class GlobalSearchScreen extends StatefulWidget {
@@ -135,6 +136,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           break;
         case 'NfMirror':
           movies = await NfGetPost.searchMovies(query);
+          break;
+        case 'Animepahe':
+          movies = await animepaheGetPostsSearch(query, 1);
           break;
         default:
           print('Unknown provider: $providerId');
@@ -548,6 +552,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   children: [
                     Image.network(
                       movie.imageUrl,
+                      headers: {
+                        'User-Agent': 'Mozilla/5.0',
+                        'Referer': movie.imageUrl.contains('animepahe')
+                            ? 'https://animepahe.si/'
+                            : 'https://www.reddit.com/',
+                      },
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: const Color(0xFF2A2A2A),

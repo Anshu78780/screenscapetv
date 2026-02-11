@@ -77,6 +77,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'Netflix Mirror',
       'icon': Icons.live_tv,
     },
+    {
+      'id': 'Animepahe',
+      'name': 'AnimePahe',
+      'icon': Icons.animation,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

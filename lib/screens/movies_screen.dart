@@ -12,6 +12,7 @@ import '../provider/vega/index.dart';
 import '../provider/filmycab/index.dart';
 import '../provider/zeefliz/index.dart';
 import '../provider/nf/index.dart';
+import '../provider/animepahe/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -74,6 +75,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return ZeeflizCatalog.categories;
       case 'NfMirror':
         return NfCatalog.categories;
+      case 'Animepahe':
+        return AnimePaheCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -144,6 +147,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'NfMirror':
           movies = await NfGetPost.fetchMovies(category['path']!);
           break;
+        case 'Animepahe':
+          movies = await animepaheGetPosts(category['filter']!, 1);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -211,6 +217,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Xdmovies':
           movies = await XdmoviesGetPost.searchMovies(query);
+          break;
+        case 'Animepahe':
+          movies = await animepaheGetPostsSearch(query, 1);
           break;
         case 'Drive':
         default:
@@ -900,9 +909,11 @@ class _MoviesScreenState extends State<MoviesScreen> {
               movie.imageUrl.isNotEmpty
                   ? Image.network(
                       movie.imageUrl,
-                      headers: const {
+                      headers: {
                         'User-Agent': 'Mozilla/5.0',
-                        'Referer': 'https://www.reddit.com/',
+                        'Referer': movie.imageUrl.contains('animepahe')
+                            ? 'https://animepahe.si/'
+                            : 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
