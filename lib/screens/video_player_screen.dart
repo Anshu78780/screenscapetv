@@ -597,12 +597,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.7),
-                            Colors.black.withOpacity(0.9),
+                            Colors.black.withOpacity(0.4),
+                            Colors.black.withOpacity(0.8),
                           ],
                         ),
                       ),
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -614,16 +614,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
+                                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: Container(
-                                  height: 4,
+                                  height: 6,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(2),
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(3),
                                   ),
                                   child: FractionallySizedBox(
                                     alignment: Alignment.centerLeft,
@@ -632,25 +633,33 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                         : 0.0,
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        borderRadius: BorderRadius.circular(2),
+                                        color: Colors.orange,
+                                        borderRadius: BorderRadius.circular(3),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.orange.withOpacity(0.6),
+                                            blurRadius: 8,
+                                            spreadRadius: 0,
+                                          )
+                                        ],
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Text(
                                 _formatDuration(_totalDuration),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
+                                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 24),
                           
                           // Control buttons
                           Row(
@@ -658,11 +667,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                             children: [
                               _buildControlButton(
                                 icon: Icons.replay_10,
-                                label: '10s Back',
+                                label: 'Rewind',
                                 isFocused: _focusedControlIndex == 0,
                                 onTap: _seekBackward,
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 32),
                               _buildControlButton(
                                 icon: _isPlaying ? Icons.pause : Icons.play_arrow,
                                 label: _isPlaying ? 'Pause' : 'Play',
@@ -670,14 +679,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                 onTap: _togglePlayPause,
                                 isLarge: true,
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 32),
                               _buildControlButton(
                                 icon: Icons.forward_10,
-                                label: '10s Forward',
+                                label: 'Skip',
                                 isFocused: _focusedControlIndex == 2,
                                 onTap: _seekForward,
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 32),
                               _buildControlButton(
                                 icon: Icons.audiotrack,
                                 label: 'Audio',
@@ -685,16 +694,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                 onTap: _toggleAudioMenu,
                               ),
                             ],
-                          ),
-                          
-                          const SizedBox(height: 8),
-                          
-                          Text(
-                            '←→ Navigate  •  Enter Select  •  Space Play/Pause  •  Back Exit',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
-                              fontSize: 11,
-                            ),
                           ),
                         ],
                       ),
@@ -705,16 +704,23 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 if (_showAudioMenu)
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black.withOpacity(0.85),
+                      color: Colors.black.withOpacity(0.9),
                       child: Center(
                         child: Container(
-                          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 400),
+                          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 400),
                           margin: const EdgeInsets.all(24),
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E1E),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.blue.withOpacity(0.5), width: 2),
+                            color: const Color(0xFF1A1A1A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 24,
+                                spreadRadius: 4,
+                              )
+                            ],
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -722,49 +728,68 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.audiotrack, color: Colors.blue, size: 28),
-                                  const SizedBox(width: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.audiotrack, color: Colors.orange, size: 24),
+                                  ),
+                                  const SizedBox(width: 16),
                                   const Text(
                                     'Audio Tracks',
-                                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      color: Colors.white, 
+                                      fontSize: 18, 
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.5,
+                                    ),
                                   ),
                                   const Spacer(),
                                   if (_isLoadingTracks)
                                     const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
                                     ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              const Divider(color: Colors.white24),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 20),
                               
                               if (_audioTracks.isEmpty && !_isLoadingTracks)
                                 const Padding(
                                   padding: EdgeInsets.all(24.0),
                                   child: Text(
                                     'No audio tracks available',
-                                    style: TextStyle(color: Colors.white70),
+                                    style: TextStyle(color: Colors.white60),
                                     textAlign: TextAlign.center,
                                   ),
                                 )
                               else
                                 Flexible(
-                                  child: ListView.builder(
+                                  child: ListView.separated(
                                     controller: _audioScrollController,
                                     shrinkWrap: true,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     itemCount: _audioTracks.length,
+                                    separatorBuilder: (context, index) => const SizedBox(height: 8),
                                     itemBuilder: (context, index) {
                                       final track = _audioTracks[index];
                                       final isFocused = index == _focusedAudioTrackIndex;
                                       final isSelected = index == _selectedAudioIndex;
                                       
                                       return AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        margin: const EdgeInsets.symmetric(vertical: 4),
-                                        transform: Matrix4.identity()..scale(isFocused ? 1.05 : 1.0),
+                                        duration: const Duration(milliseconds: 150),
+                                        transform: Matrix4.identity()..scale(isFocused ? 1.02 : 1.0),
+                                        decoration: BoxDecoration(
+                                          color: isFocused ? Colors.orange.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: isFocused ? Colors.orange.withOpacity(0.5) : Colors.transparent,
+                                            width: 1,
+                                          ),
+                                        ),
                                         child: Material(
                                           color: Colors.transparent,
                                           child: InkWell(
@@ -772,46 +797,41 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                               setState(() => _focusedAudioTrackIndex = index);
                                               _selectAudioTrack();
                                             },
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                              decoration: BoxDecoration(
-                                                color: isFocused ? Colors.blue.withOpacity(0.3) : Colors.transparent,
-                                                borderRadius: BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: isFocused ? Colors.blue : Colors.transparent,
-                                                  width: 2,
-                                                ),
-                                              ),
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                               child: Row(
                                                 children: [
-                                                  Icon(
-                                                    isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                                                    color: isSelected ? Colors.green : Colors.white54,
-                                                    size: 20,
-                                                  ),
-                                                  const SizedBox(width: 12),
+                                                  if (isSelected)
+                                                    const Icon(Icons.check_circle, color: Colors.orange, size: 20)
+                                                  else
+                                                    Icon(Icons.circle_outlined, color: isFocused ? Colors.orange.withOpacity(0.5) : Colors.white24, size: 20),
+                                                  
+                                                  const SizedBox(width: 16),
+                                                  
                                                   Expanded(
                                                     child: Text(
                                                       track.label ?? 'Track ${index + 1}',
                                                       style: TextStyle(
                                                         color: isFocused ? Colors.white : Colors.white70,
-                                                        fontSize: 16,
-                                                        fontWeight: isFocused ? FontWeight.bold : FontWeight.normal,
+                                                        fontSize: 15,
+                                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                                                       ),
                                                     ),
                                                   ),
+                                                  
                                                   if (track.language != null)
                                                     Container(
                                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                       decoration: BoxDecoration(
-                                                        color: Colors.blue.withOpacity(0.2),
+                                                        color: Colors.black26,
                                                         borderRadius: BorderRadius.circular(4),
                                                       ),
                                                       child: Text(
                                                         track.language!.toUpperCase(),
-                                                        style: const TextStyle(
-                                                          color: Colors.blue,
-                                                          fontSize: 12,
+                                                        style: TextStyle(
+                                                          color: isFocused ? Colors.orange : Colors.white54,
+                                                          fontSize: 11,
                                                           fontWeight: FontWeight.bold,
                                                         ),
                                                       ),
@@ -825,15 +845,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                     },
                                   ),
                                 ),
-                              
-                              const SizedBox(height: 16),
-                              const Divider(color: Colors.white24),
-                              const SizedBox(height: 8),
-                              const Text(
-                                '↑↓ Navigate  •  Enter Select  •  Back Close',
-                                style: TextStyle(color: Colors.white54, fontSize: 12),
-                                textAlign: TextAlign.center,
-                              ),
                             ],
                           ),
                         ),
@@ -855,16 +866,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     required VoidCallback onTap,
     bool isLarge = false,
   }) {
-    final size = isLarge ? 60.0 : 48.0;
-    final iconSize = isLarge ? 32.0 : 24.0;
+    final size = isLarge ? 64.0 : 48.0;
+    final iconSize = isLarge ? 40.0 : 28.0;
     
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      transform: Matrix4.identity()..scale(isFocused ? 1.1 : 1.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Material(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          transform: Matrix4.identity()..scale(isFocused ? 1.15 : 1.0),
+          child: Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: onTap,
@@ -874,33 +885,49 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 height: size,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isFocused ? Colors.red : Colors.white.withOpacity(0.2),
+                  color: isFocused ? Colors.orange[800] : Colors.black45,
                   border: Border.all(
-                    color: isFocused ? Colors.white : Colors.transparent,
-                    width: 2,
+                    color: isFocused ? Colors.white : Colors.white24,
+                    width: isFocused ? 2 : 1,
                   ),
+                  boxShadow: isFocused
+                      ? [
+                          BoxShadow(
+                            color: Colors.orange.withOpacity(0.6),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          )
+                        ]
+                      : [],
                 ),
                 child: Icon(
                   icon,
-                  color: Colors.white,
+                  color: isFocused ? Colors.white : Colors.white70,
                   size: iconSize,
                 ),
               ),
             ),
           ),
-          if (isFocused) ...[
-            const SizedBox(height: 4),
-            Text(
+        ),
+        const SizedBox(height: 8),
+        // Reserve space for label to avoid layout jumps
+        SizedBox(
+          height: 16,
+          child: AnimatedOpacity(
+            opacity: isFocused ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Text(
               label,
               style: const TextStyle(
-                color: Colors.white,
+                color: Colors.orangeAccent,
                 fontSize: 12,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
               ),
             ),
-          ],
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 }
