@@ -27,6 +27,13 @@ A multi-provider streaming application built with Flutter that aggregates conten
         <b>Episode Selection</b>
       </td>
     </tr>
+    <tr>
+      <td align="center">
+        <img src="assets/GLOBAL.png" alt="Global Search" width="300px"/>
+        <br />
+        <b>Global Search</b>
+      </td>
+    </tr>
   </table>
 </div>
 
