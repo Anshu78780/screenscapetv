@@ -12,7 +12,7 @@ A multi-provider streaming application built with Flutter that aggregates conten
   <table>
     <tr>
       <td align="center">
-        <img src="assets/Home.png" alt="Home Screen" width="300px"/>
+        <img src="assets/HOME.png" alt="Home Screen" width="300px"/>
         <br />
         <b>Home Screen</b>
       </td>
