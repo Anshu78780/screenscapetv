@@ -3,7 +3,7 @@
 A multi-provider streaming application built with Flutter that aggregates content from various movie and TV show providers. This application provides a unified interface to browse, search, and stream content from multiple sources.
 
 <div align="center">
-  <img src="assets/Home.png" alt="Home Screen" width="800px"/>
+  <img src="assets/HOME.png" alt="Home Screen" width="800px"/>
 </div>
 
 ## 📱 Screenshots
