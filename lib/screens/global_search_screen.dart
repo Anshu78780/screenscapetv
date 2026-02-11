@@ -15,6 +15,7 @@ import '../provider/zeefliz/getpost.dart';
 import '../provider/nf/getpost.dart';
 import '../provider/animepahe/getpost.dart';
 import '../provider/yomovies/getpost.dart';
+import '../provider/khdhub/getpost.dart';
 import 'info.dart';
 
 class GlobalSearchScreen extends StatefulWidget {
@@ -143,6 +144,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           break;
         case 'YoMovies':
           movies = await yoMoviesGetPostsSearch(query, 1);
+          break;
+        case 'KhdHub':
+          movies = await khdHubGetPostsSearch(query, 1);
           break;
         default:
           print('Unknown provider: $providerId');

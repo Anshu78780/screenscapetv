@@ -498,6 +498,8 @@ class _InfoScreenState extends State<InfoScreen> {
                             ? 'https://animepahe.si/'
                             : _movieInfo!.imageUrl.contains('yomovies')
                             ? 'https://yomovies.beer/'
+                            : _movieInfo!.imageUrl.contains('4khdhub') || _movieInfo!.imageUrl.contains('khdhub')
+                            ? 'https://4khdhub.name/'
                             : 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,
@@ -675,6 +677,8 @@ class _InfoScreenState extends State<InfoScreen> {
                                 ? 'https://animepahe.si/'
                                 : _movieInfo!.imageUrl.contains('yomovies')
                                 ? 'https://yomovies.beer/'
+                                : _movieInfo!.imageUrl.contains('4khdhub') || _movieInfo!.imageUrl.contains('khdhub')
+                                ? 'https://4khdhub.name/'
                                 : 'https://www.reddit.com/',
                           },
                           fit: BoxFit.cover,

@@ -13,6 +13,7 @@ import 'zeefliz/zeefliz_provider_service.dart';
 import 'nf/nf_provider_service.dart';
 import 'animepahe/animepahe_provider_service.dart';
 import 'yomovies/yomovies_provider_service.dart';
+import 'khdhub/khdhub_provider_service.dart';
 
 /// Factory class to create the appropriate provider service
 class ProviderFactory {
@@ -44,6 +45,8 @@ class ProviderFactory {
         return AnimePaheProviderService();
       case 'YoMovies':
         return YoMoviesProviderService();
+      case 'KhdHub':
+        return KhdHubProviderService();
       case 'Drive':
       default:
         return DriveProviderService();

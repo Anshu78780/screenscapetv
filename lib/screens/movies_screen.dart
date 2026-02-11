@@ -14,6 +14,7 @@ import '../provider/zeefliz/index.dart';
 import '../provider/nf/index.dart';
 import '../provider/animepahe/index.dart';
 import '../provider/yomovies/index.dart';
+import '../provider/khdhub/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -80,6 +81,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return AnimePaheCatalog.categories;
       case 'YoMovies':
         return YoMoviesCatalog.categories;
+      case 'KhdHub':
+        return KhdHubCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -156,6 +159,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'YoMovies':
           movies = await yoMoviesGetPosts(category['filter']!, 1);
           break;
+        case 'KhdHub':
+          movies = await khdHubGetPosts(category['filter']!, 1);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -229,6 +235,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'YoMovies':
           movies = await yoMoviesGetPostsSearch(query, 1);
+          break;
+        case 'KhdHub':
+          movies = await khdHubGetPostsSearch(query, 1);
           break;
         case 'Drive':
         default:

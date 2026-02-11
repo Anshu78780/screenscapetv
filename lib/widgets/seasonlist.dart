@@ -146,11 +146,14 @@ class SeasonListState extends State<SeasonList> {
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    Text(
-                      item,
-                      style: TextStyle(
-                        color: isSelected ? Colors.redAccent : Colors.white,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          color: isSelected ? Colors.redAccent : Colors.white,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

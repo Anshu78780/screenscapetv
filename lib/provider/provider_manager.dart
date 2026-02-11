@@ -87,6 +87,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'YoMovies',
       'icon': Icons.play_circle_outline,
     },
+    {
+      'id': 'KhdHub',
+      'name': '4kHDHub',
+      'icon': Icons.hd_outlined,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',
