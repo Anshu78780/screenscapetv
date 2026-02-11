@@ -20,6 +20,10 @@ dependencies:
   installed_apps: ^2.1.1
   shared_preferences: ^2.5.4
   google_fonts: ^6.1.0
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:

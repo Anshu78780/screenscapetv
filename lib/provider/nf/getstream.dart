@@ -96,7 +96,7 @@ class NfGetStream {
               type: 'm3u8',
               headers: {
                 'Referer': streamBaseUrl,
-                'origin': streamBaseUrl,
+                'Origin': streamBaseUrl,
                 'cookie':
                     '${streamCookie}ott=nf; hd=on;',
               },

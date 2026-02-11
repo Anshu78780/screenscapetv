@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/key_event_handler.dart';
 import '../utils/vlc_launcher.dart';
 import '../screens/video_player_screen.dart';
+import '../screens/linux_video_player_screen.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
 
 class StreamingLinksDialog extends StatefulWidget {
@@ -66,7 +67,8 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
 
   void _playSelectedStream() {
     if (!kIsWeb && Platform.isLinux) {
-      _openInVLC();
+      // Use custom media_kit player on Linux
+      _openInLinuxPlayer();
       return;
     }
 
@@ -91,6 +93,28 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
       _openInVLC();
     } else {
       _playSelectedStream();
+    }
+  }
+
+  Future<void> _openInLinuxPlayer() async {
+    final selectedStream = widget.streams[_selectedStreamIndex];
+
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LinuxVideoPlayerScreen(
+            videoUrl: selectedStream.link,
+            title: widget.movieTitle,
+            server: selectedStream.server,
+            headers: selectedStream.headers,
+            streams: widget.streams,
+            currentStreamIndex: _selectedStreamIndex,
+          ),
+        ),
+      );
+    } catch (e) {
+      _showSnackBar('Failed to open player: $e');
     }
   }
 

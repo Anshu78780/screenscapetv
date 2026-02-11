@@ -1,9 +1,20 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 import 'screens/startup_check.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize media_kit for video playback
+  MediaKit.ensureInitialized();
+  
+  // Initialize window_manager for Linux fullscreen support
+  if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+  }
   
   // Suppress image loading errors in console
   FlutterError.onError = (FlutterErrorDetails details) {
