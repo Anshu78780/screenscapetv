@@ -14,6 +14,7 @@ import '../provider/filmycab/getpost.dart';
 import '../provider/zeefliz/getpost.dart';
 import '../provider/nf/getpost.dart';
 import '../provider/animepahe/getpost.dart';
+import '../provider/yomovies/getpost.dart';
 import 'info.dart';
 
 class GlobalSearchScreen extends StatefulWidget {
@@ -139,6 +140,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           break;
         case 'Animepahe':
           movies = await animepaheGetPostsSearch(query, 1);
+          break;
+        case 'YoMovies':
+          movies = await yoMoviesGetPostsSearch(query, 1);
           break;
         default:
           print('Unknown provider: $providerId');
@@ -554,8 +558,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       movie.imageUrl,
                       headers: {
                         'User-Agent': 'Mozilla/5.0',
+                        if (movie.imageUrl.contains('yomovies'))
+                          'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
                         'Referer': movie.imageUrl.contains('animepahe')
                             ? 'https://animepahe.si/'
+                            : movie.imageUrl.contains('yomovies')
+                            ? 'https://yomovies.beer/'
                             : 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,

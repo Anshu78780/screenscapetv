@@ -13,6 +13,7 @@ import '../provider/filmycab/index.dart';
 import '../provider/zeefliz/index.dart';
 import '../provider/nf/index.dart';
 import '../provider/animepahe/index.dart';
+import '../provider/yomovies/index.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -77,6 +78,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         return NfCatalog.categories;
       case 'Animepahe':
         return AnimePaheCatalog.categories;
+      case 'YoMovies':
+        return YoMoviesCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -150,6 +153,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
         case 'Animepahe':
           movies = await animepaheGetPosts(category['filter']!, 1);
           break;
+        case 'YoMovies':
+          movies = await yoMoviesGetPosts(category['filter']!, 1);
+          break;
         case 'Drive':
         default:
           final categoryUrl = await DriveCatalog.getCategoryUrl(category['path']!);
@@ -220,6 +226,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
           break;
         case 'Animepahe':
           movies = await animepaheGetPostsSearch(query, 1);
+          break;
+        case 'YoMovies':
+          movies = await yoMoviesGetPostsSearch(query, 1);
           break;
         case 'Drive':
         default:
@@ -911,8 +920,12 @@ class _MoviesScreenState extends State<MoviesScreen> {
                       movie.imageUrl,
                       headers: {
                         'User-Agent': 'Mozilla/5.0',
+                        if (movie.imageUrl.contains('yomovies'))
+                          'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
                         'Referer': movie.imageUrl.contains('animepahe')
                             ? 'https://animepahe.si/'
+                            : movie.imageUrl.contains('yomovies')
+                            ? 'https://yomovies.beer/'
                             : 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,

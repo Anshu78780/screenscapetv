@@ -82,6 +82,11 @@ class ProviderManager extends ChangeNotifier {
       'name': 'AnimePahe',
       'icon': Icons.animation,
     },
+    {
+      'id': 'YoMovies',
+      'name': 'YoMovies',
+      'icon': Icons.play_circle_outline,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

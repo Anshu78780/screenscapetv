@@ -492,8 +492,12 @@ class _InfoScreenState extends State<InfoScreen> {
                       _movieInfo!.imageUrl,
                       headers: {
                         'User-Agent': 'Mozilla/5.0',
+                        if (_movieInfo!.imageUrl.contains('yomovies'))
+                          'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
                         'Referer': _movieInfo!.imageUrl.contains('animepahe')
                             ? 'https://animepahe.si/'
+                            : _movieInfo!.imageUrl.contains('yomovies')
+                            ? 'https://yomovies.beer/'
                             : 'https://www.reddit.com/',
                       },
                       fit: BoxFit.cover,
@@ -665,8 +669,12 @@ class _InfoScreenState extends State<InfoScreen> {
                           _movieInfo!.imageUrl,
                           headers: {
                             'User-Agent': 'Mozilla/5.0',
+                            if (_movieInfo!.imageUrl.contains('yomovies'))
+                              'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
                             'Referer': _movieInfo!.imageUrl.contains('animepahe')
                                 ? 'https://animepahe.si/'
+                                : _movieInfo!.imageUrl.contains('yomovies')
+                                ? 'https://yomovies.beer/'
                                 : 'https://www.reddit.com/',
                           },
                           fit: BoxFit.cover,
