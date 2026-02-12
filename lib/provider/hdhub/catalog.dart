@@ -5,6 +5,7 @@ class HdhubCatalog {
   
   // Category definitions (static)
   static const List<Map<String, String>> categories = [
+    {'name': 'Home', 'path': ''},
     {'name': 'Bollywood Movies', 'path': 'category/bollywood-movies/'},
     {'name': 'Hollywood Movies', 'path': 'category/hollywood-movies/'},
     {'name': 'Web Series', 'path': 'category/web-series/'},

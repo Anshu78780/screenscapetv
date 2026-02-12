@@ -218,14 +218,17 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                             children: [
                               // Main stream button
                               Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedStreamIndex = index;
-                                      _isVLCSelected = false;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedStreamIndex = index;
+                                        _isVLCSelected = false;
+                                      });
+                                      _playSelectedStream();
+                                    },
+                                    child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     curve: Curves.easeOutCubic,
                                     transform: Matrix4.identity()
@@ -345,16 +348,20 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                   ),
                                 ),
                               ),
+                              ),
                               const SizedBox(width: 12),
                               // VLC button
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedStreamIndex = index;
-                                    _isVLCSelected = true;
-                                  });
-                                },
-                                child: AnimatedContainer(
+                              MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedStreamIndex = index;
+                                      _isVLCSelected = true;
+                                    });
+                                    _openInVLC();
+                                  },
+                                  child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   curve: Curves.easeOutCubic,
                                   transform: Matrix4.identity()
@@ -416,6 +423,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                   ),
                                 ),
                               ),
+                            ),
                             ],
                           ),
                         );
@@ -428,39 +436,6 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHint(String key, String action, Color accent) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: accent.withOpacity(0.2)),
-          ),
-          child: Text(
-            key,
-            style: TextStyle(
-              color: accent,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          action,
-          style: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
     );
   }
 }

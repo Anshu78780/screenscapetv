@@ -25,7 +25,14 @@ Future<List<stream_types.Stream>> khdHubGetStream(
     if (link.contains('?id=') || link.contains('redirect')) {
       print('[khdhub] Detected redirect link, calling external API');
       finalLink = await getRedirectLinks(link);
-      print('[khdhub] Got hubcloud link from API: $finalLink');
+      print('[khdhub] Got link from API: $finalLink');
+      
+      // If API returned a hubdrive link, extract hubcloud from it
+      if (finalLink.contains('hubdrive') && !finalLink.contains('hubcloud')) {
+        print('[khdhub] API returned hubdrive link, extracting hubcloud link');
+        finalLink = await _extractHubcloudFromHubdrive(finalLink);
+        print('[khdhub] Extracted hubcloud link: $finalLink');
+      }
     }
     // For hubdrive links, extract the hubcloud link
     else if (link.contains('hubdrive') && !link.contains('hubcloud')) {

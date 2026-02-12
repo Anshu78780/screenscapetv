@@ -2,21 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/movie.dart';
-import '../provider/drive/index.dart';
-import '../provider/hdhub/index.dart';
-import '../provider/xdmovies/index.dart';
-import '../provider/desiremovies/index.dart';
-import '../provider/moviesmod/index.dart';
-import '../provider/zinkmovies/index.dart';
-import '../provider/animesalt/index.dart';
-import '../provider/movies4u/index.dart';
-import '../provider/vega/index.dart';
-import '../provider/filmycab/index.dart';
-import '../provider/zeefliz/index.dart';
-import '../provider/nf/index.dart';
-import '../provider/animepahe/index.dart';
-import '../provider/yomovies/index.dart';
-import '../provider/khdhub/index.dart';
+import '../provider/provider_factory.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
@@ -32,7 +18,7 @@ class MoviesScreen extends StatefulWidget {
 
 class _MoviesScreenState extends State<MoviesScreen> {
   int _selectedCategoryIndex = 0;
-  int _selectedMovieIndex = 0;
+  int _selectedMovieIndex = -1; // No selection by default
   List<Movie> _movies = [];
   bool _isLoading = false;
   String _error = '';
@@ -56,39 +42,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
   // Get categories dynamically based on active provider
   List<Map<String, String>> get _categories {
-    switch (_currentProvider) {
-      case 'Hdhub':
-        return HdhubCatalog.categories;
-      case 'Xdmovies':
-        return XdmoviesCatalog.categories;
-      case 'Desiremovies':
-        return DesireMoviesCatalog.categories;
-      case 'Moviesmod':
-        return MoviesmodCatalog.categories;
-      case 'Zinkmovies':
-        return ZinkMoviesCatalog.categories;
-      case 'Animesalt':
-        return AnimeSaltCatalog.categories;
-      case 'Movies4u':
-        return Movies4uCatalog.categories;
-      case 'Vega':
-        return VegaCatalog.categories;
-      case 'Filmycab':
-        return FilmyCabCatalog.categories;
-      case 'Zeefliz':
-        return ZeeflizCatalog.categories;
-      case 'NfMirror':
-        return NfCatalog.categories;
-      case 'Animepahe':
-        return AnimePaheCatalog.categories;
-      case 'YoMovies':
-        return YoMoviesCatalog.categories;
-      case 'KhdHub':
-        return KhdHubCatalog.categories;
-      case 'Drive':
-      default:
-        return DriveCatalog.categories;
-    }
+    return ProviderFactory.getCategories(_currentProvider);
   }
 
   @override
@@ -114,79 +68,15 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
     try {
       final category = _categories[_selectedCategoryIndex];
-      List<Movie> movies;
-
-      switch (_currentProvider) {
-        case 'Hdhub':
-          final categoryUrl = await HdhubCatalog.getCategoryUrl(
-            category['path']!,
-          );
-          movies = await HdhubGetPost.fetchMovies(categoryUrl);
-          break;
-        case 'Xdmovies':
-          final categoryUrl = await XdmoviesCatalog.getCategoryUrl(
-            category['path']!,
-          );
-          movies = await XdmoviesGetPost.fetchMovies(categoryUrl);
-          break;
-        case 'Desiremovies':
-          final categoryUrl = await DesireMoviesCatalog.getCategoryUrl(
-            category['path']!,
-          );
-          movies = await DesireMoviesGetPost.fetchMovies(categoryUrl);
-          break;
-        case 'Moviesmod':
-          final categoryUrl = await MoviesmodCatalog.getCategoryUrl(
-            category['path']!,
-          );
-          movies = await MoviesmodGetPost.fetchMovies(categoryUrl);
-          break;
-        case 'Zinkmovies':
-          movies = await zinkmoviesGetPosts(category['filter']!, 1);
-          break;
-        case 'Animesalt':
-          movies = await animesaltGetPosts(category['filter']!, 1);
-          break;
-        case 'Movies4u':
-          final categoryUrl = await Movies4uCatalog.getCategoryUrl(
-            category['path']!,
-          );
-          movies = await Movies4uGetPost.fetchMovies(categoryUrl);
-          break;
-        case 'Vega':
-          movies = await vegaGetPosts(category['filter']!, 1, 'Vega');
-          break;
-        case 'Filmycab':
-          movies = await FilmyCabGetPost.fetchMovies(category['path']!);
-          break;
-        case 'Zeefliz':
-          movies = await ZeeflizGetPost.fetchMovies(category['path']!);
-          break;
-        case 'NfMirror':
-          movies = await NfGetPost.fetchMovies(category['path']!);
-          break;
-        case 'Animepahe':
-          movies = await animepaheGetPosts(category['filter']!, 1);
-          break;
-        case 'YoMovies':
-          movies = await yoMoviesGetPosts(category['filter']!, 1);
-          break;
-        case 'KhdHub':
-          movies = await khdHubGetPosts(category['filter']!, 1);
-          break;
-        case 'Drive':
-        default:
-          final categoryUrl = await DriveCatalog.getCategoryUrl(
-            category['path']!,
-          );
-          movies = await GetPost.fetchMovies(categoryUrl);
-          break;
-      }
+      final movies = await ProviderFactory.loadMovies(
+        _currentProvider,
+        category,
+      );
 
       setState(() {
         _movies = movies;
         _isLoading = false;
-        _selectedMovieIndex = 0;
+        _selectedMovieIndex = -1; // No default selection
       });
     } catch (e) {
       setState(() {
@@ -208,74 +98,21 @@ class _MoviesScreenState extends State<MoviesScreen> {
     });
 
     try {
-      List<Movie> movies;
-
-      switch (_currentProvider) {
-        case 'Hdhub':
-          movies = await HdhubGetPost.searchMovies(query);
-          break;
-        case 'Desiremovies':
-          movies = await DesireMoviesGetPost.searchMovies(query);
-          break;
-        case 'Moviesmod':
-          movies = await MoviesmodGetPost.searchMovies(query);
-          break;
-        case 'Zinkmovies':
-          movies = await zinkmoviesGetPostsSearch(query, 1);
-          break;
-        case 'Animesalt':
-          movies = await animesaltGetPostsSearch(query, 1);
-          break;
-        case 'Movies4u':
-          movies = await Movies4uGetPost.searchMovies(query);
-          break;
-        case 'Vega':
-          movies = await vegaGetPostsSearch(query, 1, 'Vega');
-          break;
-        case 'Filmycab':
-          movies = await FilmyCabGetPost.searchMovies(query);
-          break;
-        case 'NfMirror':
-          movies = await NfGetPost.searchMovies(query);
-          break;
-        case 'Zeefliz':
-          movies = await ZeeflizGetPost.searchMovies(query);
-          break;
-        case 'Xdmovies':
-          movies = await XdmoviesGetPost.searchMovies(query);
-          break;
-        case 'Animepahe':
-          movies = await animepaheGetPostsSearch(query, 1);
-          break;
-        case 'YoMovies':
-          movies = await yoMoviesGetPostsSearch(query, 1);
-          break;
-        case 'KhdHub':
-          movies = await khdHubGetPostsSearch(query, 1);
-          break;
-        case 'Drive':
-        default:
-          movies = await GetPost.searchMovies(query);
-          break;
-      }
+      final movies = await ProviderFactory.searchMovies(
+        _currentProvider,
+        query,
+      );
 
       setState(() {
         _movies = movies;
         _isLoading = false;
-        _selectedMovieIndex = 0;
+        _selectedMovieIndex = -1; // No selection after search, user navigates first
         // Automatically focus the grid results when search completes
         _isNavigatingCategories = false;
         _isSearchFocused = false;
       });
       _searchFocusNode.unfocus();
       FocusScope.of(context).unfocus();
-
-      // Ensure scrolling is reset
-      if (movies.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToSelected();
-        });
-      }
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -319,22 +156,24 @@ class _MoviesScreenState extends State<MoviesScreen> {
   void _navigateHorizontal(int delta) {
     // 1. Top Bar Navigation (Menu <-> Search)
     if (_isMenuButtonFocused || (_isSearchFocused && !_isSearchActive)) {
-       if (delta > 0) { // Right
-         if (_isMenuButtonFocused) {
-            setState(() {
-              _isMenuButtonFocused = false;
-              _isSearchFocused = true;
-            });
-         }
-       } else { // Left
-         if (_isSearchFocused) {
-            setState(() {
-              _isSearchFocused = false;
-              _isMenuButtonFocused = true;
-            });
-         }
-       }
-       return;
+      if (delta > 0) {
+        // Right
+        if (_isMenuButtonFocused) {
+          setState(() {
+            _isMenuButtonFocused = false;
+            _isSearchFocused = true;
+          });
+        }
+      } else {
+        // Left
+        if (_isSearchFocused) {
+          setState(() {
+            _isSearchFocused = false;
+            _isMenuButtonFocused = true;
+          });
+        }
+      }
+      return;
     }
 
     // 2. Category Navigation
@@ -358,9 +197,14 @@ class _MoviesScreenState extends State<MoviesScreen> {
     if (_movies.isEmpty) return;
 
     setState(() {
-      _selectedMovieIndex = (_selectedMovieIndex + delta) % _movies.length;
+      // If nothing selected, start from first item on right, last item on left
       if (_selectedMovieIndex < 0) {
-        _selectedMovieIndex = _movies.length - 1;
+        _selectedMovieIndex = delta > 0 ? 0 : _movies.length - 1;
+      } else {
+        _selectedMovieIndex = (_selectedMovieIndex + delta) % _movies.length;
+        if (_selectedMovieIndex < 0) {
+          _selectedMovieIndex = _movies.length - 1;
+        }
       }
     });
     _scrollToSelected();
@@ -393,26 +237,34 @@ class _MoviesScreenState extends State<MoviesScreen> {
     // 1. In Categories -> Go to Header (Menu or Search)
     if (_isNavigatingCategories) {
       if (_isSearchActive) {
-         _searchFocusNode.requestFocus();
-         setState(() {
-            _isNavigatingCategories = false;
-            _isSearchFocused = true;
-         });
+        _searchFocusNode.requestFocus();
+        setState(() {
+          _isNavigatingCategories = false;
+          _isSearchFocused = true;
+        });
       } else {
-         setState(() {
-            _isNavigatingCategories = false;
-            _isMenuButtonFocused = true;
-            _isSearchFocused = false;
-         });
+        setState(() {
+          _isNavigatingCategories = false;
+          _isMenuButtonFocused = true;
+          _isSearchFocused = false;
+        });
       }
       return;
     }
-    
+
     // 2. In Header -> Cannot go up
     if (_isMenuButtonFocused || (_isSearchFocused && !_isSearchActive)) return;
 
     // 3. In Grid -> Go up or to Categories
     if (_movies.isEmpty) return;
+
+    // If nothing selected, go to categories
+    if (_selectedMovieIndex < 0) {
+      setState(() {
+        _isNavigatingCategories = true;
+      });
+      return;
+    }
 
     final currentRow = _selectedMovieIndex ~/ _crossAxisCount;
     if (currentRow > 0) {
@@ -461,12 +313,12 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
     // 1. In Header -> Go to Categories
     if (_isMenuButtonFocused || (_isSearchFocused && !_isSearchActive)) {
-       setState(() {
-          _isMenuButtonFocused = false;
-          _isSearchFocused = false;
-          _isNavigatingCategories = true;
-       });
-       return;
+      setState(() {
+        _isMenuButtonFocused = false;
+        _isSearchFocused = false;
+        _isNavigatingCategories = true;
+      });
+      return;
     }
 
     // 2. In Categories -> Go to Grid
@@ -498,6 +350,15 @@ class _MoviesScreenState extends State<MoviesScreen> {
     }
 
     if (_movies.isEmpty) return;
+
+    // If nothing selected, select first item
+    if (_selectedMovieIndex < 0) {
+      setState(() {
+        _selectedMovieIndex = 0;
+      });
+      _scrollToSelected();
+      return;
+    }
 
     final totalRows = (_movies.length / _crossAxisCount).ceil();
     final currentRow = _selectedMovieIndex ~/ _crossAxisCount;
@@ -569,7 +430,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
   Widget build(BuildContext context) {
     // Determine background image from selected movie
     String? backgroundImg;
-    if (_movies.isNotEmpty && _movies.length > _selectedMovieIndex) {
+    if (_movies.isNotEmpty &&
+        _selectedMovieIndex >= 0 &&
+        _movies.length > _selectedMovieIndex) {
       backgroundImg = _movies[_selectedMovieIndex].imageUrl;
     }
 
@@ -612,11 +475,11 @@ class _MoviesScreenState extends State<MoviesScreen> {
           }
           if (_isMenuButtonFocused || _isSearchFocused) {
             // Already at top level/header, maybe show exit dialog or nothing
-             setState(() {
-                 _isMenuButtonFocused = false;
-                 _isSearchFocused = false;
-                 _isNavigatingCategories = true;
-             });
+            setState(() {
+              _isMenuButtonFocused = false;
+              _isSearchFocused = false;
+              _isNavigatingCategories = true;
+            });
             return;
           }
         },
@@ -654,13 +517,17 @@ class _MoviesScreenState extends State<MoviesScreen> {
             });
             return;
           }
-          
+
           if (_isSearchFocused) {
-             _toggleSearch();
-             return;
+            _toggleSearch();
+            return;
           }
 
-          if (_movies.isNotEmpty && !_isNavigatingCategories && !_isMenuButtonFocused && !_isSearchFocused) {
+          if (_movies.isNotEmpty &&
+              !_isNavigatingCategories &&
+              !_isMenuButtonFocused &&
+              !_isSearchFocused &&
+              _selectedMovieIndex >= 0) {
             _showMovieDetails(_movies[_selectedMovieIndex]);
           }
         },
@@ -917,14 +784,19 @@ class _MoviesScreenState extends State<MoviesScreen> {
                   Expanded(
                     child: CallbackShortcuts(
                       bindings: {
-                        const SingleActivator(LogicalKeyboardKey.arrowDown): () {
-                           _navigateDown();
+                        const SingleActivator(
+                          LogicalKeyboardKey.arrowDown,
+                        ): () {
+                          _navigateDown();
                         },
                       },
                       child: TextField(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
-                        style: const TextStyle(color: Colors.white, fontSize: 18),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                        ),
                         decoration: const InputDecoration(
                           hintText: 'Search for movies, TV shows...',
                           hintStyle: TextStyle(color: Colors.white30),
@@ -1044,12 +916,13 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
     return GridView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(30, 10, 30, 50),
+      padding: const EdgeInsets.fromLTRB(30, 50, 30, 50),
+      clipBehavior: Clip.hardEdge, // Prevent cards from overlapping header
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: _crossAxisCount,
         childAspectRatio: 0.62, // Taller cards
-        crossAxisSpacing: 25,
-        mainAxisSpacing: 30,
+        crossAxisSpacing: 35, // Increased spacing for scaled cards
+        mainAxisSpacing: 42, // Increased spacing for scaled cards
       ),
       itemCount: _movies.length,
       itemBuilder: (context, index) {
@@ -1059,149 +932,156 @@ class _MoviesScreenState extends State<MoviesScreen> {
   }
 
   Widget _buildMovieCard(Movie movie, bool isSelected) {
-    return GestureDetector(
-      onTap: () => _showMovieDetails(movie),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..scale(isSelected ? 1.1 : 1.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFFFC107).withOpacity(0.3),
-                    blurRadius: 25,
-                    spreadRadius: -5,
-                    offset: const Offset(0, 10),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Image
-              movie.imageUrl.isNotEmpty
-                  ? Image.network(
-                      movie.imageUrl,
-                      headers: {
-                        'User-Agent': 'Mozilla/5.0',
-                        if (movie.imageUrl.contains('yomovies'))
-                          'Cookie':
-                              '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
-                        'Referer': movie.imageUrl.contains('animepahe')
-                            ? 'https://animepahe.si/'
-                            : movie.imageUrl.contains('yomovies')
-                            ? 'https://yomovies.beer/'
-                            : 'https://www.reddit.com/',
-                      },
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
+    return Material(
+      color: Colors.transparent,
+      elevation: isSelected ? 20 : 0, // Higher elevation for better z-index
+      borderRadius: BorderRadius.circular(16),
+      child: GestureDetector(
+        onTap: () => _showMovieDetails(movie),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          transformAlignment: Alignment.center, // Scale from center
+          transform: Matrix4.identity()
+            ..scale(isSelected ? 1.08 : 1.0), // Reduced scale to fit spacing
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFFFC107).withOpacity(0.3),
+                      blurRadius: 25,
+                      spreadRadius: -5,
+                      offset: const Offset(0, 10),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Image
+                movie.imageUrl.isNotEmpty
+                    ? Image.network(
+                        movie.imageUrl,
+                        headers: {
+                          'User-Agent': 'Mozilla/5.0',
+                          if (movie.imageUrl.contains('yomovies'))
+                            'Cookie':
+                                '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
+                          'Referer': movie.imageUrl.contains('animepahe')
+                              ? 'https://animepahe.si/'
+                              : movie.imageUrl.contains('yomovies')
+                              ? 'https://yomovies.beer/'
+                              : 'https://www.reddit.com/',
+                        },
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[900],
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.white24,
+                            size: 40,
+                          ),
+                        ),
+                      )
+                    : Container(
                         color: Colors.grey[900],
                         child: const Icon(
-                          Icons.broken_image,
+                          Icons.movie,
                           color: Colors.white24,
                           size: 40,
                         ),
                       ),
-                    )
-                  : Container(
-                      color: Colors.grey[900],
-                      child: const Icon(
-                        Icons.movie,
-                        color: Colors.white24,
-                        size: 40,
-                      ),
-                    ),
 
-              // Gradient Overlay
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.0),
-                      Colors.black.withOpacity(0.6),
-                      Colors.black.withOpacity(0.95),
-                    ],
-                    stops: const [0.0, 0.5, 0.75, 1.0],
-                  ),
-                ),
-              ),
-
-              // Selection Border
-              if (isSelected)
+                // Gradient Overlay
                 Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFFFFC107),
-                      width: 3,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.0),
+                        Colors.black.withOpacity(0.6),
+                        Colors.black.withOpacity(0.95),
+                      ],
+                      stops: const [0.0, 0.5, 0.75, 1.0],
                     ),
                   ),
                 ),
 
-              // Content Layout
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Quality Badge
-                    if (movie.quality.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFC107),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          movie.quality,
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                // Selection Border
+                if (isSelected)
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFFFC107),
+                        width: 3,
                       ),
-                    const SizedBox(height: 6),
-                    Text(
-                      movie.title,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white70,
-                        fontSize: isSelected ? 14 : 13,
-                        fontWeight: FontWeight.bold,
-                        height: 1.2,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 2,
-                            color: Colors.black.withOpacity(0.8),
-                            offset: const Offset(1, 1),
-                          ),
-                        ],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
+                  ),
+
+                // Content Layout
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Quality Badge
+                      if (movie.quality.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFC107),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            movie.quality,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      Text(
+                        movie.title,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white70,
+                          fontSize: isSelected ? 14 : 13,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 2,
+                              color: Colors.black.withOpacity(0.8),
+                              offset: const Offset(1, 1),
+                            ),
+                          ],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

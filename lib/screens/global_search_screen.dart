@@ -2,21 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/movie.dart';
 import '../provider/provider_manager.dart';
+import '../provider/provider_factory.dart';
 import '../utils/key_event_handler.dart';
-import '../provider/drive/getpost.dart' as drive;
-import '../provider/hdhub/getpost.dart';
-import '../provider/xdmovies/getpost.dart';
-import '../provider/desiremovies/getpost.dart';
-import '../provider/moviesmod/getpost.dart';
-import '../provider/zinkmovies/getpost.dart';
-import '../provider/animesalt/getpost.dart';
-import '../provider/movies4u/getpost.dart';
-import '../provider/filmycab/getpost.dart';
-import '../provider/zeefliz/getpost.dart';
-import '../provider/nf/getpost.dart';
-import '../provider/animepahe/getpost.dart';
-import '../provider/yomovies/getpost.dart';
-import '../provider/khdhub/getpost.dart';
 import 'info.dart';
 
 class GlobalSearchScreen extends StatefulWidget {
@@ -31,18 +18,18 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _verticalScrollController = ScrollController();
   final Map<String, ScrollController> _horizontalScrollControllers = {};
-  
+
   // Map to store results: ProviderID -> List of Movies
   final Map<String, List<Movie>> _results = {};
-  
+
   // Map to store loading state: ProviderID -> bool
   final Map<String, bool> _loading = {};
-  
+
   // Map to store errors/empty states if needed
   final Map<String, String> _errors = {};
 
   bool _hasSearched = false;
-  
+
   // Selection state
   int _selectedProviderIndex = -1; // -1 means focus is on search bar
   int _selectedMovieIndex = 0;
@@ -70,17 +57,18 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     return ProviderManager.availableProviders
         .map((p) => p['id'] as String)
         .where((id) {
-           final isLoading = _loading[id] == true;
-           final results = _results[id] ?? [];
-           return isLoading || results.isNotEmpty;
-        }).toList();
+          final isLoading = _loading[id] == true;
+          final results = _results[id] ?? [];
+          return isLoading || results.isNotEmpty;
+        })
+        .toList();
   }
 
   void _performGlobalSearch(String query) {
     if (query.trim().isEmpty) return;
-    
+
     // Keep focus on search bar until user navigates away
-    // _searchFocusNode.unfocus(); 
+    // _searchFocusNode.unfocus();
 
     setState(() {
       _hasSearched = true;
@@ -91,7 +79,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     });
 
     final providers = ProviderManager.availableProviders;
-    
+
     for (var provider in providers) {
       final providerId = provider['id'] as String;
       _searchProvider(providerId, query);
@@ -104,54 +92,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     });
 
     try {
-      List<Movie> movies = [];
-      
-      switch (providerId) {
-        case 'Drive':
-          movies = await drive.GetPost.searchMovies(query);
-          break;
-        case 'Hdhub':
-          movies = await HdhubGetPost.searchMovies(query);
-          break;
-        case 'Xdmovies':
-          movies = await XdmoviesGetPost.searchMovies(query);
-          break;
-        case 'Desiremovies':
-          movies = await DesireMoviesGetPost.searchMovies(query);
-          break;
-        case 'Moviesmod':
-          movies = await MoviesmodGetPost.searchMovies(query);
-          break;
-        case 'Zinkmovies':
-          movies = await zinkmoviesGetPostsSearch(query, 1);
-          break;
-        case 'Animesalt':
-          movies = await animesaltGetPostsSearch(query, 1);
-          break;
-        case 'Movies4u':
-          movies = await Movies4uGetPost.searchMovies(query);
-          break;
-        case 'Filmycab':
-          movies = await FilmyCabGetPost.searchMovies(query);
-          break;
-        case 'Zeefliz':
-          movies = await ZeeflizGetPost.searchMovies(query);
-          break;
-        case 'NfMirror':
-          movies = await NfGetPost.searchMovies(query);
-          break;
-        case 'Animepahe':
-          movies = await animepaheGetPostsSearch(query, 1);
-          break;
-        case 'YoMovies':
-          movies = await yoMoviesGetPostsSearch(query, 1);
-          break;
-        case 'KhdHub':
-          movies = await khdHubGetPostsSearch(query, 1);
-          break;
-        default:
-          print('Unknown provider: $providerId');
-      }
+      final movies = await ProviderFactory.searchMovies(providerId, query);
 
       if (mounted) {
         setState(() {
@@ -172,12 +113,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   void _navigateToInfo(Movie movie, String providerId) {
     ProviderManager().setProvider(providerId);
-    
+
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => InfoScreen(movieUrl: movie.link),
-      ),
+      MaterialPageRoute(builder: (context) => InfoScreen(movieUrl: movie.link)),
     );
   }
 
@@ -186,23 +125,28 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     final visibleProviders = _getVisibleProviders();
     if (visibleProviders.isEmpty) return;
-    if (_selectedProviderIndex < 0 || _selectedProviderIndex >= visibleProviders.length) return;
+    if (_selectedProviderIndex < 0 ||
+        _selectedProviderIndex >= visibleProviders.length)
+      return;
 
     final providerId = visibleProviders[_selectedProviderIndex];
     final results = _results[providerId] ?? [];
-    
+
     if (results.isEmpty) return;
 
     setState(() {
-      _selectedMovieIndex = (_selectedMovieIndex + delta).clamp(0, results.length - 1);
+      _selectedMovieIndex = (_selectedMovieIndex + delta).clamp(
+        0,
+        results.length - 1,
+      );
     });
-    
+
     _scrollToSelectedHorizontal(providerId);
   }
 
   void _navigateVertical(int delta) {
     final visibleProviders = _getVisibleProviders();
-    
+
     for (var id in visibleProviders) {
       if (!_horizontalScrollControllers.containsKey(id)) {
         _horizontalScrollControllers[id] = ScrollController();
@@ -227,7 +171,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       });
       _searchFocusNode.requestFocus();
       if (_verticalScrollController.hasClients) {
-        _verticalScrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+        _verticalScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
       }
       return;
     }
@@ -243,20 +191,23 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       }
     });
   }
-  
+
   void _scrollToSelectedVertical() {
     if (!_verticalScrollController.hasClients) return;
-    
+
     // Revised dimensions based on new UI
     // Header (76px) + List (320px) = 396px height per provider section
-    const double sectionHeight = 396.0; 
-    
+    const double sectionHeight = 396.0;
+
     // Calculate target offset to align the selected provider to top
     // Adjusted by a small padding to show the section clearly
     final targetOffset = (_selectedProviderIndex * sectionHeight);
-    
+
     _verticalScrollController.animateTo(
-      targetOffset.clamp(0.0, _verticalScrollController.position.maxScrollExtent),
+      targetOffset.clamp(
+        0.0,
+        _verticalScrollController.position.maxScrollExtent,
+      ),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
@@ -265,13 +216,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedHorizontal(String providerId) {
     final controller = _horizontalScrollControllers[providerId];
     if (controller != null && controller.hasClients) {
-      const double cardWidth = 160.0; 
-      const double gap = 25.0; 
+      const double cardWidth = 160.0;
+      const double gap = 25.0;
       const double itemExtent = cardWidth + gap;
-      
+
       // Scroll to the selected item
-      final targetOffset = (_selectedMovieIndex * itemExtent); 
-      
+      final targetOffset = (_selectedMovieIndex * itemExtent);
+
       controller.animateTo(
         targetOffset.clamp(0.0, controller.position.maxScrollExtent),
         duration: const Duration(milliseconds: 300),
@@ -287,10 +238,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     }
 
     final visibleProviders = _getVisibleProviders();
-    if (_selectedProviderIndex >= 0 && _selectedProviderIndex < visibleProviders.length) {
+    if (_selectedProviderIndex >= 0 &&
+        _selectedProviderIndex < visibleProviders.length) {
       final providerId = visibleProviders[_selectedProviderIndex];
       final results = _results[providerId];
-      
+
       if (results != null && results.isNotEmpty) {
         if (_selectedMovieIndex >= 0 && _selectedMovieIndex < results.length) {
           _navigateToInfo(results[_selectedMovieIndex], providerId);
@@ -309,14 +261,18 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       onEnterKey: _handleEnter,
       onBackKey: () {
         if (_searchFocusNode.hasFocus) {
-           Navigator.pop(context);
+          Navigator.pop(context);
         } else {
           _searchFocusNode.requestFocus();
           setState(() {
             _selectedProviderIndex = -1;
           });
           if (_verticalScrollController.hasClients) {
-             _verticalScrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+            _verticalScrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
           }
         }
       },
@@ -341,7 +297,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                 ),
               ),
             ),
-            
+
             Column(
               children: [
                 Container(
@@ -361,31 +317,37 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       Row(
                         children: [
                           Container(
-                             padding: const EdgeInsets.all(8),
-                             decoration: BoxDecoration(
-                               color: const Color(0xFFFFD700).withOpacity(0.1),
-                               borderRadius: BorderRadius.circular(12),
-                             ),
-                             child: const Icon(Icons.public, color: Color(0xFFFFD700), size: 24),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFD700).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.public,
+                              color: Color(0xFFFFD700),
+                              size: 24,
+                            ),
                           ),
                           const SizedBox(width: 16),
                           const Text(
-                            'Global Search', 
+                            'Global Search',
                             style: TextStyle(
-                              fontWeight: FontWeight.bold, 
-                              fontSize: 24, 
+                              fontWeight: FontWeight.bold,
+                              fontSize: 24,
                               color: Colors.white,
-                              letterSpacing: 1.0
-                            )
+                              letterSpacing: 1.0,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 24),
                       CallbackShortcuts(
                         bindings: {
-                          const SingleActivator(LogicalKeyboardKey.arrowDown): () {
-                             // Pass arrow down to vertical navigation
-                             _navigateVertical(1);
+                          const SingleActivator(
+                            LogicalKeyboardKey.arrowDown,
+                          ): () {
+                            // Pass arrow down to vertical navigation
+                            _navigateVertical(1);
                           },
                         },
                         child: AnimatedContainer(
@@ -393,26 +355,46 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                           decoration: BoxDecoration(
                             color: const Color(0xFF1E1E1E),
                             borderRadius: BorderRadius.circular(16),
-                            border: _searchFocusNode.hasFocus 
-                                ? Border.all(color: const Color(0xFFFFD700), width: 2)
+                            border: _searchFocusNode.hasFocus
+                                ? Border.all(
+                                    color: const Color(0xFFFFD700),
+                                    width: 2,
+                                  )
                                 : Border.all(color: Colors.white12, width: 1),
-                            boxShadow: _searchFocusNode.hasFocus 
-                                ? [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.2), blurRadius: 20, spreadRadius: 1)]
+                            boxShadow: _searchFocusNode.hasFocus
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFFFFD700,
+                                      ).withOpacity(0.2),
+                                      blurRadius: 20,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
                                 : [],
                           ),
                           child: TextField(
                             controller: _searchController,
                             focusNode: _searchFocusNode,
-                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                            ),
                             decoration: InputDecoration(
                               hintText: 'Search across all providers...',
                               hintStyle: TextStyle(color: Colors.white24),
                               prefixIcon: Icon(
-                                Icons.search_rounded, 
-                                color: _searchFocusNode.hasFocus ? const Color(0xFFFFD700) : Colors.white54
+                                Icons.search_rounded,
+                                color: _searchFocusNode.hasFocus
+                                    ? const Color(0xFFFFD700)
+                                    : Colors.white54,
                               ),
                               border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 18,
+                                horizontal: 20,
+                              ),
                             ),
                             onSubmitted: _performGlobalSearch,
                             textInputAction: TextInputAction.search,
@@ -422,7 +404,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                     ],
                   ),
                 ),
-                
+
                 if (!_hasSearched)
                   Expanded(
                     child: Center(
@@ -435,12 +417,20 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                               shape: BoxShape.circle,
                               color: Colors.white.withOpacity(0.03),
                             ),
-                            child: Icon(Icons.manage_search_rounded, size: 80, color: Colors.white10),
+                            child: Icon(
+                              Icons.manage_search_rounded,
+                              size: 80,
+                              color: Colors.white10,
+                            ),
                           ),
                           const SizedBox(height: 24),
                           Text(
                             'Search everywhere',
-                            style: TextStyle(color: Colors.white38, fontSize: 18, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              color: Colors.white38,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -451,7 +441,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                     child: ListView(
                       controller: _verticalScrollController,
                       padding: const EdgeInsets.only(bottom: 50, top: 10),
-                      children: ProviderManager.availableProviders.map((provider) {
+                      children: ProviderManager.availableProviders.map((
+                        provider,
+                      ) {
                         return _buildProviderSection(provider);
                       }).toList(),
                     ),
@@ -468,15 +460,16 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final providerId = provider['id'] as String;
     final isLoading = _loading[providerId] == true;
     final results = _results[providerId] ?? [];
-    
+
     if (!isLoading && results.isEmpty) {
       return const SizedBox.shrink();
     }
-    
+
     final visibleProviders = _getVisibleProviders();
-    final isProviderSelected = _selectedProviderIndex >= 0 && 
-                               _selectedProviderIndex < visibleProviders.length &&
-                               visibleProviders[_selectedProviderIndex] == providerId;
+    final isProviderSelected =
+        _selectedProviderIndex >= 0 &&
+        _selectedProviderIndex < visibleProviders.length &&
+        visibleProviders[_selectedProviderIndex] == providerId;
 
     if (!_horizontalScrollControllers.containsKey(providerId)) {
       _horizontalScrollControllers[providerId] = ScrollController();
@@ -484,7 +477,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     // Colors & Styles
     final headerColor = isProviderSelected ? Colors.white : Colors.white60;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -493,76 +486,103 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           padding: const EdgeInsets.fromLTRB(30, 24, 30, 16),
           child: Row(
             children: [
-               AnimatedContainer(
-                 duration: const Duration(milliseconds: 200),
-                 padding: const EdgeInsets.all(8),
-                 decoration: BoxDecoration(
-                   color: isProviderSelected ? const Color(0xFFFFD700).withOpacity(0.2) : Colors.transparent,
-                   borderRadius: BorderRadius.circular(8),
-                   border: isProviderSelected ? Border.all(color: const Color(0xFFFFD700).withOpacity(0.5)) : null
-                 ),
-                 child: Icon(
-                    provider['icon'] as IconData, // Ensure icons are valid
-                    size: 20, 
-                    color: isProviderSelected ? const Color(0xFFFFD700) : Colors.white30
-                 ),
-               ),
-               const SizedBox(width: 12),
-               Text(
-                 (provider['name'] as String).toUpperCase(),
-                 style: TextStyle(
-                   color: headerColor,
-                   fontSize: 16,
-                   fontWeight: FontWeight.bold,
-                   letterSpacing: 2.0,
-                 ),
-               ),
-               if (results.isNotEmpty) ...[
-                 const SizedBox(width: 12),
-                 Container(
-                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                   decoration: BoxDecoration(
-                     color: Colors.white10,
-                     borderRadius: BorderRadius.circular(12),
-                   ),
-                   child: Text(
-                     '${results.length}',
-                     style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
-                   ),
-                 ),
-               ],
-               const Spacer(),
-               if (isLoading)
-                 const SizedBox(
-                    height: 16, width: 16,
-                    child: CircularProgressIndicator(color: Color(0xFFFFD700), strokeWidth: 2),
-                 ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isProviderSelected
+                      ? const Color(0xFFFFD700).withOpacity(0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: isProviderSelected
+                      ? Border.all(
+                          color: const Color(0xFFFFD700).withOpacity(0.5),
+                        )
+                      : null,
+                ),
+                child: Icon(
+                  provider['icon'] as IconData, // Ensure icons are valid
+                  size: 20,
+                  color: isProviderSelected
+                      ? const Color(0xFFFFD700)
+                      : Colors.white30,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                (provider['name'] as String).toUpperCase(),
+                style: TextStyle(
+                  color: headerColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2.0,
+                ),
+              ),
+              if (results.isNotEmpty) ...[
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${results.length}',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (isLoading)
+                const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFFFD700),
+                    strokeWidth: 2,
+                  ),
+                ),
             ],
           ),
         ),
 
         // Horizontal List
         SizedBox(
-          height: 320, 
+          height: 320,
           child: isLoading && results.isEmpty
-            ? ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 30),
-                itemCount: 4,
-                separatorBuilder: (_, __) => const SizedBox(width: 25),
-                itemBuilder: (context, index) => _buildShimmerCard(),
-              )
-            : ListView.separated(
-                controller: _horizontalScrollControllers[providerId],
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
-                itemCount: results.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 25),
-                itemBuilder: (context, index) {
-                  final isSelected = isProviderSelected && _selectedMovieIndex == index;
-                  return _buildMovieCard(results[index], providerId, isSelected);
-                },
-              ),
+              ? ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  itemCount: 4,
+                  separatorBuilder: (_, __) => const SizedBox(width: 25),
+                  itemBuilder: (context, index) => _buildShimmerCard(),
+                )
+              : ListView.separated(
+                  controller: _horizontalScrollControllers[providerId],
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 10,
+                  ),
+                  itemCount: results.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 25),
+                  itemBuilder: (context, index) {
+                    final isSelected =
+                        isProviderSelected && _selectedMovieIndex == index;
+                    return _buildMovieCard(
+                      results[index],
+                      providerId,
+                      isSelected,
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -582,7 +602,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     // 0.62 Aspect Ratio matching movies_screen
     // Width 160 approx results in Height 258
     const double cardWidth = 160.0;
-    
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
@@ -620,25 +640,34 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   Image.network(
                     movie.imageUrl,
                     headers: {
-                        'User-Agent': 'Mozilla/5.0',
-                        if (movie.imageUrl.contains('yomovies'))
-                          'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
-                        'Referer': movie.imageUrl.contains('animepahe')
-                            ? 'https://animepahe.si/'
-                            : movie.imageUrl.contains('yomovies')
-                            ? 'https://yomovies.beer/'
-                            : 'https://www.reddit.com/',
+                      'User-Agent': 'Mozilla/5.0',
+                      if (movie.imageUrl.contains('yomovies'))
+                        'Cookie':
+                            '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
+                      'Referer': movie.imageUrl.contains('animepahe')
+                          ? 'https://animepahe.si/'
+                          : movie.imageUrl.contains('yomovies')
+                          ? 'https://yomovies.beer/'
+                          : 'https://www.reddit.com/',
                     },
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
                       color: const Color(0xFF2A2A2A),
-                      child: const Icon(Icons.broken_image, color: Colors.white24, size: 40),
+                      child: const Icon(
+                        Icons.broken_image,
+                        color: Colors.white24,
+                        size: 40,
+                      ),
                     ),
                   )
                 else
                   Container(
                     color: const Color(0xFF2A2A2A),
-                    child: const Icon(Icons.movie, color: Colors.white24, size: 40),
+                    child: const Icon(
+                      Icons.movie,
+                      color: Colors.white24,
+                      size: 40,
+                    ),
                   ),
 
                 // Gradient
@@ -648,22 +677,25 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                         Colors.transparent,
-                         Colors.black.withOpacity(0.0),
-                         Colors.black.withOpacity(0.6),
-                         Colors.black.withOpacity(0.95),
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.0),
+                        Colors.black.withOpacity(0.6),
+                        Colors.black.withOpacity(0.95),
                       ],
                       stops: const [0.0, 0.5, 0.75, 1.0],
                     ),
                   ),
                 ),
-                
+
                 // Border
                 if (isSelected)
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFFD700), width: 3),
+                      border: Border.all(
+                        color: const Color(0xFFFFD700),
+                        width: 3,
+                      ),
                     ),
                   ),
 
@@ -674,37 +706,44 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                       if (movie.quality.isNotEmpty)
-                         Container(
-                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                           margin: const EdgeInsets.only(bottom: 6),
-                           decoration: BoxDecoration(
-                             color: const Color(0xFFFFD700),
-                             borderRadius: BorderRadius.circular(4),
-                           ),
-                           child: Text(
-                             movie.quality,
-                             style: const TextStyle(
-                               color: Colors.black,
-                               fontSize: 10,
-                               fontWeight: FontWeight.bold,
-                             ),
-                           ),
-                         ),
-                       Text(
-                         movie.title,
-                         maxLines: 2,
-                         overflow: TextOverflow.ellipsis,
-                         style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.white70,
-                            fontSize: isSelected ? 14 : 13,
-                            fontWeight: FontWeight.bold,
-                            height: 1.2,
-                            shadows: [
-                              Shadow(blurRadius: 2, color: Colors.black, offset: const Offset(1,1))
-                            ]
-                         )
-                       ),
+                      if (movie.quality.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          margin: const EdgeInsets.only(bottom: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            movie.quality,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        movie.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white70,
+                          fontSize: isSelected ? 14 : 13,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 2,
+                              color: Colors.black,
+                              offset: const Offset(1, 1),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

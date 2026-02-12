@@ -5,6 +5,7 @@ class DriveCatalog {
   
   // Category definitions (static)
   static const List<Map<String, String>> categories = [
+    {'name': 'Latest', 'path': ''},
     {'name': 'Hollywood', 'path': '/category/hollywood/'},
     {'name': 'Web Series', 'path': '/category/web/'},
     {'name': 'Bollywood', 'path': '/category/bollywood/'},

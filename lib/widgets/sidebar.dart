@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../provider/provider_manager.dart';
 import '../screens/global_search_screen.dart';
@@ -72,192 +73,226 @@ class _SidebarState extends State<Sidebar> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414), // Deep premium dark background
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.8),
-            blurRadius: 30, // Softer shadow
-            spreadRadius: 5,
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF141414).withOpacity(0.95),
+                const Color(0xFF1C1C1C).withOpacity(0.90),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 40,
+                spreadRadius: 10,
+              ),
+            ],
+            border: Border(
+              right: BorderSide(
+                  color: Colors.white.withOpacity(0.05), width: 1),
+            ),
           ),
-        ],
-        border: Border(
-          right: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 30),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      // Vibrant Mixed Colors: Yellow -> Orange -> Pinkish Red
-                      colors: [
-                        Color(0xFFFFD54F),
-                        Color(0xFFFF9800),
-                        Color(0xFFFF3D00),
-                      ],
-                      stops: [0.0, 0.5, 1.0],
-                    ).createShader(bounds),
-                    child: const Text(
-                      'ScreenScapeTV',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const GlobalSearchScreen(),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: widget.focusedIndex == -1
-                              ? Colors.white.withOpacity(0.15)
-                              : Colors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: widget.focusedIndex == -1
-                                ? Colors.white.withOpacity(0.3)
-                                : Colors.white.withOpacity(0.1),
-                            width: widget.focusedIndex == -1 ? 2 : 1,
-                          ),
-                          boxShadow: widget.focusedIndex == -1
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.white.withOpacity(0.2),
-                                    blurRadius: 12,
-                                    spreadRadius: 1,
-                                  ),
-                                ]
-                              : [],
-                        ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 50),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Logo
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [
+                            Color(0xFFFFC107),
+                            Color(0xFFFF5722),
+                            Color(0xFFE91E63),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.search,
-                              color: widget.focusedIndex == -1
-                                  ? Colors.white
-                                  : Colors.grey[400],
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Global Search',
+                            const Icon(Icons.movie_filter_rounded,
+                                color: Colors.white, size: 28),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'ScreenScape',
                               style: TextStyle(
-                                color: widget.focusedIndex == -1
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.9),
-                                fontSize: 14,
-                                fontWeight: widget.focusedIndex == -1
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
+
+                      const SizedBox(height: 40),
+
+                      // Global Search Item
+                      _buildGlobalSearchItem(),
+
+                      const SizedBox(height: 30),
+
+                      // Section Title
+                      Row(
+                        children: [
+                          Container(
+                            width: 3,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFC107),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'PROVIDERS',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  // const SizedBox(height: 10),
-                  // Material(
-                  //   color: Colors.transparent,
-                  //   child: InkWell(
-                  //     onTap: () {
-                  //       Navigator.push(
-                  //         context,
-                  //         MaterialPageRoute(builder: (context) => const ExtractorTestScreen()),
-                  //       );
-                  //     },
-                  //     borderRadius: BorderRadius.circular(10),
-                  //     child: Container(
-                  //       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  //       decoration: BoxDecoration(
-                  //         color: Colors.white.withOpacity(0.08),
-                  //         borderRadius: BorderRadius.circular(10),
-                  //         border: Border.all(color: Colors.white.withOpacity(0.1)),
-                  //       ),
-                  //       child: Row(
-                  //         children: [
-                  //           Icon(Icons.science_outlined, color: Colors.grey[400], size: 18),
-                  //           const SizedBox(width: 10),
-                  //           const Text(
-                  //             'Extractor Test',
-                  //             style: TextStyle(
-                  //               color: Colors.white,
-                  //               fontSize: 14,
-                  //               fontWeight: FontWeight.w500,
-                  //             ),
-                  //           ),
-                  //         ],
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'SELECT PROVIDER',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: ProviderManager.availableProviders.length,
+                  itemBuilder: (context, index) {
+                    final provider =
+                        ProviderManager.availableProviders[index];
+                    final isSelected =
+                        provider['id'] == widget.selectedProvider;
+                    final isFocused = index == widget.focusedIndex;
+                    return _buildSidebarItem(
+                      key: _itemKeys[index],
+                      icon: provider['icon'] as IconData,
+                      title: provider['name'] as String,
+                      isSelected: isSelected,
+                      isFocused: isFocused,
+                      onTap: () => widget
+                          .onProviderSelected(provider['id'] as String),
+                    );
+                  },
+                ),
+              ),
+              
+              // Footer
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'v1.0.0 Beta',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.2),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: ProviderManager.availableProviders.asMap().entries.map((
-                entry,
-              ) {
-                final index = entry.key;
-                final provider = entry.value;
-                final isSelected = provider['id'] == widget.selectedProvider;
-                final isFocused = index == widget.focusedIndex;
-                return _buildSidebarItem(
-                  key: _itemKeys[index],
-                  icon: provider['icon'] as IconData,
-                  title: provider['name'] as String,
-                  isSelected: isSelected,
-                  isFocused: isFocused,
-                  onTap: () =>
-                      widget.onProviderSelected(provider['id'] as String),
-                );
-              }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlobalSearchItem() {
+    final isFocused = widget.focusedIndex == -1;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const GlobalSearchScreen(),
             ),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: isFocused
+                ? Colors.white.withOpacity(0.12)
+                : Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isFocused
+                  ? Colors.white.withOpacity(0.3)
+                  : Colors.white.withOpacity(0.05),
+              width: 1,
+            ),
+            boxShadow: isFocused
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : [],
           ),
-        ],
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2196F3).withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.search,
+                  color: Color(0xFF64B5F6),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                'Global Search',
+                style: TextStyle(
+                  color: isFocused ? Colors.white : Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              if (isFocused)
+                 Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF64B5F6),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Color(0xFF64B5F6), blurRadius: 6),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -270,44 +305,31 @@ class _SidebarState extends State<Sidebar> {
     required bool isFocused,
     required VoidCallback onTap,
   }) {
-    // Mixed Colors Gradient for selection
-    const List<Color> activeColors = [
-      Color(0xFFFFC107),
-      Color(0xFFFF6F00),
-    ]; // Amber to Dark Orange
-
     return Padding(
       key: key,
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          // Clean Gradient or subtle fill
           gradient: isSelected
-              ? LinearGradient(
-                  colors: activeColors,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+              ? const LinearGradient(
+                  colors: [
+                    Color(0xFFFFC107),
+                    Color(0xFFFF8F00),
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 )
-              : (isFocused
-                    ? LinearGradient(
-                        colors: [
-                          Colors.white.withOpacity(0.12),
-                          Colors.white.withOpacity(0.05),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null),
-          border: isFocused && !isSelected
-              ? Border.all(color: Colors.white.withOpacity(0.2), width: 1.5)
-              : Border.all(color: Colors.transparent, width: 1.5),
+              : null,
+          color: isFocused && !isSelected ? Colors.white.withOpacity(0.08) : null,
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: activeColors[0].withOpacity(0.4),
-                    blurRadius: 18,
+                    color: const Color(0xFFFF8F00).withOpacity(0.4),
+                    blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
                 ]
@@ -317,7 +339,7 @@ class _SidebarState extends State<Sidebar> {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
@@ -329,28 +351,25 @@ class _SidebarState extends State<Sidebar> {
                       color: isSelected
                           ? Colors.black.withOpacity(0.15)
                           : Colors.white.withOpacity(0.05),
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       icon,
-                      color: isSelected
-                          ? Colors.white
-                          : (isFocused ? Colors.white : Colors.grey[500]),
+                      color: isSelected ? Colors.white : (isFocused ? Colors.white : Colors.grey[500]),
                       size: 20,
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: isFocused || isSelected
-                          ? Colors.white
-                          : Colors.grey[400],
-                      fontSize: 15,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : (isFocused ? FontWeight.w600 : FontWeight.w500),
-                      letterSpacing: 0.3,
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: isSelected || isFocused ? Colors.white : Colors.grey[400],
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.w700 : (isFocused ? FontWeight.w600 : FontWeight.w500),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

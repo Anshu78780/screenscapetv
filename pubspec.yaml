@@ -20,15 +20,18 @@ dependencies:
   installed_apps: ^2.1.1
   shared_preferences: ^2.5.4
   google_fonts: ^6.1.0
+  #DESKTOP ONLY
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.7
   window_manager: ^0.5.1
+  file_picker: ^8.1.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
 
@@ -36,3 +39,8 @@ flutter:
 
   assets:
     - assets/
+flutter_launcher_icons:
+  image_path: "assets/icon.png"
+  linux:
+    generate: true
+    image_path: "assets/icon.png"

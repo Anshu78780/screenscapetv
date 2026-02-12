@@ -37,6 +37,10 @@ migrate_working_dir/
 debian-package/
 *.deb
 
+# APT Repository
+apt-repository/
+setup-apt-repo.sh
+
 # Flutter generated files
 /ios/Flutter
 /ios/Flutter

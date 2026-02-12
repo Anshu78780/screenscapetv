@@ -9,11 +9,9 @@ import 'screens/startup_check.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize media_kit for video playback
-  MediaKit.ensureInitialized();
-  
-  // Initialize window_manager for Linux fullscreen support
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+    MediaKit.ensureInitialized();
+    // Initialize window_manager for desktop fullscreen support
     await windowManager.ensureInitialized();
   }
   

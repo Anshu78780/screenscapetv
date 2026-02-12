@@ -24,7 +24,7 @@ DESCRIPTION="Multi-provider streaming application for movies and TV shows"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build/linux/x64/release/bundle"
 DEBIAN_DIR="$PROJECT_ROOT/debian-package"
-LOGO_SOURCE="$PROJECT_ROOT/assets/photo_4949607461548043676_x.jpg"
+LOGO_SOURCE="$PROJECT_ROOT/assets/icon.png"
 ICON_DEST_DIR="$DEBIAN_DIR/usr/share/pixmaps"
 ICON_DEST_FILE="$ICON_DEST_DIR/${APP_NAME}.png"
 
