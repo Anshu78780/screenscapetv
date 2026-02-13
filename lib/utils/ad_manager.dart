@@ -7,7 +7,7 @@ class AdManager {
   bool _isAdReady = false;
   bool _isAppOpenAdReady = false;
 
-  static const String _gameIdAndroid = '6046127';
+  static const String _gameIdAndroid = '6046109';
   static const String _gameIdIOS = '6046108';
 
   static const String _interstitialAdUnitIdAndroid = 'Interstitial_Android';
