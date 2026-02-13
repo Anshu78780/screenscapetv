@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3354986806928390~7914149301</string>
 </dict>
 </plist>

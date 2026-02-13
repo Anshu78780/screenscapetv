@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../utils/vlc_checker.dart';
 import '../utils/update_checker.dart';
 import '../widgets/update_dialog.dart';
+import '../main.dart';
 import 'movies_screen.dart';
 
 class StartupCheck extends StatefulWidget {
@@ -23,8 +24,39 @@ class _StartupCheckState extends State<StartupCheck> {
   }
 
   Future<void> _checkVlc() async {
-    // Add a small delay to ensure context is ready and splash is seen
-    await Future.delayed(const Duration(seconds: 1));
+    // Add a delay to ensure context is ready and give more time for ad to load
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    // Show app open ad if ready
+    if (globalAdManager.isAppOpenAdReady) {
+      print('App open ad is ready, showing now');
+      setState(() {
+        _statusMessage = 'Loading...';
+      });
+      
+      await globalAdManager.showAppOpenAd(
+        onAdClosed: () {
+          print('App open ad closed, proceeding with startup');
+          if (mounted) {
+            _proceedWithStartup();
+          }
+        },
+        onAdFailedToShow: () {
+          print('App open ad failed to show, proceeding with startup');
+          if (mounted) {
+            _proceedWithStartup();
+          }
+        },
+      );
+    } else {
+      // If ad not ready after delay, proceed directly
+      print('App open ad not ready, proceeding without ad');
+      _proceedWithStartup();
+    }
+  }
+
+  Future<void> _proceedWithStartup() async {
     if (!mounted) return;
 
     setState(() {

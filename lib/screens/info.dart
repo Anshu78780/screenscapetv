@@ -9,6 +9,7 @@ import '../provider/provider_service.dart';
 import '../provider/episode_stream_extractor.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
+import '../utils/ad_manager.dart';
 import '../widgets/streaming_links_dialog.dart';
 import '../widgets/episode_selection_dialog.dart';
 import '../widgets/download_drawer.dart';
@@ -66,16 +67,22 @@ class _InfoScreenState extends State<InfoScreen> {
   Timer? _countdownTimer;
   int _remainingSeconds = 60;
 
+  // Ad Manager for interstitial ads
+  final AdManager _adManager = AdManager();
+
   @override
   void initState() {
     super.initState();
     _loadMovieInfo();
+    // Preload interstitial ad for play/download actions
+    _adManager.loadAd();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     _countdownTimer?.cancel();
+    _adManager.dispose();
     super.dispose();
   }
 
@@ -1358,6 +1365,41 @@ class _InfoScreenState extends State<InfoScreen> {
     Episode? episode,
     DownloadLink? downloadLink,
   }) async {
+    // Show ad before opening download drawer
+    if (_adManager.isAdReady) {
+      setState(() {
+        _isLoadingLinks = true;
+      });
+      
+      await _adManager.showAd(
+        onAdClosed: () {
+          // Continue with download drawer action after ad is closed
+          _executeFetchAndShowDownloadDrawer(
+            episode: episode,
+            downloadLink: downloadLink,
+          );
+        },
+        onAdFailedToShow: () {
+          // Continue with download drawer action if ad fails
+          _executeFetchAndShowDownloadDrawer(
+            episode: episode,
+            downloadLink: downloadLink,
+          );
+        },
+      );
+    } else {
+      // No ad ready, proceed directly
+      _executeFetchAndShowDownloadDrawer(
+        episode: episode,
+        downloadLink: downloadLink,
+      );
+    }
+  }
+
+  Future<void> _executeFetchAndShowDownloadDrawer({
+    Episode? episode,
+    DownloadLink? downloadLink,
+  }) async {
     if (episode == null && downloadLink == null) return;
 
     setState(() {
@@ -1428,6 +1470,29 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Future<void> _playEpisode(Episode episode) async {
+    // Show ad before playing episode
+    if (_adManager.isAdReady) {
+      setState(() {
+        _isLoadingLinks = true;
+      });
+      
+      await _adManager.showAd(
+        onAdClosed: () {
+          // Continue with play action after ad is closed
+          _executePlayEpisode(episode);
+        },
+        onAdFailedToShow: () {
+          // Continue with play action if ad fails
+          _executePlayEpisode(episode);
+        },
+      );
+    } else {
+      // No ad ready, proceed directly
+      _executePlayEpisode(episode);
+    }
+  }
+
+  Future<void> _executePlayEpisode(Episode episode) async {
     setState(() {
       _isLoadingLinks = true;
       _remainingSeconds = 60;
@@ -1475,6 +1540,29 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   void _openDownloadLink(DownloadLink downloadLink) async {
+    // Show ad before opening download link
+    if (_adManager.isAdReady) {
+      setState(() {
+        _isLoadingLinks = true;
+      });
+      
+      await _adManager.showAd(
+        onAdClosed: () {
+          // Continue with download action after ad is closed
+          _executeOpenDownloadLink(downloadLink);
+        },
+        onAdFailedToShow: () {
+          // Continue with download action if ad fails
+          _executeOpenDownloadLink(downloadLink);
+        },
+      );
+    } else {
+      // No ad ready, proceed directly
+      _executeOpenDownloadLink(downloadLink);
+    }
+  }
+
+  void _executeOpenDownloadLink(DownloadLink downloadLink) async {
     print('=== DOWNLOAD LINK DEBUG ===');
     print('Quality: ${downloadLink.quality}');
     print('Size: ${downloadLink.size}');
