@@ -49,13 +49,17 @@ class SeasonListState extends State<SeasonList> {
 
   @override
   Widget build(BuildContext context) {
+    // Detect mobile screen
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: 0),
       decoration: BoxDecoration(
         color: widget.isFocused ? Colors.white : Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
         border: Border.all(
           color: widget.isFocused ? Colors.white : Colors.white.withOpacity(0.1),
           width: 2,
@@ -80,11 +84,11 @@ class SeasonListState extends State<SeasonList> {
           icon: Icon(
             Icons.keyboard_arrow_down_rounded,
             color: widget.isFocused ? Colors.black : Colors.white70,
-            size: 24,
+            size: isMobile ? 18 : 24,
           ),
           style: TextStyle(
             color: widget.isFocused ? Colors.black : Colors.white,
-            fontSize: 15,
+            fontSize: isMobile ? 12 : 15,
             fontWeight: FontWeight.w600,
             fontFamily: 'GoogleSans',
           ),
@@ -100,19 +104,20 @@ class SeasonListState extends State<SeasonList> {
                     if (widget.icon != null) ...[
                       Icon(
                         widget.icon, 
-                        size: 18, 
+                        size: isMobile ? 14 : 18, 
                         color: widget.isFocused ? Colors.black54 : Colors.white54
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: isMobile ? 4 : 8),
                     ],
                     Text(
                       widget.label,
                       style: TextStyle(
                         color: widget.isFocused ? Colors.black54 : Colors.white54,
                         fontWeight: FontWeight.w500,
+                        fontSize: isMobile ? 11 : 15,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: isMobile ? 4 : 8),
                     Flexible(
                       child: Text(
                         e,
@@ -120,6 +125,7 @@ class SeasonListState extends State<SeasonList> {
                          style: TextStyle(
                           color: widget.isFocused ? Colors.black : Colors.white,
                           fontWeight: FontWeight.w700,
+                          fontSize: isMobile ? 12 : 15,
                         ),
                       ),
                     ),
@@ -133,14 +139,14 @@ class SeasonListState extends State<SeasonList> {
               value: item,
               child: Container(
                 alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.symmetric(vertical: isMobile ? 6 : 8),
                 child: Row(
                   children: [
                     if (isSelected)
                       Container(
-                        width: 4, 
-                        height: 16, 
-                        margin: const EdgeInsets.only(right: 12),
+                        width: isMobile ? 3 : 4, 
+                        height: isMobile ? 12 : 16, 
+                        margin: EdgeInsets.only(right: isMobile ? 8 : 12),
                         decoration: BoxDecoration(
                           color: Colors.redAccent,
                           borderRadius: BorderRadius.circular(2),
@@ -152,6 +158,7 @@ class SeasonListState extends State<SeasonList> {
                         style: TextStyle(
                           color: isSelected ? Colors.redAccent : Colors.white,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          fontSize: isMobile ? 12 : null,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

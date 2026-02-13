@@ -217,9 +217,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedHorizontal(String providerId) {
     final controller = _horizontalScrollControllers[providerId];
     if (controller != null && controller.hasClients) {
-      const double cardWidth = 160.0;
+      // Get responsive card width
+      final screenWidth = MediaQuery.of(context).size.width;
+      final cardWidth = screenWidth < 600 ? (screenWidth - 90) / 3 : 160.0;
       const double gap = 25.0;
-      const double itemExtent = cardWidth + gap;
+      final double itemExtent = cardWidth + gap;
 
       // Scroll to the selected item
       final targetOffset = (_selectedMovieIndex * itemExtent);
@@ -592,8 +594,16 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   Widget _buildShimmerCard() {
+    // Responsive card width: matching info.dart mobile layout (35% of width)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    
+    // On mobile: Use same size as info.dart poster (screenWidth * 0.35)
+    // On desktop: Keep default 160.0
+    final cardWidth = isMobile ? screenWidth * 0.35 : 160.0;
+
     return Container(
-      width: 160,
+      width: cardWidth,
       decoration: BoxDecoration(
         color: Colors.white10,
         borderRadius: BorderRadius.circular(16),
@@ -603,8 +613,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _buildMovieCard(Movie movie, String providerId, bool isSelected) {
     // 0.62 Aspect Ratio matching movies_screen
-    // Width 160 approx results in Height 258
-    const double cardWidth = 160.0;
+    // Responsive card width: matching info.dart mobile layout (35% of width)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    
+    // On mobile: Use same size as info.dart poster (screenWidth * 0.35)
+    // On desktop: Keep default 160.0
+    final cardWidth = isMobile ? screenWidth * 0.35 : 160.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,

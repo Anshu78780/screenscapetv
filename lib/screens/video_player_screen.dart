@@ -88,12 +88,26 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _currentServerName = widget.server;
     _currentHeaders = widget.headers;
 
+    // Lock orientation to landscape for video playback
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     WakelockPlus.enable();
     _initializePlayer();
   }
 
   @override
   void dispose() {
+    // Restore all orientations when leaving video player
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     WakelockPlus.disable();
     _playerController?.dispose();
     _goBackFocusNode.dispose();

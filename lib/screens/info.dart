@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/movie_info.dart';
 import '../provider/provider_manager.dart';
@@ -101,7 +102,9 @@ class _InfoScreenState extends State<InfoScreen> {
 
         // Auto-load episodes if season is selected or if only qualities exist
         if ((seasons.isNotEmpty && _selectedSeason.isNotEmpty) ||
-            (seasons.isEmpty && qualities.isNotEmpty && _selectedQuality.isNotEmpty) ||
+            (seasons.isEmpty &&
+                qualities.isNotEmpty &&
+                _selectedQuality.isNotEmpty) ||
             (seasons.isEmpty && qualities.isEmpty)) {
           _loadEpisodesIfNeeded();
         }
@@ -260,7 +263,7 @@ class _InfoScreenState extends State<InfoScreen> {
   Future<void> _loadEpisodesIfNeeded() async {
     final qualities = _getAvailableQualities();
     final seasons = _getAvailableSeasons();
-    
+
     // Only load episodes if season is selected (when seasons exist)
     // And quality is selected (when qualities exist)
     if (seasons.isNotEmpty && _selectedSeason.isEmpty) {
@@ -270,7 +273,7 @@ class _InfoScreenState extends State<InfoScreen> {
       });
       return;
     }
-    
+
     if (qualities.isNotEmpty && _selectedQuality.isEmpty) {
       setState(() {
         _episodes = [];
@@ -336,7 +339,7 @@ class _InfoScreenState extends State<InfoScreen> {
   void _navigateVertical(int delta) {
     final qualities = _getAvailableQualities();
     final seasons = _getAvailableSeasons();
-    
+
     setState(() {
       if (delta < 0) {
         // Up arrow
@@ -531,12 +534,14 @@ class _InfoScreenState extends State<InfoScreen> {
                       headers: {
                         'User-Agent': 'Mozilla/5.0',
                         if (_movieInfo!.imageUrl.contains('yomovies'))
-                          'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
+                          'Cookie':
+                              '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
                         'Referer': _movieInfo!.imageUrl.contains('animepahe')
                             ? 'https://animepahe.si/'
                             : _movieInfo!.imageUrl.contains('yomovies')
                             ? 'https://yomovies.beer/'
-                            : _movieInfo!.imageUrl.contains('4khdhub') || _movieInfo!.imageUrl.contains('khdhub')
+                            : _movieInfo!.imageUrl.contains('4khdhub') ||
+                                  _movieInfo!.imageUrl.contains('khdhub')
                             ? 'https://4khdhub.name/'
                             : 'https://www.reddit.com/',
                       },
@@ -643,7 +648,9 @@ class _InfoScreenState extends State<InfoScreen> {
                                       color: kGoldColor,
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
-                                      fontFeatures: [FontFeature.tabularFigures()],
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures(),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -680,254 +687,196 @@ class _InfoScreenState extends State<InfoScreen> {
       );
     }
 
+    // Responsive sizing
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final horizontalPadding = isMobile ? 16.0 : 50.0;
+    final topSafeArea = MediaQuery.of(context).padding.top;
+    final verticalPadding = isMobile ? 20.0 : 40.0;
+
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 40),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        verticalPadding + topSafeArea,
+        horizontalPadding,
+        verticalPadding,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Back button
-          Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: _isBackButtonFocused
-                      ? Colors.red
-                      : Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(30),
-                  border: _isBackButtonFocused
-                      ? Border.all(color: Colors.white, width: 2)
-                      : Border.all(color: Colors.transparent, width: 2),
-                ),
-                child: TextButton.icon(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    foregroundColor: Colors.white,
+          // Back button - Hide on Android
+          if (!Platform.isAndroid)
+            Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: _isBackButtonFocused
+                        ? Colors.red
+                        : Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: _isBackButtonFocused
+                        ? Border.all(color: Colors.white, width: 2)
+                        : Border.all(color: Colors.transparent, width: 2),
                   ),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text(
-                    'Back',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text(
+                      'Back',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 40),
-
-          // Movie header with poster and details
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Poster
-              Container(
-                width: 320,
-                height: 480,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.6),
-                      blurRadius: 30,
-                      spreadRadius: 10,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: _movieInfo!.imageUrl.isNotEmpty
-                      ? Image.network(
-                          _movieInfo!.imageUrl,
-                          headers: {
-                            'User-Agent': 'Mozilla/5.0',
-                            if (_movieInfo!.imageUrl.contains('yomovies'))
-                              'Cookie': '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
-                            'Referer': _movieInfo!.imageUrl.contains('animepahe')
-                                ? 'https://animepahe.si/'
-                                : _movieInfo!.imageUrl.contains('yomovies')
-                                ? 'https://yomovies.beer/'
-                                : _movieInfo!.imageUrl.contains('4khdhub') || _movieInfo!.imageUrl.contains('khdhub')
-                                ? 'https://4khdhub.name/'
-                                : 'https://www.reddit.com/',
-                          },
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: Colors.grey[900],
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value:
-                                      loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  color: Colors.amber,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                                color: Colors.grey[900],
-                                child: const Icon(
-                                  Icons.movie,
-                                  color: Colors.white54,
-                                  size: 80,
-                                ),
-                              ),
-                        )
-                      : Container(
-                          color: Colors.grey[900],
-                          child: const Icon(
-                            Icons.movie,
-                            color: Colors.white54,
-                            size: 80,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 50),
-
-              // Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _movieInfo!.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 42,
-                        fontWeight: FontWeight.bold,
-                        height: 1.1,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Meta Badges
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        if (_movieInfo!.imdbRating.isNotEmpty)
-                          _buildMetaBadge(
-                            Icons.star,
-                            _movieInfo!.imdbRating,
-                            Colors.amber,
-                          ),
-                        if (_movieInfo!.quality.isNotEmpty)
-                          _buildMetaBadge(
-                            Icons.hd,
-                            _movieInfo!.quality,
-                            Colors.blue,
-                          ),
-                        if (_movieInfo!.language.isNotEmpty)
-                          _buildMetaBadge(
-                            Icons.language,
-                            _movieInfo!.language,
-                            Colors.green,
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    // Storyline (Moved up)
-                    if (_movieInfo!.storyline.isNotEmpty) ...[
-                      Text(
-                        _movieInfo!.storyline,
-                        style: TextStyle(
-                          color: Colors.grey[300],
-                          fontSize: 16,
-                          height: 1.6,
-                        ),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 30),
-                    ],
-
-                    _buildInfoRow('Genre', _movieInfo!.genre),
-                    _buildInfoRow('Director', _movieInfo!.director),
-                    _buildInfoRow('Stars', _movieInfo!.stars),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
+          SizedBox(
+            height: Platform.isAndroid && isMobile ? 0 : (isMobile ? 20 : 40),
           ),
 
-          const SizedBox(height: 50),
+          // Movie header with poster and details - Responsive layout
+          isMobile
+              ? _buildMobileMovieHeader(screenWidth)
+              : _buildDesktopMovieHeader(),
+
+          SizedBox(height: isMobile ? 30 : 50),
 
           Divider(color: Colors.white.withOpacity(0.1)),
 
-          const SizedBox(height: 30),
+          SizedBox(height: isMobile ? 20 : 30),
 
-          // Quality and Season selectors
-          Row(
-            children: [
-              const Text(
-                'Available Downloads',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+          // Quality and Season selectors - Responsive layout
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Available Downloads',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: isMobile ? 16 : 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Keep selectors in same row on mobile
+                    Row(
+                      children: [
+                        if (seasons.length > 1) ...[
+                          Expanded(
+                            child: SeasonList(
+                              key: _seasonListKey,
+                              items: seasons,
+                              selectedItem: _selectedSeason,
+                              label: "Season",
+                              icon: Icons.folder_open,
+                              isFocused: _isSeasonSelectorFocused,
+                              onChanged: (season) {
+                                setState(() {
+                                  _selectedSeason = season;
+                                  _selectedDownloadIndex = 0;
+                                  _selectedSeasonIndex = seasons.indexOf(
+                                    season,
+                                  );
+                                });
+                                _loadEpisodesIfNeeded();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (qualities.isNotEmpty) ...[
+                          Expanded(
+                            child: SeasonList(
+                              key: _qualityListKey,
+                              items: qualities,
+                              selectedItem: _selectedQuality,
+                              label: "Quality",
+                              icon: Icons.hd_outlined,
+                              isFocused: _isQualitySelectorFocused,
+                              onChanged: (quality) {
+                                setState(() {
+                                  _selectedQuality = quality;
+                                  _selectedDownloadIndex = 0;
+                                  _selectedQualityIndex = qualities.indexOf(
+                                    quality,
+                                  );
+                                });
+                                _loadEpisodesIfNeeded();
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const Text(
+                      'Available Downloads',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (seasons.length > 1) ...[
+                      SizedBox(
+                        width: 240,
+                        child: SeasonList(
+                          key: _seasonListKey,
+                          items: seasons,
+                          selectedItem: _selectedSeason,
+                          label: "Season",
+                          icon: Icons.folder_open,
+                          isFocused: _isSeasonSelectorFocused,
+                          onChanged: (season) {
+                            setState(() {
+                              _selectedSeason = season;
+                              _selectedDownloadIndex = 0;
+                              _selectedSeasonIndex = seasons.indexOf(season);
+                            });
+                            _loadEpisodesIfNeeded();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                    if (qualities.isNotEmpty) ...[
+                      SizedBox(
+                        width: 240,
+                        child: SeasonList(
+                          key: _qualityListKey,
+                          items: qualities,
+                          selectedItem: _selectedQuality,
+                          label: "Quality",
+                          icon: Icons.hd_outlined,
+                          isFocused: _isQualitySelectorFocused,
+                          onChanged: (quality) {
+                            setState(() {
+                              _selectedQuality = quality;
+                              _selectedDownloadIndex = 0;
+                              _selectedQualityIndex = qualities.indexOf(
+                                quality,
+                              );
+                            });
+                            _loadEpisodesIfNeeded();
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ),
-              const Spacer(),
-              if (seasons.length > 1) ...[
-                SizedBox(
-                  width: 240,
-                  child: SeasonList(
-                    key: _seasonListKey,
-                    items: seasons,
-                    selectedItem: _selectedSeason,
-                    label: "Season",
-                    icon: Icons.folder_open,
-                    isFocused: _isSeasonSelectorFocused,
-                    onChanged: (season) {
-                      setState(() {
-                        _selectedSeason = season;
-                        _selectedDownloadIndex = 0;
-                        _selectedSeasonIndex = seasons.indexOf(season);
-                      });
-                      _loadEpisodesIfNeeded();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-              ],
-              if (qualities.isNotEmpty) ...[
-                SizedBox(
-                  width: 240,
-                  child: SeasonList(
-                    key: _qualityListKey,
-                    items: qualities,
-                    selectedItem: _selectedQuality,
-                    label: "Quality",
-                    icon: Icons.hd_outlined,
-                    isFocused: _isQualitySelectorFocused,
-                    onChanged: (quality) {
-                      setState(() {
-                        _selectedQuality = quality;
-                        _selectedDownloadIndex = 0;
-                        _selectedQualityIndex = qualities.indexOf(quality);
-                      });
-                      _loadEpisodesIfNeeded();
-                    },
-                  ),
-                ),
-              ],
-            ],
-          ),
 
           const SizedBox(height: 30),
 
@@ -940,28 +889,32 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Widget _buildMetaBadge(IconData icon, String text, Color color) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+
     return Container(
-      constraints: const BoxConstraints(
-        maxWidth: 400,
-      ), // Prevent super wide badges
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      constraints: BoxConstraints(maxWidth: isMobile ? 150 : 400),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 8 : 12,
+        vertical: isMobile ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(isMobile ? 6 : 8),
         border: Border.all(color: color.withOpacity(0.5), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 6),
+          Icon(icon, color: color, size: isMobile ? 12 : 16),
+          SizedBox(width: isMobile ? 4 : 6),
           Flexible(
             child: Text(
               text,
               style: TextStyle(
                 color: color,
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
+                fontSize: isMobile ? 11 : 13,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
@@ -974,11 +927,14 @@ class _InfoScreenState extends State<InfoScreen> {
 
   Widget _buildInfoRow(String label, String value) {
     if (value.isEmpty) return const SizedBox.shrink();
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: EdgeInsets.only(bottom: isMobile ? 4.0 : 8.0),
       child: RichText(
         text: TextSpan(
-          style: const TextStyle(fontSize: 15, height: 1.5),
+          style: TextStyle(fontSize: isMobile ? 12 : 15, height: 1.5),
           children: [
             TextSpan(
               text: '$label:  ',
@@ -990,12 +946,16 @@ class _InfoScreenState extends State<InfoScreen> {
             ),
           ],
         ),
+        maxLines: isMobile ? 2 : null,
+        overflow: isMobile ? TextOverflow.ellipsis : TextOverflow.visible,
       ),
     );
   }
 
   Widget _buildDownloadLinks() {
     final downloads = _getFilteredDownloads();
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     if (_isLoadingEpisodes) {
       return Container(
@@ -1045,8 +1005,8 @@ class _InfoScreenState extends State<InfoScreen> {
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,
               transform: Matrix4.identity()..scale(isSelected ? 1.02 : 1.0),
-              height: 72,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              height: isMobile ? 64 : 72,
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20),
               decoration: BoxDecoration(
                 color: isSelected
                     ? Colors
@@ -1073,112 +1033,132 @@ class _InfoScreenState extends State<InfoScreen> {
                 children: [
                   // Quality Badge
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 6 : 10,
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black26, // Subtle background for text
+                      color: Colors.black26,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       download.quality,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: isMobile ? 12 : 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
                       ),
                     ),
                   ),
 
-                  const SizedBox(width: 16),
+                  SizedBox(width: isMobile ? 8 : 16),
 
                   // Metadata
                   Expanded(
-                    child: Row(
-                      children: [
-                        if (download.season != null ||
-                            download.episodeInfo != null) ...[
-                          Icon(
-                            Icons.movie_creation_outlined,
-                            size: 16,
-                            color: isSelected
-                                ? Colors.black54
-                                : Colors.grey[500],
-                          ),
-                          const SizedBox(width: 8),
-                          if (download.season != null)
-                            Text(
-                              download.season!,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? Colors.black87
-                                    : Colors.grey[300],
-                                fontWeight: FontWeight.w500,
-                                fontSize: 13,
-                              ),
-                            ),
-                          if (download.season != null &&
-                              download.episodeInfo != null)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                              ),
-                              child: Text(
-                                '•',
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.black26
-                                      : Colors.white24,
-                                ),
-                              ),
-                            ),
-                          if (download.episodeInfo != null)
-                            Expanded(
-                              child: Text(
+                    child: isMobile
+                        ? Text(
+                            [
+                              if (download.season != null) download.season!,
+                              if (download.episodeInfo != null)
                                 download.episodeInfo!,
-                                style: TextStyle(
+                            ].join(' • '),
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.black87
+                                  : Colors.grey[300],
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : Row(
+                            children: [
+                              if (download.season != null ||
+                                  download.episodeInfo != null) ...[
+                                Icon(
+                                  Icons.movie_creation_outlined,
+                                  size: 16,
                                   color: isSelected
                                       ? Colors.black54
                                       : Colors.grey[500],
-                                  fontSize: 13,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
+                                const SizedBox(width: 8),
+                                if (download.season != null)
+                                  Text(
+                                    download.season!,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.black87
+                                          : Colors.grey[300],
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                if (download.season != null &&
+                                    download.episodeInfo != null)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                    ),
+                                    child: Text(
+                                      '•',
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.black26
+                                            : Colors.white24,
+                                      ),
+                                    ),
+                                  ),
+                                if (download.episodeInfo != null)
+                                  Expanded(
+                                    child: Text(
+                                      download.episodeInfo!,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.black54
+                                            : Colors.grey[500],
+                                        fontSize: 13,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                            ],
+                          ),
                   ),
+
+                  SizedBox(width: isMobile ? 8 : 0),
 
                   // File Size
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.data_usage,
-                        size: 16,
-                        color: isSelected ? Colors.black54 : Colors.grey[600],
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        download.size,
-                        style: TextStyle(
-                          color: isSelected ? Colors.black87 : Colors.grey[400],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                  if (!isMobile)
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.data_usage,
+                          size: 16,
+                          color: isSelected ? Colors.black54 : Colors.grey[600],
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(width: 20),
+                        const SizedBox(width: 6),
+                        Text(
+                          download.size,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.black87
+                                : Colors.grey[400],
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 20),
+                      ],
+                    ),
 
                   // Download Icon
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: isMobile ? 32 : 36,
+                    height: isMobile ? 32 : 36,
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
                       shape: BoxShape.circle,
@@ -1186,7 +1166,7 @@ class _InfoScreenState extends State<InfoScreen> {
                     child: Icon(
                       Icons.download_rounded,
                       color: isSelected ? Colors.black87 : Colors.grey[500],
-                      size: 20,
+                      size: isMobile ? 16 : 20,
                     ),
                   ),
                 ],
@@ -1199,6 +1179,9 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Widget _buildEpisodeList() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+
     if (_isLoadingEpisodes) {
       return Container(
         padding: const EdgeInsets.all(40),
@@ -1247,8 +1230,8 @@ class _InfoScreenState extends State<InfoScreen> {
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,
               transform: Matrix4.identity()..scale(isSelected ? 1.02 : 1.0),
-              height: 72,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              height: isMobile ? 64 : 72,
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20),
               decoration: BoxDecoration(
                 color: isSelected ? Colors.amber : const Color(0xFF212121),
                 borderRadius: BorderRadius.circular(12),
@@ -1272,8 +1255,8 @@ class _InfoScreenState extends State<InfoScreen> {
                 children: [
                   // Episode icon
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: isMobile ? 40 : 48,
+                    height: isMobile ? 40 : 48,
                     decoration: BoxDecoration(
                       color: Colors.black26,
                       shape: BoxShape.circle,
@@ -1281,18 +1264,18 @@ class _InfoScreenState extends State<InfoScreen> {
                     child: Icon(
                       Icons.play_circle_fill,
                       color: isSelected ? Colors.black87 : Colors.grey[500],
-                      size: 24,
+                      size: isMobile ? 20 : 24,
                     ),
                   ),
 
-                  const SizedBox(width: 16),
+                  SizedBox(width: isMobile ? 12 : 16),
 
                   Expanded(
                     child: Text(
                       episode.title,
                       style: TextStyle(
                         color: isSelected ? Colors.black87 : Colors.grey[300],
-                        fontSize: 16,
+                        fontSize: isMobile ? 14 : 16,
                         fontWeight: isSelected
                             ? FontWeight.bold
                             : FontWeight.normal,
@@ -1391,7 +1374,8 @@ class _InfoScreenState extends State<InfoScreen> {
 
       // Check if it's a direct link (hubcloud, gdflix, or vcloud)
       // For movies4u, we want to treat these as episodes to show the selection dialog
-      final isDirectLink = (processedUrl.contains('hubcloud') ||
+      final isDirectLink =
+          (processedUrl.contains('hubcloud') ||
           processedUrl.contains('gdflix') ||
           processedUrl.contains('vcloud.zip') ||
           processedUrl.contains('vcloud.lol'));
@@ -1517,6 +1501,242 @@ class _InfoScreenState extends State<InfoScreen> {
           quality: quality,
           movieTitle: _movieInfo?.title ?? 'Movie',
         ),
+      ),
+    );
+  }
+
+  // Mobile layout for movie header
+  Widget _buildMobileMovieHeader(double screenWidth) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Poster on left, Details on right
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Poster - smaller size on left
+            Container(
+              width: screenWidth * 0.35,
+              height: screenWidth * 0.52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.6),
+                    blurRadius: 15,
+                    spreadRadius: 3,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _buildPosterImage(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Details on right
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _movieInfo!.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  // Meta Badges
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (_movieInfo!.imdbRating.isNotEmpty)
+                        _buildMetaBadge(
+                          Icons.star,
+                          _movieInfo!.imdbRating,
+                          Colors.amber,
+                        ),
+                      if (_movieInfo!.quality.isNotEmpty)
+                        _buildMetaBadge(
+                          Icons.hd,
+                          _movieInfo!.quality,
+                          Colors.blue,
+                        ),
+                      if (_movieInfo!.language.isNotEmpty)
+                        _buildMetaBadge(
+                          Icons.language,
+                          _movieInfo!.language,
+                          Colors.green,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoRow('Genre', _movieInfo!.genre),
+                  _buildInfoRow('Director', _movieInfo!.director),
+                  _buildInfoRow('Stars', _movieInfo!.stars),
+                ],
+              ),
+            ),
+          ],
+        ),
+        // Storyline below
+        if (_movieInfo!.storyline.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            _movieInfo!.storyline,
+            style: TextStyle(
+              color: Colors.grey[300],
+              fontSize: 14,
+              height: 1.5,
+            ),
+            maxLines: 6,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ],
+    );
+  }
+
+  // Desktop layout for movie header
+  Widget _buildDesktopMovieHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Poster
+        Container(
+          width: 320,
+          height: 480,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.6),
+                blurRadius: 30,
+                spreadRadius: 10,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: _buildPosterImage(),
+          ),
+        ),
+        const SizedBox(width: 50),
+        // Details
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _movieInfo!.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 42,
+                  fontWeight: FontWeight.bold,
+                  height: 1.1,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Meta Badges
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  if (_movieInfo!.imdbRating.isNotEmpty)
+                    _buildMetaBadge(
+                      Icons.star,
+                      _movieInfo!.imdbRating,
+                      Colors.amber,
+                    ),
+                  if (_movieInfo!.quality.isNotEmpty)
+                    _buildMetaBadge(Icons.hd, _movieInfo!.quality, Colors.blue),
+                  if (_movieInfo!.language.isNotEmpty)
+                    _buildMetaBadge(
+                      Icons.language,
+                      _movieInfo!.language,
+                      Colors.green,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 30),
+              // Storyline
+              if (_movieInfo!.storyline.isNotEmpty) ...[
+                Text(
+                  _movieInfo!.storyline,
+                  style: TextStyle(
+                    color: Colors.grey[300],
+                    fontSize: 16,
+                    height: 1.6,
+                  ),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 30),
+              ],
+              _buildInfoRow('Genre', _movieInfo!.genre),
+              _buildInfoRow('Director', _movieInfo!.director),
+              _buildInfoRow('Stars', _movieInfo!.stars),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper to build poster image with all headers
+  Widget _buildPosterImage() {
+    if (_movieInfo!.imageUrl.isEmpty) {
+      return Container(
+        color: Colors.grey[900],
+        child: const Icon(Icons.movie, color: Colors.white54, size: 80),
+      );
+    }
+
+    return Image.network(
+      _movieInfo!.imageUrl,
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        if (_movieInfo!.imageUrl.contains('yomovies'))
+          'Cookie':
+              '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
+        'Referer': _movieInfo!.imageUrl.contains('animepahe')
+            ? 'https://animepahe.si/'
+            : _movieInfo!.imageUrl.contains('yomovies')
+            ? 'https://yomovies.beer/'
+            : _movieInfo!.imageUrl.contains('4khdhub') ||
+                  _movieInfo!.imageUrl.contains('khdhub')
+            ? 'https://4khdhub.name/'
+            : 'https://www.reddit.com/',
+      },
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: Colors.grey[900],
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                  : null,
+              color: Colors.amber,
+              strokeWidth: 2,
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: Colors.grey[900],
+        child: const Icon(Icons.movie, color: Colors.white54, size: 80),
       ),
     );
   }

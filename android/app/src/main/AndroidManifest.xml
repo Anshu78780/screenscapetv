@@ -7,7 +7,7 @@
     <!-- Touchscreen not required for TV -->
     <uses-feature
         android:name="android.hardware.touchscreen"
-        android:required="false" />
+        android:required="true" />
     
     <!-- Optional hardware features - set as not required for TV compatibility -->
     <uses-feature
@@ -45,8 +45,7 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize"
-            android:screenOrientation="landscape">
+            android:windowSoftInputMode="adjustResize">
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues

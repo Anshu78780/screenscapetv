@@ -193,6 +193,8 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
 
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     return KeyEventHandler(
       onUpKey: () => _navigate(-1),
@@ -206,10 +208,10 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
         body: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 700),
-            margin: const EdgeInsets.all(24),
+            margin: EdgeInsets.all(isMobile ? 16 : 24),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(isMobile ? 20 : 28),
               border: Border.all(
                 color: colorScheme.outlineVariant.withOpacity(0.5),
                 width: 1,
@@ -227,13 +229,18 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
               children: [
                 // Header with close button
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 24, 24, 16),
+                  padding: EdgeInsets.fromLTRB(
+                    isMobile ? 16 : 32,
+                    isMobile ? 16 : 24,
+                    isMobile ? 16 : 24,
+                    isMobile ? 12 : 16,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Select Stream',
-                        style: textTheme.headlineSmall?.copyWith(
+                        style: (isMobile ? textTheme.titleLarge : textTheme.headlineSmall)?.copyWith(
                           color: colorScheme.onSurface,
                           fontWeight: FontWeight.bold,
                         ),
@@ -247,12 +254,12 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                             curve: Curves.easeOutCubic,
                             transform: Matrix4.identity()
                               ..scale(_isCloseButtonFocused ? 1.1 : 1.0),
-                            padding: const EdgeInsets.all(12),
+                            padding: EdgeInsets.all(isMobile ? 8 : 12),
                             decoration: BoxDecoration(
                               color: _isCloseButtonFocused
                                   ? colorScheme.errorContainer
                                   : colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
                               border: Border.all(
                                 color: _isCloseButtonFocused
                                     ? colorScheme.error
@@ -265,7 +272,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                               color: _isCloseButtonFocused
                                   ? colorScheme.onErrorContainer
                                   : colorScheme.onSurfaceVariant,
-                              size: 24,
+                              size: isMobile ? 20 : 24,
                             ),
                           ),
                         ),
@@ -283,7 +290,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                 // Streams list
                 Flexible(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(32),
+                    padding: EdgeInsets.all(isMobile ? 16 : 32),
                     child: Column(
                       children: widget.streams.asMap().entries.map((entry) {
                         final index = entry.key;
@@ -292,7 +299,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
 
                         return Padding(
                           key: _itemKeys[index],
-                          padding: const EdgeInsets.only(bottom: 16),
+                          padding: EdgeInsets.only(bottom: isMobile ? 12 : 16),
                           child: Row(
                             children: [
                               // Main stream button
@@ -316,15 +323,15 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                             ? 1.02
                                             : 1.0,
                                       ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isMobile ? 14 : 20,
+                                      vertical: isMobile ? 12 : 16,
                                     ),
                                     decoration: BoxDecoration(
                                       color: isCurrentStream && !_isVLCSelected
                                           ? colorScheme.primaryContainer
                                           : colorScheme.surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
                                       border: Border.all(
                                         color: isCurrentStream && !_isVLCSelected
                                             ? colorScheme.primary
@@ -342,9 +349,9 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                               isCurrentStream && !_isVLCSelected
                                               ? colorScheme.onPrimaryContainer
                                               : colorScheme.onSurfaceVariant,
-                                          size: 26,
+                                          size: isMobile ? 22 : 26,
                                         ),
-                                        const SizedBox(width: 16),
+                                        SizedBox(width: isMobile ? 12 : 16),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
@@ -352,7 +359,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                             children: [
                                               Text(
                                                 stream.server,
-                                                style: textTheme.titleMedium?.copyWith(
+                                                style: (isMobile ? textTheme.bodyLarge : textTheme.titleMedium)?.copyWith(
                                                   color:
                                                       isCurrentStream &&
                                                           !_isVLCSelected
@@ -361,10 +368,11 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
-                                              const SizedBox(height: 2),
+                                              SizedBox(height: isMobile ? 1 : 2),
                                               Text(
                                                 stream.type.toUpperCase(),
-                                                style: textTheme.labelSmall?.copyWith(
+                                                style: TextStyle(
+                                                  fontSize: isMobile ? 10 : 12,
                                                   color:
                                                       isCurrentStream &&
                                                           !_isVLCSelected
@@ -387,7 +395,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                             child: Icon(
                                               Icons.arrow_forward_ios_rounded,
                                               color: colorScheme.onPrimaryContainer,
-                                              size: 14,
+                                              size: isMobile ? 12 : 14,
                                             ),
                                           ),
                                       ],
@@ -396,7 +404,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                 ),
                               ),
                               ),
-                              const SizedBox(width: 12),
+                              SizedBox(width: isMobile ? 8 : 12),
                               // VLC button
                               MouseRegion(
                                 cursor: SystemMouseCursors.click,
@@ -417,13 +425,13 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                           ? 1.05
                                           : 1.0,
                                     ),
-                                  width: 80,
-                                  height: 76,
+                                  width: isMobile ? 64 : 80,
+                                  height: isMobile ? 60 : 76,
                                   decoration: BoxDecoration(
                                     color: isCurrentStream && _isVLCSelected
                                         ? colorScheme.tertiaryContainer
                                         : colorScheme.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
                                     border: Border.all(
                                       color: isCurrentStream && _isVLCSelected
                                           ? colorScheme.tertiary
@@ -439,12 +447,13 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                         color: isCurrentStream && _isVLCSelected
                                             ? colorScheme.onTertiaryContainer
                                             : colorScheme.tertiary,
-                                        size: 28,
+                                        size: isMobile ? 22 : 28,
                                       ),
-                                      const SizedBox(height: 6),
+                                      SizedBox(height: isMobile ? 4 : 6),
                                       Text(
                                         'VLC',
-                                        style: textTheme.labelSmall?.copyWith(
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 11 : 12,
                                           color:
                                               isCurrentStream && _isVLCSelected
                                               ? colorScheme.onTertiaryContainer

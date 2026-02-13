@@ -35,7 +35,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   final ScrollController _scrollController = ScrollController();
-  final int _crossAxisCount = 7;
 
   // Provider Manager
   final ProviderManager _providerManager = ProviderManager();
@@ -107,7 +106,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
       setState(() {
         _movies = movies;
         _isLoading = false;
-        _selectedMovieIndex = -1; // No selection after search, user navigates first
+        _selectedMovieIndex =
+            -1; // No selection after search, user navigates first
         // Automatically focus the grid results when search completes
         _isNavigatingCategories = false;
         _isSearchFocused = false;
@@ -197,14 +197,40 @@ class _MoviesScreenState extends State<MoviesScreen> {
     // 3. Movie Grid Navigation
     if (_movies.isEmpty) return;
 
+    // Get responsive cross axis count
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 3 : 7;
+
     setState(() {
       // If nothing selected, start from first item on right, last item on left
       if (_selectedMovieIndex < 0) {
         _selectedMovieIndex = delta > 0 ? 0 : _movies.length - 1;
       } else {
-        _selectedMovieIndex = (_selectedMovieIndex + delta) % _movies.length;
-        if (_selectedMovieIndex < 0) {
-          _selectedMovieIndex = _movies.length - 1;
+        final currentRow = _selectedMovieIndex ~/ crossAxisCount;
+        final currentCol = _selectedMovieIndex % crossAxisCount;
+        final newCol = currentCol + delta;
+
+        if (newCol >= 0 && newCol < crossAxisCount) {
+          // Move within the same row
+          final newIndex = currentRow * crossAxisCount + newCol;
+          if (newIndex < _movies.length) {
+            _selectedMovieIndex = newIndex;
+          }
+        } else if (newCol < 0) {
+          // Move to previous row, last column
+          if (currentRow > 0) {
+            final newIndex =
+                (currentRow - 1) * crossAxisCount + (crossAxisCount - 1);
+            _selectedMovieIndex = newIndex < _movies.length
+                ? newIndex
+                : _movies.length - 1;
+          }
+        } else {
+          // Move to next row, first column
+          final newIndex = (currentRow + 1) * crossAxisCount;
+          if (newIndex < _movies.length) {
+            _selectedMovieIndex = newIndex;
+          }
         }
       }
     });
@@ -217,13 +243,13 @@ class _MoviesScreenState extends State<MoviesScreen> {
     // -1: Global Search
     // 0 to providerCount-1: Providers
     // providerCount: User Guide/Disclaimer
-    
+
     setState(() {
       _selectedSidebarIndex = (_selectedSidebarIndex + delta);
 
       // Wrap around logic
       final maxIndex = providerCount; // This is the user guide index
-      
+
       if (_selectedSidebarIndex < -1) {
         _selectedSidebarIndex = maxIndex;
       } else if (_selectedSidebarIndex > maxIndex) {
@@ -271,11 +297,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
       return;
     }
 
-    final currentRow = _selectedMovieIndex ~/ _crossAxisCount;
+    // Get responsive cross axis count
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 3 : 7;
+
+    final currentRow = _selectedMovieIndex ~/ crossAxisCount;
     if (currentRow > 0) {
       // Move up one row
       setState(() {
-        _selectedMovieIndex -= _crossAxisCount;
+        final newIndex = _selectedMovieIndex - crossAxisCount;
+        _selectedMovieIndex = newIndex >= 0 ? newIndex : 0;
       });
       _scrollToSelected();
     } else {
@@ -356,6 +387,10 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
     if (_movies.isEmpty) return;
 
+    // Get responsive cross axis count
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 3 : 7;
+
     // If nothing selected, select first item
     if (_selectedMovieIndex < 0) {
       setState(() {
@@ -365,12 +400,12 @@ class _MoviesScreenState extends State<MoviesScreen> {
       return;
     }
 
-    final totalRows = (_movies.length / _crossAxisCount).ceil();
-    final currentRow = _selectedMovieIndex ~/ _crossAxisCount;
+    final totalRows = (_movies.length / crossAxisCount).ceil();
+    final currentRow = _selectedMovieIndex ~/ crossAxisCount;
 
     if (currentRow < totalRows - 1) {
       // Move down one row
-      final newIndex = _selectedMovieIndex + _crossAxisCount;
+      final newIndex = _selectedMovieIndex + crossAxisCount;
       setState(() {
         _selectedMovieIndex = newIndex < _movies.length
             ? newIndex
@@ -383,10 +418,14 @@ class _MoviesScreenState extends State<MoviesScreen> {
   void _scrollToSelected() {
     if (!_scrollController.hasClients) return;
 
+    // Get responsive cross axis count
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 3 : 7;
+
     // Calculate approximate position of selected item
     const double itemHeight =
         360.0; // Approximate card height including spacing (adjusted for new UI)
-    final int row = _selectedMovieIndex ~/ _crossAxisCount;
+    final int row = _selectedMovieIndex ~/ crossAxisCount;
     final double targetPosition = row * itemHeight;
 
     // Get viewport height
@@ -409,9 +448,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
     if (provider == 'user_guide_action') {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => const UserGuideScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const UserGuideScreen()),
       );
       return;
     }
@@ -508,7 +545,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
           if (_isSidebarOpen) {
             final providerCount = ProviderManager.availableProviders.length;
-            
+
             if (_selectedSidebarIndex == -1) {
               Navigator.push(
                 context,
@@ -528,7 +565,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 ),
               );
               // Do not close sidebar or do, user pref. Let's keep sidebar logic simple.
-               setState(() {
+              setState(() {
                 _isSidebarOpen = false;
               });
             } else {
@@ -564,124 +601,126 @@ class _MoviesScreenState extends State<MoviesScreen> {
         },
         child: Scaffold(
           backgroundColor: Colors.black,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 1. Dynamic Background with Blur
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 700),
-                child: Container(
-                  key: ValueKey<String>(backgroundImg ?? 'default_bg'),
-                  decoration: BoxDecoration(
-                    image: backgroundImg != null && backgroundImg.isNotEmpty
-                        ? DecorationImage(
-                            image: NetworkImage(
-                              backgroundImg,
-                              headers: {
-                                'User-Agent': 'Mozilla/5.0',
-                                if (backgroundImg.contains('yomovies'))
-                                  'Cookie':
-                                      '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
-                                'Referer': backgroundImg.contains('animepahe')
-                                    ? 'https://animepahe.si/'
-                                    : backgroundImg.contains('yomovies')
-                                    ? 'https://yomovies.beer/'
-                                    : 'https://www.reddit.com/',
-                              },
-                            ),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                    color: Colors.black,
+          body: SafeArea(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 1. Dynamic Background with Blur
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 700),
+                  child: Container(
+                    key: ValueKey<String>(backgroundImg ?? 'default_bg'),
+                    decoration: BoxDecoration(
+                      image: backgroundImg != null && backgroundImg.isNotEmpty
+                          ? DecorationImage(
+                              image: NetworkImage(
+                                backgroundImg,
+                                headers: {
+                                  'User-Agent': 'Mozilla/5.0',
+                                  if (backgroundImg.contains('yomovies'))
+                                    'Cookie':
+                                        '__ddgid_=88FVtslcjtsA0CNp; __ddg2_=p1eTrO8cHLFLo48r; __ddg1_=13P5sx17aDtqButGko8N',
+                                  'Referer': backgroundImg.contains('animepahe')
+                                      ? 'https://animepahe.si/'
+                                      : backgroundImg.contains('yomovies')
+                                      ? 'https://yomovies.beer/'
+                                      : 'https://www.reddit.com/',
+                                },
+                              ),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                      color: Colors.black,
+                    ),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(color: Colors.black.withOpacity(0.7)),
+                    ),
                   ),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                ),
+
+                // 2. Ambient Gradient Overlay
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.6),
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.8),
+                        Colors.black,
+                      ],
+                      stops: const [0.0, 0.3, 0.8, 1.0],
+                    ),
+                  ),
+                ),
+
+                // 3. Main Content Area
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+                    Expanded(
+                      child: _isLoading
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFFFC107),
+                              ),
+                            )
+                          : _error.isNotEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline,
+                                    color: Colors.amber,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _error,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 16,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            )
+                          : _buildMoviesGrid(),
+                    ),
+                  ],
+                ),
+
+                // 4. Sidebar Overlay
+                if (_isSidebarOpen)
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _isSidebarOpen = false;
+                      _isNavigatingCategories = true;
+                      _isMenuButtonFocused = true;
+                    }),
                     child: Container(color: Colors.black.withOpacity(0.7)),
                   ),
-                ),
-              ),
 
-              // 2. Ambient Gradient Overlay
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.6),
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.8),
-                      Colors.black,
-                    ],
-                    stops: const [0.0, 0.3, 0.8, 1.0],
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  left: _isSidebarOpen ? 0 : -300,
+                  top: 0,
+                  bottom: 0,
+                  width: 280,
+                  child: Sidebar(
+                    selectedProvider: _currentProvider,
+                    focusedIndex: _selectedSidebarIndex,
+                    onProviderSelected: _handleProviderChange,
                   ),
                 ),
-              ),
-
-              // 3. Main Content Area
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  Expanded(
-                    child: _isLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFFFFC107),
-                            ),
-                          )
-                        : _error.isNotEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.amber,
-                                  size: 48,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _error,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          )
-                        : _buildMoviesGrid(),
-                  ),
-                ],
-              ),
-
-              // 4. Sidebar Overlay
-              if (_isSidebarOpen)
-                GestureDetector(
-                  onTap: () => setState(() {
-                    _isSidebarOpen = false;
-                    _isNavigatingCategories = true;
-                    _isMenuButtonFocused = true;
-                  }),
-                  child: Container(color: Colors.black.withOpacity(0.7)),
-                ),
-
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
-                left: _isSidebarOpen ? 0 : -300,
-                top: 0,
-                bottom: 0,
-                width: 280,
-                child: Sidebar(
-                  selectedProvider: _currentProvider,
-                  focusedIndex: _selectedSidebarIndex,
-                  onProviderSelected: _handleProviderChange,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -689,8 +728,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
   }
 
   Widget _buildHeader() {
+    final topPadding = MediaQuery.of(context).padding.top;
     return Container(
-      padding: const EdgeInsets.fromLTRB(25, 30, 25, 10),
+      padding: EdgeInsets.fromLTRB(25, 20 + topPadding, 25, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -785,7 +825,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 35),
 
           // Search Bar Expanded
           if (_isSearchActive)
@@ -857,70 +897,73 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
           // Categories Tabs
           if (_categories.isNotEmpty)
-            SizedBox(
-              height: 40,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _categories.length,
-                separatorBuilder: (ctx, i) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final category = _categories[index];
-                  final isSelected = index == _selectedCategoryIndex;
-                  final isFocused =
-                      _isNavigatingCategories &&
-                      isSelected &&
-                      !_isSearchFocused &&
-                      !_isSearchActive &&
-                      !_isMenuButtonFocused;
+            Padding(
+              padding: const EdgeInsets.only(top: 25),
+              child: SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _categories.length,
+                  separatorBuilder: (ctx, i) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final category = _categories[index];
+                    final isSelected = index == _selectedCategoryIndex;
+                    final isFocused =
+                        _isNavigatingCategories &&
+                        isSelected &&
+                        !_isSearchFocused &&
+                        !_isSearchActive &&
+                        !_isMenuButtonFocused;
 
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _isSearchFocused = false;
-                        _isSearchActive = false;
-                        _isMenuButtonFocused = false;
-                        _selectedCategoryIndex = index;
-                        _isNavigatingCategories = false;
-                      });
-                      _loadMovies();
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected && !_isSearchFocused
-                            ? (isFocused
-                                  ? const Color(0xFFFFC107)
-                                  : Colors.white.withOpacity(0.15))
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: isFocused
-                            ? Border.all(color: Colors.white, width: 2)
-                            : Border.all(
-                                color: isSelected && !_isSearchFocused
-                                    ? Colors.transparent
-                                    : Colors.white.withOpacity(0.1),
-                              ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          category['name']!.toUpperCase(),
-                          style: TextStyle(
-                            color: (isSelected && !_isSearchFocused)
-                                ? (isFocused ? Colors.black : Colors.white)
-                                : Colors.grey[400],
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isSearchFocused = false;
+                          _isSearchActive = false;
+                          _isMenuButtonFocused = false;
+                          _selectedCategoryIndex = index;
+                          _isNavigatingCategories = false;
+                        });
+                        _loadMovies();
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected && !_isSearchFocused
+                              ? (isFocused
+                                    ? const Color(0xFFFFC107)
+                                    : Colors.white.withOpacity(0.15))
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: isFocused
+                              ? Border.all(color: Colors.white, width: 2)
+                              : Border.all(
+                                  color: isSelected && !_isSearchFocused
+                                      ? Colors.transparent
+                                      : Colors.white.withOpacity(0.1),
+                                ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            category['name']!.toUpperCase(),
+                            style: TextStyle(
+                              color: (isSelected && !_isSearchFocused)
+                                  ? (isFocused ? Colors.black : Colors.white)
+                                  : Colors.grey[400],
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
         ],
@@ -945,15 +988,21 @@ class _MoviesScreenState extends State<MoviesScreen> {
       );
     }
 
+    // Responsive grid: 3 columns on mobile, 7 on larger screens
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 3 : 7;
+    final cardSpacing = screenWidth < 600 ? 16.0 : 35.0;
+    final mainSpacing = screenWidth < 600 ? 20.0 : 42.0;
+
     return GridView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(30, 50, 30, 50),
       clipBehavior: Clip.hardEdge, // Prevent cards from overlapping header
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: _crossAxisCount,
+        crossAxisCount: crossAxisCount,
         childAspectRatio: 0.62, // Taller cards
-        crossAxisSpacing: 35, // Increased spacing for scaled cards
-        mainAxisSpacing: 42, // Increased spacing for scaled cards
+        crossAxisSpacing: cardSpacing,
+        mainAxisSpacing: mainSpacing,
       ),
       itemCount: _movies.length,
       itemBuilder: (context, index) {
