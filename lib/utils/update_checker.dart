@@ -53,8 +53,12 @@ class UpdateChecker {
       final latestParts = latest.split('.').map(int.parse).toList();
 
       // Ensure both have 3 parts (major.minor.patch)
-      while (currentParts.length < 3) currentParts.add(0);
-      while (latestParts.length < 3) latestParts.add(0);
+      while (currentParts.length < 3) {
+        currentParts.add(0);
+      }
+      while (latestParts.length < 3) {
+        latestParts.add(0);
+      }
 
       // Compare major version
       if (latestParts[0] > currentParts[0]) return true;

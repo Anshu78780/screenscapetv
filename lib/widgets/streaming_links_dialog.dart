@@ -27,6 +27,7 @@ class StreamingLinksDialog extends StatefulWidget {
 class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
   int _selectedStreamIndex = 0;
   bool _isVLCSelected = false; // false = stream button, true = VLC button
+  bool _isCloseButtonFocused = false;
   final List<GlobalKey> _itemKeys = [];
 
   @override
@@ -36,11 +37,31 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
   }
 
   void _navigate(int delta) {
+    if (_isCloseButtonFocused) {
+      // From close button, only down arrow moves to first stream
+      if (delta > 0) {
+        setState(() {
+          _isCloseButtonFocused = false;
+          _selectedStreamIndex = 0;
+          _isVLCSelected = false;
+        });
+        _scrollToSelected();
+      }
+      return;
+    }
+
     setState(() {
-      _selectedStreamIndex = (_selectedStreamIndex + delta).clamp(
-        0,
-        widget.streams.length - 1,
-      );
+      final newIndex = _selectedStreamIndex + delta;
+      
+      if (newIndex < 0) {
+        // Move to close button when going up from first stream
+        _isCloseButtonFocused = true;
+        _isVLCSelected = false;
+      } else if (newIndex >= widget.streams.length) {
+        _selectedStreamIndex = widget.streams.length - 1;
+      } else {
+        _selectedStreamIndex = newIndex;
+      }
     });
     _scrollToSelected();
   }
@@ -60,6 +81,8 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
   }
 
   void _toggleSelection() {
+    if (_isCloseButtonFocused) return; // No toggle when close button is focused
+    
     setState(() {
       _isVLCSelected = !_isVLCSelected;
     });
@@ -89,6 +112,11 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
   }
 
   void _executeAction() {
+    if (_isCloseButtonFocused) {
+      Navigator.of(context).pop();
+      return;
+    }
+    
     if (_isVLCSelected) {
       _openInVLC();
     } else {
@@ -138,10 +166,14 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
 
   void _showSnackBar(String message) {
     if (mounted) {
+      final colorScheme = Theme.of(context).colorScheme;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red.shade900,
+          content: Text(
+            message,
+            style: TextStyle(color: colorScheme.onError),
+          ),
+          backgroundColor: colorScheme.error,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 3),
         ),
@@ -159,9 +191,8 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
       );
     }
 
-    const kGoldColor = Color(0xFFFFD700);
-    const kDarkBackground = Color(0xFF141414);
-    const kSurfaceColor = Color(0xFF2C2C2C);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return KeyEventHandler(
       onUpKey: () => _navigate(-1),
@@ -171,35 +202,83 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
       onBackKey: () => Navigator.of(context).pop(),
       onEnterKey: _executeAction,
       child: Scaffold(
-        backgroundColor: Colors.black.withOpacity(0.95),
+        backgroundColor: colorScheme.scrim.withOpacity(0.6),
         body: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 700),
-            margin: const EdgeInsets.all(40),
+            margin: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: kDarkBackground,
-              borderRadius: BorderRadius.circular(24),
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: kGoldColor.withOpacity(0.15),
-                width: 1.5,
+                color: colorScheme.outlineVariant.withOpacity(0.5),
+                width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.8),
+                  color: colorScheme.shadow.withOpacity(0.4),
                   blurRadius: 40,
                   spreadRadius: 0,
-                ),
-                BoxShadow(
-                  color: kGoldColor.withOpacity(0.05),
-                  blurRadius: 100,
-                  spreadRadius: -20,
                 ),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(height: 20),
+                // Header with close button
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 24, 24, 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Select Stream',
+                        style: textTheme.headlineSmall?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            transform: Matrix4.identity()
+                              ..scale(_isCloseButtonFocused ? 1.1 : 1.0),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _isCloseButtonFocused
+                                  ? colorScheme.errorContainer
+                                  : colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _isCloseButtonFocused
+                                    ? colorScheme.error
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              color: _isCloseButtonFocused
+                                  ? colorScheme.onErrorContainer
+                                  : colorScheme.onSurfaceVariant,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Divider(
+                  color: colorScheme.outlineVariant,
+                  height: 1,
+                  thickness: 1,
+                ),
 
                 // Streams list
                 Flexible(
@@ -209,7 +288,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                       children: widget.streams.asMap().entries.map((entry) {
                         final index = entry.key;
                         final stream = entry.value;
-                        final isCurrentStream = index == _selectedStreamIndex;
+                        final isCurrentStream = !_isCloseButtonFocused && index == _selectedStreamIndex;
 
                         return Padding(
                           key: _itemKeys[index],
@@ -242,44 +321,16 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                       vertical: 16,
                                     ),
                                     decoration: BoxDecoration(
-                                      gradient:
-                                          isCurrentStream && !_isVLCSelected
-                                          ? const LinearGradient(
-                                              colors: [
-                                                kGoldColor,
-                                                Color(0xFFD4AF37),
-                                              ],
-                                              begin: Alignment.centerLeft,
-                                              end: Alignment.centerRight,
-                                            )
-                                          : LinearGradient(
-                                              colors: [
-                                                kSurfaceColor,
-                                                kSurfaceColor.withOpacity(0.8),
-                                              ],
-                                              begin: Alignment.centerLeft,
-                                              end: Alignment.centerRight,
-                                            ),
+                                      color: isCurrentStream && !_isVLCSelected
+                                          ? colorScheme.primaryContainer
+                                          : colorScheme.surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color:
-                                            isCurrentStream && !_isVLCSelected
-                                            ? Colors.white.withOpacity(0.5)
+                                        color: isCurrentStream && !_isVLCSelected
+                                            ? colorScheme.primary
                                             : Colors.transparent,
                                         width: 1,
                                       ),
-                                      boxShadow:
-                                          isCurrentStream && !_isVLCSelected
-                                          ? [
-                                              BoxShadow(
-                                                color: kGoldColor.withOpacity(
-                                                  0.3,
-                                                ),
-                                                blurRadius: 20,
-                                                offset: const Offset(0, 8),
-                                              ),
-                                            ]
-                                          : [],
                                     ),
                                     child: Row(
                                       children: [
@@ -289,8 +340,8 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                               : Icons.play_circle_outline,
                                           color:
                                               isCurrentStream && !_isVLCSelected
-                                              ? Colors.black
-                                              : Colors.white54,
+                                              ? colorScheme.onPrimaryContainer
+                                              : colorScheme.onSurfaceVariant,
                                           size: 26,
                                         ),
                                         const SizedBox(width: 16),
@@ -301,26 +352,24 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                             children: [
                                               Text(
                                                 stream.server,
-                                                style: TextStyle(
+                                                style: textTheme.titleMedium?.copyWith(
                                                   color:
                                                       isCurrentStream &&
                                                           !_isVLCSelected
-                                                      ? Colors.black
-                                                      : Colors.white,
-                                                  fontSize: 16,
+                                                      ? colorScheme.onPrimaryContainer
+                                                      : colorScheme.onSurface,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
                                                 stream.type.toUpperCase(),
-                                                style: TextStyle(
+                                                style: textTheme.labelSmall?.copyWith(
                                                   color:
                                                       isCurrentStream &&
                                                           !_isVLCSelected
-                                                      ? Colors.black87
-                                                      : Colors.white38,
-                                                  fontSize: 11,
+                                                      ? colorScheme.onPrimaryContainer.withOpacity(0.8)
+                                                      : colorScheme.onSurfaceVariant,
                                                   fontWeight: FontWeight.w600,
                                                   letterSpacing: 0.5,
                                                 ),
@@ -332,14 +381,12 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                           Container(
                                             padding: const EdgeInsets.all(4),
                                             decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(
-                                                0.1,
-                                              ),
+                                              color: colorScheme.onPrimaryContainer.withOpacity(0.1),
                                               shape: BoxShape.circle,
                                             ),
-                                            child: const Icon(
+                                            child: Icon(
                                               Icons.arrow_forward_ios_rounded,
-                                              color: Colors.black54,
+                                              color: colorScheme.onPrimaryContainer,
                                               size: 14,
                                             ),
                                           ),
@@ -374,28 +421,15 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                   height: 76,
                                   decoration: BoxDecoration(
                                     color: isCurrentStream && _isVLCSelected
-                                        ? const Color(
-                                            0xFFE85E00,
-                                          ) // Vibrant orange
-                                        : kSurfaceColor,
+                                        ? colorScheme.tertiaryContainer
+                                        : colorScheme.surfaceContainerHighest,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: isCurrentStream && _isVLCSelected
-                                          ? Colors.white.withOpacity(0.3)
+                                          ? colorScheme.tertiary
                                           : Colors.transparent,
                                       width: 1,
                                     ),
-                                    boxShadow: isCurrentStream && _isVLCSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: const Color(
-                                                0xFFE85E00,
-                                              ).withOpacity(0.4),
-                                              blurRadius: 16,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ]
-                                        : null,
                                   ),
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -403,19 +437,18 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
                                       Icon(
                                         Icons.open_in_new,
                                         color: isCurrentStream && _isVLCSelected
-                                            ? Colors.white
-                                            : Colors.orange,
+                                            ? colorScheme.onTertiaryContainer
+                                            : colorScheme.tertiary,
                                         size: 28,
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
                                         'VLC',
-                                        style: TextStyle(
+                                        style: textTheme.labelSmall?.copyWith(
                                           color:
                                               isCurrentStream && _isVLCSelected
-                                              ? Colors.white
-                                              : Colors.white38,
-                                          fontSize: 10,
+                                              ? colorScheme.onTertiaryContainer
+                                              : colorScheme.onSurfaceVariant,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),

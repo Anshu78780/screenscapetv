@@ -1,4 +1,5 @@
  import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -68,7 +69,7 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
   List<SubtitleTrack> _subtitleTracks = [];
   int _selectedSubtitleIndex = -1; // -1 means no subtitle
   int _focusedSubtitleTrackIndex = 0;
-  bool _isLoadingSubtitles = false;
+  final bool _isLoadingSubtitles = false;
   final ScrollController _subtitleScrollController = ScrollController();
   
   // Focus management
@@ -1119,14 +1120,18 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
                                   Expanded(
                                     child: SliderTheme(
                                       data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 2,
-                                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                                        trackHeight: 10,
+                                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
                                         activeTrackColor: Colors.white,
                                         inactiveTrackColor: Colors.white24,
                                         thumbColor: Colors.white,
                                         overlayColor: Colors.white.withOpacity(0.1),
-                                        trackShape: const RectangularSliderTrackShape(),
+                                        trackShape: const SquigglySliderTrackShape(
+                                          waveLength: 20,
+                                          waveAmplitude: 3,
+                                          strokeWidth: 3,
+                                        ),
                                       ),
                                       child: Slider(
                                         value: _totalDuration.inMilliseconds > 0
@@ -1242,7 +1247,7 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
                   color: Colors.black54,
                   alignment: Alignment.center,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
+                    constraints: const BoxConstraints(maxWidth: 700, maxHeight: 500),
                     child: Card(
                       margin: const EdgeInsets.all(24),
                       elevation: 0,
@@ -1944,7 +1949,7 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
                   Expanded(
                     flex: 2,
                     child: DropdownButtonFormField<String>(
-                      value: _selectedLanguageId,
+                      initialValue: _selectedLanguageId,
                       decoration: const InputDecoration(
                         labelText: 'Language',
                         border: OutlineInputBorder(),
@@ -2082,6 +2087,99 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
         ),
       ),
     );
+  }
+}
+
+class SquigglySliderTrackShape extends SliderTrackShape {
+  const SquigglySliderTrackShape({
+    this.waveLength = 20.0,
+    this.waveAmplitude = 3.0,
+    this.strokeWidth = 3.0,
+  });
+
+  final double waveLength;
+  final double waveAmplitude;
+  final double strokeWidth;
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = math.max(sliderTheme.trackHeight ?? 0.0, waveAmplitude * 2);
+    final double trackLeft = offset.dx;
+    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 0,
+  }) {
+    final Rect trackRect = getPreferredRect(
+      parentBox: parentBox,
+      offset: offset,
+      sliderTheme: sliderTheme,
+      isEnabled: isEnabled,
+      isDiscrete: isDiscrete,
+    );
+
+    final Paint activePaint = Paint()
+      ..color = sliderTheme.activeTrackColor ?? Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final Paint inactivePaint = Paint()
+      ..color = sliderTheme.inactiveTrackColor ?? Colors.white24
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final double centerY = trackRect.center.dy;
+
+    // Draw inactive straight line from thumb to right
+    if (thumbCenter.dx < trackRect.right) {
+      context.canvas.drawLine(
+        Offset(thumbCenter.dx, centerY),
+        Offset(trackRect.right, centerY),
+        inactivePaint,
+      );
+    }
+
+    // Draw active squiggly line from left to thumb
+    if (thumbCenter.dx > trackRect.left) {
+      final Path path = Path();
+      path.moveTo(trackRect.left, centerY);
+
+      // Phase shift so the wave meets the thumb at centerY
+      final double k = 2 * math.pi / waveLength;
+      final double phase = -k * thumbCenter.dx;
+
+      const double step = 2.0;
+      for (double x = trackRect.left; x <= thumbCenter.dx; x += step) {
+        final double y = centerY + waveAmplitude * math.sin(k * x + phase);
+        path.lineTo(x, y);
+      }
+      // Connect exactly to thumb center
+      path.lineTo(thumbCenter.dx, centerY);
+
+      context.canvas.drawPath(path, activePaint);
+    }
   }
 }
  

@@ -92,6 +92,11 @@ class ProviderManager extends ChangeNotifier {
       'name': '4kHDHub',
       'icon': Icons.hd_outlined,
     },
+    {
+      'id': 'Castle',
+      'name': 'Castle',
+      'icon': Icons.castle_outlined,
+    },
     // Add more providers here in the future
     // {
     //   'id': 'Netflix',

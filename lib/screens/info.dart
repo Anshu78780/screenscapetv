@@ -99,8 +99,10 @@ class _InfoScreenState extends State<InfoScreen> {
           _selectedSeasonIndex = 0;
         }
 
-        // Auto-load episodes if both are selected
-        if (_selectedQuality.isNotEmpty && _selectedSeason.isNotEmpty) {
+        // Auto-load episodes if season is selected or if only qualities exist
+        if ((seasons.isNotEmpty && _selectedSeason.isNotEmpty) ||
+            (seasons.isEmpty && qualities.isNotEmpty && _selectedQuality.isNotEmpty) ||
+            (seasons.isEmpty && qualities.isEmpty)) {
           _loadEpisodesIfNeeded();
         }
       });
@@ -256,8 +258,20 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Future<void> _loadEpisodesIfNeeded() async {
-    // Only load episodes if both season and quality are selected
-    if (_selectedSeason.isEmpty || _selectedQuality.isEmpty) {
+    final qualities = _getAvailableQualities();
+    final seasons = _getAvailableSeasons();
+    
+    // Only load episodes if season is selected (when seasons exist)
+    // And quality is selected (when qualities exist)
+    if (seasons.isNotEmpty && _selectedSeason.isEmpty) {
+      setState(() {
+        _episodes = [];
+        _currentEpisodeUrl = '';
+      });
+      return;
+    }
+    
+    if (qualities.isNotEmpty && _selectedQuality.isEmpty) {
       setState(() {
         _episodes = [];
         _currentEpisodeUrl = '';
@@ -320,6 +334,9 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   void _navigateVertical(int delta) {
+    final qualities = _getAvailableQualities();
+    final seasons = _getAvailableSeasons();
+    
     setState(() {
       if (delta < 0) {
         // Up arrow
@@ -328,16 +345,23 @@ class _InfoScreenState extends State<InfoScreen> {
             !_isSeasonSelectorFocused &&
             _selectedDownloadIndex == 0) {
           // From first download to quality/season selector
-          final seasons = _getAvailableSeasons();
           if (seasons.length > 1) {
             _isSeasonSelectorFocused = true;
-          } else {
+          } else if (qualities.isNotEmpty) {
             _isQualitySelectorFocused = true;
+          } else {
+            _isBackButtonFocused = true;
+            _scrollToTop();
           }
         } else if (_isSeasonSelectorFocused) {
-          // From season to quality selector
+          // From season to quality selector or back button
           _isSeasonSelectorFocused = false;
-          _isQualitySelectorFocused = true;
+          if (qualities.isNotEmpty) {
+            _isQualitySelectorFocused = true;
+          } else {
+            _isBackButtonFocused = true;
+            _scrollToTop();
+          }
         } else if (_isQualitySelectorFocused) {
           // From quality selector to back button
           _isQualitySelectorFocused = false;
@@ -352,13 +376,16 @@ class _InfoScreenState extends State<InfoScreen> {
       } else {
         // Down arrow
         if (_isBackButtonFocused) {
-          // From back button to quality selector
+          // From back button to quality selector, season, or downloads
           _isBackButtonFocused = false;
-          _isQualitySelectorFocused = true;
+          if (qualities.isNotEmpty) {
+            _isQualitySelectorFocused = true;
+          } else if (seasons.length > 1) {
+            _isSeasonSelectorFocused = true;
+          }
         } else if (_isQualitySelectorFocused) {
           // From quality selector to season selector or downloads
           _isQualitySelectorFocused = false;
-          final seasons = _getAvailableSeasons();
           if (seasons.length > 1) {
             _isSeasonSelectorFocused = true;
           }
@@ -432,11 +459,16 @@ class _InfoScreenState extends State<InfoScreen> {
       },
       onRightKey: () {
         if (_isSeasonSelectorFocused) {
-          // Navigate from season to quality
-          setState(() {
-            _isSeasonSelectorFocused = false;
-            _isQualitySelectorFocused = true;
-          });
+          // Navigate from season to quality (if qualities exist)
+          final qualities = _getAvailableQualities();
+          if (qualities.isNotEmpty) {
+            setState(() {
+              _isSeasonSelectorFocused = false;
+              _isQualitySelectorFocused = true;
+            });
+          } else {
+            _navigateSeasons(1);
+          }
         } else if (_isQualitySelectorFocused) {
           _navigateQualities(1);
         } else {
@@ -873,25 +905,27 @@ class _InfoScreenState extends State<InfoScreen> {
                 ),
                 const SizedBox(width: 16),
               ],
-              SizedBox(
-                width: 240,
-                child: SeasonList(
-                  key: _qualityListKey,
-                  items: qualities,
-                  selectedItem: _selectedQuality,
-                  label: "Quality",
-                  icon: Icons.hd_outlined,
-                  isFocused: _isQualitySelectorFocused,
-                  onChanged: (quality) {
-                    setState(() {
-                      _selectedQuality = quality;
-                      _selectedDownloadIndex = 0;
-                      _selectedQualityIndex = qualities.indexOf(quality);
-                    });
-                    _loadEpisodesIfNeeded();
-                  },
+              if (qualities.isNotEmpty) ...[
+                SizedBox(
+                  width: 240,
+                  child: SeasonList(
+                    key: _qualityListKey,
+                    items: qualities,
+                    selectedItem: _selectedQuality,
+                    label: "Quality",
+                    icon: Icons.hd_outlined,
+                    isFocused: _isQualitySelectorFocused,
+                    onChanged: (quality) {
+                      setState(() {
+                        _selectedQuality = quality;
+                        _selectedDownloadIndex = 0;
+                        _selectedQualityIndex = qualities.indexOf(quality);
+                      });
+                      _loadEpisodesIfNeeded();
+                    },
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
 

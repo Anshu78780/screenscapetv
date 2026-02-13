@@ -8,6 +8,7 @@ import '../utils/key_event_handler.dart';
 import '../widgets/sidebar.dart';
 import 'info.dart';
 import 'global_search_screen.dart';
+import 'user_guide_screen.dart';
 
 class MoviesScreen extends StatefulWidget {
   const MoviesScreen({super.key});
@@ -212,16 +213,20 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
   void _navigateSidebar(int delta) {
     final providerCount = ProviderManager.availableProviders.length;
+    // Indices:
+    // -1: Global Search
+    // 0 to providerCount-1: Providers
+    // providerCount: User Guide/Disclaimer
+    
     setState(() {
-      // Allow -1 for Global Search, 0 to providerCount-1 for providers
       _selectedSidebarIndex = (_selectedSidebarIndex + delta);
 
-      // Wrap around: if going below -1, wrap to last provider
+      // Wrap around logic
+      final maxIndex = providerCount; // This is the user guide index
+      
       if (_selectedSidebarIndex < -1) {
-        _selectedSidebarIndex = providerCount - 1;
-      }
-      // If going above last provider, wrap to Global Search (-1)
-      else if (_selectedSidebarIndex >= providerCount) {
+        _selectedSidebarIndex = maxIndex;
+      } else if (_selectedSidebarIndex > maxIndex) {
         _selectedSidebarIndex = -1;
       }
     });
@@ -401,6 +406,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
   }
 
   void _handleProviderChange(String provider) {
+    if (provider == 'user_guide_action') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const UserGuideScreen(),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSidebarOpen = false;
       _isNavigatingCategories = true;
@@ -444,6 +459,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
         }
       },
       child: KeyEventHandler(
+        treatSpaceAsEnter: !_isSearchActive,
+        treatBackspaceAsBack: !_isSearchActive,
         onLeftKey: () {
           if (_searchFocusNode.hasFocus) return;
           _navigateHorizontal(-1);
@@ -490,6 +507,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
           }
 
           if (_isSidebarOpen) {
+            final providerCount = ProviderManager.availableProviders.length;
+            
             if (_selectedSidebarIndex == -1) {
               Navigator.push(
                 context,
@@ -498,6 +517,18 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 ),
               );
               setState(() {
+                _isSidebarOpen = false;
+              });
+            } else if (_selectedSidebarIndex == providerCount) {
+              // User Guide / Disclaimer
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserGuideScreen(),
+                ),
+              );
+              // Do not close sidebar or do, user pref. Let's keep sidebar logic simple.
+               setState(() {
                 _isSidebarOpen = false;
               });
             } else {

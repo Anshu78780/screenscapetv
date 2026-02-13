@@ -33,6 +33,11 @@ A multi-provider streaming application built with Flutter that aggregates conten
         <br />
         <b>Global Search</b>
       </td>
+      <td align="center">
+        <img src="assets/PLAYER.png" alt="Global Search" width="300px"/>
+        <br />
+        <b>Player</b>
+      </td>
     </tr>
   </table>
 </div>

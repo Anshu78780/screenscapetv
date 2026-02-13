@@ -2047,7 +2047,7 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
                             )
                           : null,
                       child: DropdownButtonFormField<String>(
-                        value: _selectedLanguageId,
+                        initialValue: _selectedLanguageId,
                         decoration: const InputDecoration(
                           labelText: 'Language',
                           border: OutlineInputBorder(),
@@ -2067,8 +2067,9 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
                           );
                         }).toList(),
                         onChanged: (value) {
-                          if (value != null)
+                          if (value != null) {
                             setState(() => _selectedLanguageId = value);
+                          }
                         },
                       ),
                     ),

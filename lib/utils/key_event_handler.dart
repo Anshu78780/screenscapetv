@@ -10,6 +10,8 @@ class KeyEventHandler extends StatefulWidget {
   final VoidCallback? onEnterKey;
   final VoidCallback? onBackKey;
   final VoidCallback? onEscapeKey;
+  final bool treatSpaceAsEnter;
+  final bool treatBackspaceAsBack;
 
   const KeyEventHandler({
     super.key,
@@ -21,6 +23,8 @@ class KeyEventHandler extends StatefulWidget {
     this.onEnterKey,
     this.onBackKey,
     this.onEscapeKey,
+    this.treatSpaceAsEnter = true,
+    this.treatBackspaceAsBack = true,
   });
 
   @override
@@ -68,9 +72,15 @@ class _KeyEventHandlerState extends State<KeyEventHandler> {
         // Enter/Select keys (includes Android TV OK button)
         case LogicalKeyboardKey.enter:
         case LogicalKeyboardKey.select:
-        case LogicalKeyboardKey.space:
           widget.onEnterKey?.call();
           return KeyEventResult.handled;
+
+        case LogicalKeyboardKey.space:
+          if (widget.treatSpaceAsEnter) {
+            widget.onEnterKey?.call();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
         
         // Escape key
         case LogicalKeyboardKey.escape:
@@ -80,10 +90,16 @@ class _KeyEventHandlerState extends State<KeyEventHandler> {
         // Back keys (includes Android TV Back button)
         case LogicalKeyboardKey.goBack:
         case LogicalKeyboardKey.browserBack:
-        case LogicalKeyboardKey.backspace:
           widget.onBackKey?.call();
           return KeyEventResult.handled;
         
+        case LogicalKeyboardKey.backspace:
+          if (widget.treatBackspaceAsBack) {
+            widget.onBackKey?.call();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+
         default:
           return KeyEventResult.ignored;
       }

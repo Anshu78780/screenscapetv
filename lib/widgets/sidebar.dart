@@ -27,8 +27,9 @@ class _SidebarState extends State<Sidebar> {
   @override
   void initState() {
     super.initState();
-    // Create keys for each provider item
-    for (int i = 0; i < ProviderManager.availableProviders.length; i++) {
+    // Create keys for each provider item + user guide
+    final itemCount = ProviderManager.availableProviders.length + 1;
+    for (int i = 0; i < itemCount; i++) {
       _itemKeys[i] = GlobalKey();
     }
     // Schedule initial scroll after first frame
@@ -49,10 +50,14 @@ class _SidebarState extends State<Sidebar> {
   }
 
   void _scrollToFocusedItem() {
-    if (widget.focusedIndex < 0 ||
-        widget.focusedIndex >= ProviderManager.availableProviders.length) {
+    // Include the extra item in the valid range check
+    final maxIndex = ProviderManager.availableProviders.length;
+    if (widget.focusedIndex < -1 || widget.focusedIndex > maxIndex) {
       return;
     }
+    
+    // Global search (-1) doesn't use itemKeys in the list
+    if (widget.focusedIndex == -1) return;
 
     final key = _itemKeys[widget.focusedIndex];
     if (key?.currentContext != null) {
@@ -176,12 +181,35 @@ class _SidebarState extends State<Sidebar> {
                 child: ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: ProviderManager.availableProviders.length,
+                  // Add 1 for the disclaimer button
+                  itemCount: ProviderManager.availableProviders.length + 1,
                   itemBuilder: (context, index) {
-                    final provider =
-                        ProviderManager.availableProviders[index];
-                    final isSelected =
-                        provider['id'] == widget.selectedProvider;
+                    final providerCount = ProviderManager.availableProviders.length;
+                    
+                    // Disclaimer/User Guide Button
+                    if (index == providerCount) {
+                       final isFocused = index == widget.focusedIndex;
+                       return Padding(
+                         key: _itemKeys[index],
+                         padding: const EdgeInsets.only(top: 24, bottom: 24),
+                         child: _buildSidebarItem(
+                           icon: Icons.info_outline_rounded,
+                           title: 'Disclaimer & Guide', 
+                           isSelected: false,
+                           isFocused: isFocused,
+                           onTap: () {
+                             // This will be handled by parent or we can push directly here if callbacks allow?
+                             // Since onProviderSelected takes a String ID, we might need a special ID for this
+                             // OR we handle navigation here if it's just a push.
+                             // But for keyboard nav to work, the parent usually handles selection.
+                             widget.onProviderSelected('user_guide_action');
+                           },
+                         ),
+                       );
+                    }
+
+                    final provider = ProviderManager.availableProviders[index];
+                    final isSelected = provider['id'] == widget.selectedProvider;
                     final isFocused = index == widget.focusedIndex;
                     return _buildSidebarItem(
                       key: _itemKeys[index],

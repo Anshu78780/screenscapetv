@@ -126,8 +126,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final visibleProviders = _getVisibleProviders();
     if (visibleProviders.isEmpty) return;
     if (_selectedProviderIndex < 0 ||
-        _selectedProviderIndex >= visibleProviders.length)
+        _selectedProviderIndex >= visibleProviders.length) {
       return;
+    }
 
     final providerId = visibleProviders[_selectedProviderIndex];
     final results = _results[providerId] ?? [];
@@ -254,6 +255,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return KeyEventHandler(
+      treatSpaceAsEnter: false,
+      treatBackspaceAsBack: false,
       onLeftKey: () => _navigateHorizontal(-1),
       onRightKey: () => _navigateHorizontal(1),
       onUpKey: () => _navigateVertical(-1),
