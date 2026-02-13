@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:window_manager/window_manager.dart';
 import 'screens/startup_check.dart';
 import 'utils/ad_manager.dart';
 
@@ -21,12 +19,6 @@ Future<void> main() async {
     // Preload app open ad for launch
     await globalAdManager.loadAppOpenAd();
     print('Unity app open ad loading initiated');
-  }
-  
-  if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
-    MediaKit.ensureInitialized();
-    // Initialize window_manager for desktop fullscreen support
-    await windowManager.ensureInitialized();
   }
   
   // Suppress image loading errors in console
@@ -50,7 +42,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ScreenScapeTV',
+      title: 'Filmfans',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,

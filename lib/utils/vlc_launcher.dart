@@ -83,7 +83,7 @@ class VlcLauncher {
   }
 
   static Future<void> _openVLCOnAndroid(String url, String title) async {
-    const platform = MethodChannel('com.example.screenscapetv/vlc');
+    const platform = MethodChannel('com.anshu.filmfans/vlc');
 
     try {
       final bool? result = await platform.invokeMethod('launchVLC', {

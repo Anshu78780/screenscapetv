@@ -30,7 +30,6 @@ import 'nf/index.dart';
 import 'animepahe/index.dart';
 import 'yomovies/index.dart';
 import 'khdhub/index.dart';
-import 'castle/index.dart';
 import '../models/movie.dart';
 
 /// Factory class to create the appropriate provider service
@@ -65,8 +64,6 @@ class ProviderFactory {
         return YoMoviesProviderService();
       case 'KhdHub':
         return KhdHubProviderService();
-      case 'Castle':
-        return CastleProviderService();
       case 'Drive':
       default:
         return DriveProviderService();
@@ -104,8 +101,6 @@ class ProviderFactory {
         return YoMoviesCatalog.categories;
       case 'KhdHub':
         return KhdHubCatalog.categories;
-      case 'Castle':
-        return CastleCatalog.categories;
       case 'Drive':
       default:
         return DriveCatalog.categories;
@@ -161,8 +156,6 @@ class ProviderFactory {
         return await yoMoviesGetPosts(category['filter']!, 1);
       case 'KhdHub':
         return await khdHubGetPosts(category['filter']!, 1);
-      case 'Castle':
-        return await CastleGetPost.fetchMovies(category['path']!);
       case 'Drive':
       default:
         final categoryUrl = await DriveCatalog.getCategoryUrl(
@@ -206,8 +199,6 @@ class ProviderFactory {
         return await yoMoviesGetPostsSearch(query, 1);
       case 'KhdHub':
         return await khdHubGetPostsSearch(query, 1);
-      case 'Castle':
-        return await CastleGetPost.searchMovies(query);
       case 'Drive':
       default:
         return await GetPost.searchMovies(query);

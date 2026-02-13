@@ -1,5 +1,5 @@
 name: screenscapetv
-description: "A new Flutter project."
+description: "Filmfans - Stream Movies and Series"
 publish_to: 'none' 
 version: 1.0.0+1
 
@@ -21,12 +21,7 @@ dependencies:
   shared_preferences: ^2.5.4
   google_fonts: ^6.1.0
   unity_ads_plugin: ^0.3.28
-  #DESKTOP ONLY
-  media_kit: ^1.2.6
-  media_kit_video: ^2.0.1
-  media_kit_libs_video: ^1.0.7
-  window_manager: ^0.5.1
-  file_picker: ^8.1.4
+
 
 dev_dependencies:
   flutter_test:
@@ -40,8 +35,4 @@ flutter:
 
   assets:
     - assets/
-flutter_launcher_icons:
-  image_path: "assets/icon.png"
-  linux:
-    generate: true
-    image_path: "assets/icon.png"
+

@@ -1,4 +1,4 @@
-package com.example.screenscapetv
+package com.anshu.filmfans
 
 import android.content.Intent
 import android.net.Uri
@@ -7,7 +7,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.screenscapetv/vlc"
+    private val CHANNEL = "com.anshu.filmfans/vlc"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

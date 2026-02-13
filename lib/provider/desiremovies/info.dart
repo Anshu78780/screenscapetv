@@ -66,8 +66,6 @@ class DesireMoviesInfo {
          }
       }
       
-      final type = url.contains('/web-series/') ? 'series' : 'movie';
-      
       final downloadLinks = <DownloadLink>[];
       final qualityGroups = <String, List<Map<String, String>>>{};
       

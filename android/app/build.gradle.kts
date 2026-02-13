@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.screenscapetv"
+    namespace = "com.anshu.filmfans"
     compileSdk = flutter.compileSdkVersion
 
     compileOptions {
@@ -18,7 +18,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.screenscapetv"
+        applicationId = "com.anshu.filmfans"
         minSdk = flutter.minSdkVersion  
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
