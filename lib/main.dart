@@ -2,26 +2,25 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'screens/startup_check.dart';
 import 'utils/ad_manager.dart';
 
-// Global AdManager instance for app open ads
+// Global AdManager instance for Unity Ads
 final globalAdManager = AdManager();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Google Mobile Ads on mobile platforms
+  // Initialize Unity Ads on mobile platforms
   if (Platform.isAndroid || Platform.isIOS) {
-    await MobileAds.instance.initialize();
-    print('Google Mobile Ads initialized');
+    await globalAdManager.initialize();
+    print('Unity Ads initialization initiated');
     
-    // Preload app open ad for launch and wait for it to load
+    // Preload app open ad for launch
     await globalAdManager.loadAppOpenAd();
-    print('App open ad loading initiated');
+    print('Unity app open ad loading initiated');
   }
   
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {

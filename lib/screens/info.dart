@@ -9,7 +9,7 @@ import '../provider/provider_service.dart';
 import '../provider/episode_stream_extractor.dart';
 import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
-import '../utils/ad_manager.dart';
+import '../main.dart';
 import '../widgets/streaming_links_dialog.dart';
 import '../widgets/episode_selection_dialog.dart';
 import '../widgets/download_drawer.dart';
@@ -67,22 +67,16 @@ class _InfoScreenState extends State<InfoScreen> {
   Timer? _countdownTimer;
   int _remainingSeconds = 60;
 
-  // Ad Manager for interstitial ads
-  final AdManager _adManager = AdManager();
-
   @override
   void initState() {
     super.initState();
     _loadMovieInfo();
-    // Preload interstitial ad for play/download actions
-    _adManager.loadAd();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     _countdownTimer?.cancel();
-    _adManager.dispose();
     super.dispose();
   }
 
@@ -1366,12 +1360,12 @@ class _InfoScreenState extends State<InfoScreen> {
     DownloadLink? downloadLink,
   }) async {
     // Show ad before opening download drawer
-    if (_adManager.isAdReady) {
+    if (globalAdManager.isAdReady) {
       setState(() {
         _isLoadingLinks = true;
       });
       
-      await _adManager.showAd(
+      await globalAdManager.showAd(
         onAdClosed: () {
           // Continue with download drawer action after ad is closed
           _executeFetchAndShowDownloadDrawer(
@@ -1471,12 +1465,12 @@ class _InfoScreenState extends State<InfoScreen> {
 
   Future<void> _playEpisode(Episode episode) async {
     // Show ad before playing episode
-    if (_adManager.isAdReady) {
+    if (globalAdManager.isAdReady) {
       setState(() {
         _isLoadingLinks = true;
       });
       
-      await _adManager.showAd(
+      await globalAdManager.showAd(
         onAdClosed: () {
           // Continue with play action after ad is closed
           _executePlayEpisode(episode);
@@ -1541,12 +1535,12 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _openDownloadLink(DownloadLink downloadLink) async {
     // Show ad before opening download link
-    if (_adManager.isAdReady) {
+    if (globalAdManager.isAdReady) {
       setState(() {
         _isLoadingLinks = true;
       });
       
-      await _adManager.showAd(
+      await globalAdManager.showAd(
         onAdClosed: () {
           // Continue with download action after ad is closed
           _executeOpenDownloadLink(downloadLink);

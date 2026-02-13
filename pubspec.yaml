@@ -20,7 +20,7 @@ dependencies:
   installed_apps: ^2.1.1
   shared_preferences: ^2.5.4
   google_fonts: ^6.1.0
-  google_mobile_ads: ^7.0.0
+  unity_ads_plugin: ^0.3.28
   #DESKTOP ONLY
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/vlc_checker.dart';
 import '../utils/update_checker.dart';
+import '../utils/telegram_helper.dart';
 import '../widgets/update_dialog.dart';
 import '../main.dart';
 import 'movies_screen.dart';
@@ -20,12 +21,24 @@ class _StartupCheckState extends State<StartupCheck> {
   @override
   void initState() {
     super.initState();
-    _checkVlc();
+    _checkTelegramChannel();
+  }
+
+  Future<void> _checkTelegramChannel() async {
+    // Add a delay to ensure context is ready
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    // Check if we should show Telegram join dialog
+    final shouldShow = await TelegramHelper.shouldShowJoinDialog();
+    if (shouldShow && mounted) {
+      _showTelegramJoinDialog();
+    } else {
+      _checkVlc();
+    }
   }
 
   Future<void> _checkVlc() async {
-    // Add a delay to ensure context is ready and give more time for ad to load
-    await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
     // Show app open ad if ready
@@ -98,6 +111,102 @@ class _StartupCheckState extends State<StartupCheck> {
   void _navigateToHome() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const MoviesScreen()),
+    );
+  }
+
+  void _showTelegramJoinDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.telegram, color: Colors.blue),
+              SizedBox(width: 10),
+              Text('Join Our Channel', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Stay updated with latest features, movies, and announcements!',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.star, color: Colors.blue, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Get exclusive content and updates!',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await TelegramHelper.ignoreFor5Hours();
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                _checkVlc();
+              },
+              child: const Text('Ignore', style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () async {
+                await TelegramHelper.markAsJoined();
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                _checkVlc();
+              },
+              child: const Text('Already Joined', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final url = Uri.parse(TelegramHelper.telegramChannelUrl);
+                try {
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                } catch (e) {
+                  debugPrint('Could not launch Telegram URL: $e');
+                }
+                await TelegramHelper.markAsJoined();
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                _checkVlc();
+              },
+              child: const Text('Join Channel'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

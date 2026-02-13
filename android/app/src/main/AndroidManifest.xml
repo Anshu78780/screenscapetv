@@ -70,10 +70,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- AdMob App ID -->
+        <!-- Unity Ads Game ID -->
         <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3354986806928390~7914149301"/>
+            android:name="com.unity3d.ads.gameId"
+            android:value="6046109"/>
+        <meta-data
+            android:name="com.unity3d.ads.testMode"
+            android:value="false"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
