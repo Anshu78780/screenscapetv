@@ -99,6 +99,15 @@ class _InfoScreenState extends State<InfoScreen> {
           _selectedSeasonIndex = 0;
         }
 
+        // Default focus: Quality selector > Season selector > Back button
+        if (qualities.isNotEmpty) {
+          _isQualitySelectorFocused = true;
+        } else if (seasons.length > 1) {
+          _isSeasonSelectorFocused = true;
+        } else {
+          _isBackButtonFocused = true;
+        }
+
         // Auto-load episodes if season is selected or if only qualities exist
         if ((seasons.isNotEmpty && _selectedSeason.isNotEmpty) ||
             (seasons.isEmpty && qualities.isNotEmpty && _selectedQuality.isNotEmpty) ||

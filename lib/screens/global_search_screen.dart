@@ -319,16 +319,17 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                     children: [
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFD700).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.public,
-                              color: Color(0xFFFFD700),
-                              size: 24,
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            color: const Color(0xFFFFD700),
+                            iconSize: 28,
+                            onPressed: () => Navigator.pop(context),
+                            tooltip: 'Back',
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFD700).withOpacity(0.1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 16),
