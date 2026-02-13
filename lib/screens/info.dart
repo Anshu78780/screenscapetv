@@ -11,6 +11,7 @@ import '../widgets/seasonlist.dart';
 import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
 import '../widgets/episode_selection_dialog.dart';
+import '../widgets/download_drawer.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
 
 class InfoScreen extends StatefulWidget {
@@ -42,6 +43,11 @@ class _InfoScreenState extends State<InfoScreen> {
       GlobalKey<SeasonListState>();
   final GlobalKey<SeasonListState> _qualityListKey =
       GlobalKey<SeasonListState>();
+
+  bool get _isDownloadDrawerSupported {
+    const excluded = ['nf', 'animepahe', 'animesalt'];
+    return !excluded.contains(_currentProvider);
+  }
 
   // Provider Manager for multi-provider support
   final ProviderManager _providerManager = ProviderManager();
@@ -98,6 +104,9 @@ class _InfoScreenState extends State<InfoScreen> {
         if (seasons.isNotEmpty) {
           _selectedSeason = seasons.first;
           _selectedSeasonIndex = 0;
+          _isSeasonSelectorFocused = true;
+        } else if (qualities.isNotEmpty) {
+          _isQualitySelectorFocused = true;
         }
 
         // Auto-load episodes if season is selected or if only qualities exist
@@ -995,7 +1004,9 @@ class _InfoScreenState extends State<InfoScreen> {
       children: downloads.asMap().entries.map((entry) {
         final index = entry.key;
         final download = entry.value;
-        final isSelected = index == _selectedDownloadIndex;
+        final isSelected = !_isQualitySelectorFocused &&
+            !_isSeasonSelectorFocused &&
+            index == _selectedDownloadIndex;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -1169,6 +1180,30 @@ class _InfoScreenState extends State<InfoScreen> {
                       size: isMobile ? 16 : 20,
                     ),
                   ),
+
+                  // Download Drawer Button
+                  if (_isDownloadDrawerSupported)
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: isSelected
+                                ? Colors.black26
+                                : Colors.white24,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.cloud_download_outlined,
+                          color: isSelected ? Colors.black87 : Colors.grey[400],
+                        ),
+                        onPressed: () =>
+                            _fetchAndShowDownloadDrawer(downloadLink: download),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1220,7 +1255,9 @@ class _InfoScreenState extends State<InfoScreen> {
       children: _episodes.asMap().entries.map((entry) {
         final index = entry.key;
         final episode = entry.value;
-        final isSelected = index == _selectedDownloadIndex;
+        final isSelected = !_isQualitySelectorFocused &&
+            !_isSeasonSelectorFocused &&
+            index == _selectedDownloadIndex;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -1284,6 +1321,30 @@ class _InfoScreenState extends State<InfoScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+
+                  // Download Drawer Button
+                  if (_isDownloadDrawerSupported)
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: isSelected
+                                ? Colors.black26
+                                : Colors.white24,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.download_rounded,
+                          color: isSelected ? Colors.black87 : Colors.grey[400],
+                        ),
+                        onPressed: () =>
+                            _fetchAndShowDownloadDrawer(episode: episode),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1291,6 +1352,79 @@ class _InfoScreenState extends State<InfoScreen> {
         );
       }).toList(),
     );
+  }
+
+  Future<void> _fetchAndShowDownloadDrawer({
+    Episode? episode,
+    DownloadLink? downloadLink,
+  }) async {
+    if (episode == null && downloadLink == null) return;
+
+    setState(() {
+      _isLoadingLinks = true;
+      _remainingSeconds = 60;
+    });
+    _startCountdownTimer();
+
+    try {
+      List<stream_types.Stream> streams = [];
+
+      if (episode != null) {
+        streams = await EpisodeStreamExtractor.extractStreams(
+          episode,
+          _providerService,
+          _selectedQuality,
+        );
+      } else if (downloadLink != null) {
+        streams = await _providerService.getStreams(
+          downloadLink.url,
+          downloadLink.quality,
+        );
+
+        if (streams.isEmpty) {
+          try {
+            final processedUrl = await _processDownloadUrl(downloadLink.url);
+            streams = await _providerService.getStreams(
+              processedUrl,
+              downloadLink.quality,
+            );
+          } catch (_) {}
+        }
+      }
+
+      _stopCountdownTimer();
+      setState(() {
+        _isLoadingLinks = false;
+        // _drawerStreams = streams; // No longer needed
+      });
+
+      if (streams.isNotEmpty) {
+        if (mounted) {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            builder: (context) => DownloadDrawer(streams: streams),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No servers found for download.')),
+          );
+        }
+      }
+    } catch (e) {
+      _stopCountdownTimer();
+      setState(() {
+        _isLoadingLinks = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _playEpisode(Episode episode) async {

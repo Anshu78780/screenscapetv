@@ -730,7 +730,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
   Widget _buildHeader() {
     final topPadding = MediaQuery.of(context).padding.top;
     return Container(
-      padding: EdgeInsets.fromLTRB(25, 20 + topPadding, 25, 10),
+      padding: EdgeInsets.fromLTRB(25, topPadding, 25,2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -825,7 +825,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
             ],
           ),
 
-          const SizedBox(height: 35),
+          const SizedBox(height: 15),
 
           // Search Bar Expanded
           if (_isSearchActive)
@@ -898,7 +898,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
           // Categories Tabs
           if (_categories.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 25),
+              padding: const EdgeInsets.only(top: 10),
               child: SizedBox(
                 height: 40,
                 child: ListView.separated(
