@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 APP_NAME="screenscapetv"
-APP_VERSION="1.0.0"
+APP_VERSION="1.0.1"
 BUILD_NUMBER="1"
 ARCHITECTURE="amd64"
 MAINTAINER="ScreenScapeTV <hunternisha55@gmail.com>"

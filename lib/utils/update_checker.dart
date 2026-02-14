@@ -22,7 +22,7 @@ class UpdateChecker {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final latestVersion = (data['tag_name'] as String).replaceAll('v', '');
-        final downloadUrl = data['html_url'] as String;
+        const downloadUrl = 'https://www.screenscape.fun/dashboard';
         final releaseNotes = data['body'] as String? ?? '';
         final releaseName = data['name'] as String? ?? 'New Update';
 

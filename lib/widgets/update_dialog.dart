@@ -148,7 +148,7 @@ class UpdateDialog extends StatelessWidget {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'You will be redirected to GitHub to download the latest version.',
+                      'You will be redirected to the dashboard to download the latest version.',
                       style: TextStyle(
                         color: Colors.amber,
                         fontSize: 13,
