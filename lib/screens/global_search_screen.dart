@@ -4,6 +4,7 @@ import '../models/movie.dart';
 import '../provider/provider_manager.dart';
 import '../provider/provider_factory.dart';
 import '../utils/key_event_handler.dart';
+import '../utils/device_info_helper.dart';
 import 'info.dart';
 
 class GlobalSearchScreen extends StatefulWidget {
@@ -29,6 +30,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   final Map<String, String> _errors = {};
 
   bool _hasSearched = false;
+  
+  // Low memory device detection
+  bool _isLowMemoryDevice = false;
 
   // Selection state
   int _selectedProviderIndex = -1; // -1 means focus is on search bar
@@ -37,9 +41,18 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   @override
   void initState() {
     super.initState();
+    _checkDeviceMemory();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchFocusNode.requestFocus();
     });
+  }
+  
+  Future<void> _checkDeviceMemory() async {
+    _isLowMemoryDevice = await DeviceInfoHelper.isLowMemoryDevice();
+    if (_isLowMemoryDevice) {
+      print('GlobalSearchScreen: Low memory device detected - enabling lazy image loading');
+    }
+    setState(() {});
   }
 
   @override
@@ -217,9 +230,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void _scrollToSelectedHorizontal(String providerId) {
     final controller = _horizontalScrollControllers[providerId];
     if (controller != null && controller.hasClients) {
-      const double cardWidth = 160.0;
+      // Get responsive card width
+      final screenWidth = MediaQuery.of(context).size.width;
+      final cardWidth = screenWidth < 600 ? (screenWidth - 90) / 3 : 160.0;
       const double gap = 25.0;
-      const double itemExtent = cardWidth + gap;
+      final double itemExtent = cardWidth + gap;
 
       // Scroll to the selected item
       final targetOffset = (_selectedMovieIndex * itemExtent);
@@ -580,10 +595,16 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   itemBuilder: (context, index) {
                     final isSelected =
                         isProviderSelected && _selectedMovieIndex == index;
+                    final shouldLoadImage = _shouldLoadImageForProvider(
+                      providerId,
+                      index,
+                      isProviderSelected,
+                    );
                     return _buildMovieCard(
                       results[index],
                       providerId,
                       isSelected,
+                      shouldLoadImage,
                     );
                   },
                 ),
@@ -591,10 +612,32 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       ],
     );
   }
+  
+  /// Determines if an image should be loaded in a horizontal list for a specific provider
+  bool _shouldLoadImageForProvider(String providerId, int index, bool isProviderSelected) {
+    if (!_isLowMemoryDevice) return true;
+    
+    // For low memory devices, only load images within range of selected item
+    if (!isProviderSelected) {
+      // If provider is not selected, load first 5 items
+      return index < 5;
+    }
+    
+    // Load selected item ± 5 items
+    return (index - _selectedMovieIndex).abs() <= 5;
+  }
 
   Widget _buildShimmerCard() {
+    // Responsive card width: matching info.dart mobile layout (35% of width)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    
+    // On mobile: Use same size as info.dart poster (screenWidth * 0.35)
+    // On desktop: Keep default 160.0
+    final cardWidth = isMobile ? screenWidth * 0.35 : 160.0;
+
     return Container(
-      width: 160,
+      width: cardWidth,
       decoration: BoxDecoration(
         color: Colors.white10,
         borderRadius: BorderRadius.circular(16),
@@ -602,10 +645,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 
-  Widget _buildMovieCard(Movie movie, String providerId, bool isSelected) {
+  Widget _buildMovieCard(Movie movie, String providerId, bool isSelected, bool shouldLoadImage) {
     // 0.62 Aspect Ratio matching movies_screen
-    // Width 160 approx results in Height 258
-    const double cardWidth = 160.0;
+    // Responsive card width: matching info.dart mobile layout (35% of width)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    
+    // On mobile: Use same size as info.dart poster (screenWidth * 0.35)
+    // On desktop: Keep default 160.0
+    final cardWidth = isMobile ? screenWidth * 0.35 : 160.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -640,7 +688,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (movie.imageUrl.isNotEmpty)
+                if (movie.imageUrl.isNotEmpty && shouldLoadImage)
                   Image.network(
                     movie.imageUrl,
                     headers: {

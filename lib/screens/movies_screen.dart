@@ -5,6 +5,7 @@ import '../models/movie.dart';
 import '../provider/provider_factory.dart';
 import '../provider/provider_manager.dart';
 import '../utils/key_event_handler.dart';
+import '../utils/device_info_helper.dart';
 import '../widgets/sidebar.dart';
 import 'info.dart';
 import 'global_search_screen.dart';
@@ -23,6 +24,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
   List<Movie> _movies = [];
   bool _isLoading = false;
   String _error = '';
+  
+  // Low memory device detection
+  bool _isLowMemoryDevice = false;
 
   // Navigation & Search State
   bool _isNavigatingCategories = false;
@@ -35,7 +39,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   final ScrollController _scrollController = ScrollController();
-  final int _crossAxisCount = 7;
 
   // Provider Manager
   final ProviderManager _providerManager = ProviderManager();
@@ -49,7 +52,22 @@ class _MoviesScreenState extends State<MoviesScreen> {
   @override
   void initState() {
     super.initState();
+    _checkDeviceMemory();
     _loadMovies();
+  }
+  
+  Future<void> _checkDeviceMemory() async {
+    _isLowMemoryDevice = await DeviceInfoHelper.isLowMemoryDevice();
+    if (_isLowMemoryDevice) {
+      print('MoviesScreen: Low memory device detected - enabling lazy image loading');
+    }
+    setState(() {});
+  }
+  
+  /// Get responsive cross axis count: 3 on mobile, 7 on larger screens
+  int get _crossAxisCount {
+    final screenWidth = MediaQuery.of(context).size.width;
+    return screenWidth < 600 ? 3 : 7;
   }
 
   @override
@@ -197,14 +215,40 @@ class _MoviesScreenState extends State<MoviesScreen> {
     // 3. Movie Grid Navigation
     if (_movies.isEmpty) return;
 
+    // Get responsive cross axis count
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 3 : 7;
+
     setState(() {
       // If nothing selected, start from first item on right, last item on left
       if (_selectedMovieIndex < 0) {
         _selectedMovieIndex = delta > 0 ? 0 : _movies.length - 1;
       } else {
-        _selectedMovieIndex = (_selectedMovieIndex + delta) % _movies.length;
-        if (_selectedMovieIndex < 0) {
-          _selectedMovieIndex = _movies.length - 1;
+        final currentRow = _selectedMovieIndex ~/ crossAxisCount;
+        final currentCol = _selectedMovieIndex % crossAxisCount;
+        final newCol = currentCol + delta;
+
+        if (newCol >= 0 && newCol < crossAxisCount) {
+          // Move within the same row
+          final newIndex = currentRow * crossAxisCount + newCol;
+          if (newIndex < _movies.length) {
+            _selectedMovieIndex = newIndex;
+          }
+        } else if (newCol < 0) {
+          // Move to previous row, last column
+          if (currentRow > 0) {
+            final newIndex =
+                (currentRow - 1) * crossAxisCount + (crossAxisCount - 1);
+            _selectedMovieIndex = newIndex < _movies.length
+                ? newIndex
+                : _movies.length - 1;
+          }
+        } else {
+          // Move to next row, first column
+          final newIndex = (currentRow + 1) * crossAxisCount;
+          if (newIndex < _movies.length) {
+            _selectedMovieIndex = newIndex;
+          }
         }
       }
     });
@@ -945,24 +989,45 @@ class _MoviesScreenState extends State<MoviesScreen> {
       );
     }
 
+    // Responsive grid: 3 columns on mobile, 7 on larger screens
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 3 : 7;
+    final cardSpacing = screenWidth < 600 ? 16.0 : 35.0;
+    final mainSpacing = screenWidth < 600 ? 20.0 : 42.0;
+
     return GridView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(30, 50, 30, 50),
       clipBehavior: Clip.hardEdge, // Prevent cards from overlapping header
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: _crossAxisCount,
+        crossAxisCount: crossAxisCount,
         childAspectRatio: 0.62, // Taller cards
-        crossAxisSpacing: 35, // Increased spacing for scaled cards
-        mainAxisSpacing: 42, // Increased spacing for scaled cards
+        crossAxisSpacing: cardSpacing,
+        mainAxisSpacing: mainSpacing,
       ),
       itemCount: _movies.length,
       itemBuilder: (context, index) {
-        return _buildMovieCard(_movies[index], index == _selectedMovieIndex);
+        final shouldLoadImage = _shouldLoadImage(index);
+        return _buildMovieCard(_movies[index], index == _selectedMovieIndex, shouldLoadImage);
       },
     );
   }
 
-  Widget _buildMovieCard(Movie movie, bool isSelected) {
+  /// Determines if an image should be loaded based on device memory and proximity to selected item
+  bool _shouldLoadImage(int index) {
+    if (!_isLowMemoryDevice) return true;
+    
+    // For low memory devices, only load images within range of selected item
+    if (_selectedMovieIndex < 0) {
+      // If nothing selected, load first 5 items
+      return index < 5;
+    }
+    
+    // Load selected item ± 5 items
+    return (index - _selectedMovieIndex).abs() <= 5;
+  }
+  
+  Widget _buildMovieCard(Movie movie, bool isSelected, bool shouldLoadImage) {
     return Material(
       color: Colors.transparent,
       elevation: isSelected ? 20 : 0, // Higher elevation for better z-index
@@ -1000,7 +1065,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
               fit: StackFit.expand,
               children: [
                 // Image
-                movie.imageUrl.isNotEmpty
+                movie.imageUrl.isNotEmpty && shouldLoadImage
                     ? Image.network(
                         movie.imageUrl,
                         headers: {
