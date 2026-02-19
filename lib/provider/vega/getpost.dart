@@ -17,7 +17,7 @@ Future<List<Movie>> vegaGetPosts(
     }
 
     print('vegaGetPosts baseUrl: $providerValue, $baseUrl');
-    final url = '$baseUrl/$filter/page/$page/';
+    final url = '$baseUrl';
     print('vegaGetPosts url: $url');
 
     return await _fetchPosts(baseUrl, url);

@@ -13,7 +13,7 @@ const Map<String, String> vegaHeaders = {
   'Sec-Fetch-Site': 'none',
   'Sec-Fetch-User': '?1',
   'Cookie':
-      '_ga=GA1.1.10613951.1756380104; xla=s4t; _ga_1CG5NQ0F53=GS2.1.s1756380103\$o1\$g1\$t1756380120\$j43\$l0\$h0',
+      '_lscache_vary=e914119049a1b71f0cf06bd5a888e295; _ga=GA1.1.1045298251.1771328843; _ga_BLZGKYN5PF=GS2.1.s1771341734\$o2\$g0\$t1771341734\$j60\$l0\$h0',
   'Upgrade-Insecure-Requests': '1',
   'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0',
