@@ -91,7 +91,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
   void _playSelectedStream() {
     if (!kIsWeb && Platform.isLinux) {
       // Use custom media_kit player on Linux
-      // _openInLinuxPlayer();
+      _openInLinuxPlayer();
       return;
     }
 
@@ -124,27 +124,27 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
     }
   }
 
-  // Future<void> _openInLinuxPlayer() async {
-  //   final selectedStream = widget.streams[_selectedStreamIndex];
+  Future<void> _openInLinuxPlayer() async {
+    final selectedStream = widget.streams[_selectedStreamIndex];
 
-  //   try {
-  //     Navigator.push(
-  //       context,
-  //       MaterialPageRoute(
-  //         builder: (context) => LinuxVideoPlayerScreen(
-  //           videoUrl: selectedStream.link,
-  //           title: widget.movieTitle,
-  //           server: selectedStream.server,
-  //           headers: selectedStream.headers,
-  //           streams: widget.streams,
-  //           currentStreamIndex: _selectedStreamIndex,
-  //         ),
-  //       ),
-  //     );
-  //   } catch (e) {
-  //     _showSnackBar('Failed to open player: $e');
-  //   }
-  // }
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LinuxVideoPlayerScreen(
+            videoUrl: selectedStream.link,
+            title: widget.movieTitle,
+            server: selectedStream.server,
+            headers: selectedStream.headers,
+            streams: widget.streams,
+            currentStreamIndex: _selectedStreamIndex,
+          ),
+        ),
+      );
+    } catch (e) {
+      _showSnackBar('Failed to open player: $e');
+    }
+  }
 
   Future<void> _openInVLC() async {
     final selectedStream = widget.streams[_selectedStreamIndex];
