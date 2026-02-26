@@ -131,22 +131,33 @@ class _InfoScreenState extends State<InfoScreen> {
   List<DownloadLink> _getFilteredDownloads() {
     if (_movieInfo == null) return [];
 
+    print('=== INFO SCREEN: _getFilteredDownloads ===');
+    print('Total download links: ${_movieInfo!.downloadLinks.length}');
+    print('Selected Quality: $_selectedQuality');
+    print('Selected Season: $_selectedSeason');
+
     var filtered = _movieInfo!.downloadLinks;
 
     // Filter by quality
     if (_selectedQuality.isNotEmpty) {
       filtered = filtered.where((link) {
-        return link.quality.toLowerCase().contains(
+        final matches = link.quality.toLowerCase().contains(
           _selectedQuality.toLowerCase(),
         );
+        print('Link quality "${link.quality}" matches "$_selectedQuality": $matches');
+        return matches;
       }).toList();
+      print('After quality filter: ${filtered.length} links');
     }
 
     // Filter by season
     if (_selectedSeason.isNotEmpty) {
       filtered = filtered.where((link) {
-        return link.season == _selectedSeason;
+        final matches = link.season == _selectedSeason;
+        print('Link season "${link.season}" matches "$_selectedSeason": $matches');
+        return matches;
       }).toList();
+      print('After season filter: ${filtered.length} links');
     }
 
     // Remove duplicates based on quality + season + url combination
@@ -159,6 +170,9 @@ class _InfoScreenState extends State<InfoScreen> {
       }
       return !isDuplicate;
     }).toList();
+    
+    print('After deduplication: ${filtered.length} links');
+    print('=== END _getFilteredDownloads ===');
 
     return filtered;
   }
@@ -175,7 +189,12 @@ class _InfoScreenState extends State<InfoScreen> {
         qualities.add(match.group(0)!);
       }
     }
-    return qualities.toList();
+    final qualitiesList = qualities.toList();
+    print('=== INFO SCREEN: Available Qualities ===');
+    print('Provider: $_currentProvider');
+    print('Qualities: $qualitiesList');
+    print('=== END Qualities ===');
+    return qualitiesList;
   }
 
   List<String> _getAvailableSeasons() {
@@ -187,7 +206,12 @@ class _InfoScreenState extends State<InfoScreen> {
         seasons.add(link.season!);
       }
     }
-    return seasons.toList();
+    final seasonsList = seasons.toList();
+    print('=== INFO SCREEN: Available Seasons ===');
+    print('Provider: $_currentProvider');
+    print('Seasons: $seasonsList');
+    print('=== END Seasons ===');
+    return seasonsList;
   }
 
   void _navigateDownloads(int delta) {
@@ -267,12 +291,21 @@ class _InfoScreenState extends State<InfoScreen> {
   }
 
   Future<void> _loadEpisodesIfNeeded() async {
+    print('=== INFO SCREEN: _loadEpisodesIfNeeded called ===');
+    print('Provider: $_currentProvider');
+    
     final qualities = _getAvailableQualities();
     final seasons = _getAvailableSeasons();
+    
+    print('Selected Quality: $_selectedQuality');
+    print('Selected Season: $_selectedSeason');
+    print('Qualities available: ${qualities.length}');
+    print('Seasons available: ${seasons.length}');
     
     // Only load episodes if season is selected (when seasons exist)
     // And quality is selected (when qualities exist)
     if (seasons.isNotEmpty && _selectedSeason.isEmpty) {
+      print('Skipping: Season not selected');
       setState(() {
         _episodes = [];
         _currentEpisodeUrl = '';
@@ -281,6 +314,7 @@ class _InfoScreenState extends State<InfoScreen> {
     }
     
     if (qualities.isNotEmpty && _selectedQuality.isEmpty) {
+      print('Skipping: Quality not selected');
       setState(() {
         _episodes = [];
         _currentEpisodeUrl = '';
@@ -289,7 +323,9 @@ class _InfoScreenState extends State<InfoScreen> {
     }
 
     final downloads = _getFilteredDownloads();
+    print('Filtered downloads: ${downloads.length}');
     if (downloads.isEmpty) {
+      print('Skipping: No filtered downloads');
       setState(() {
         _episodes = [];
         _currentEpisodeUrl = '';
@@ -299,9 +335,11 @@ class _InfoScreenState extends State<InfoScreen> {
 
     // Use the first download link for this season/quality combo
     final downloadUrl = downloads.first.url;
+    print('Download URL to fetch episodes from: $downloadUrl');
 
     // Don't reload if we already have episodes for this URL
     if (_currentEpisodeUrl == downloadUrl && _episodes.isNotEmpty) {
+      print('Skipping: Already have episodes for this URL');
       return;
     }
 

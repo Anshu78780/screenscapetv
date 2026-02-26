@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'dart:io';
+import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:tha_player/tha_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -81,6 +83,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       1; // 0=backward, 1=play/pause, 2=forward, 3=audio, 4=subtitle, 5=server
   bool _isBackButtonFocused = false;
 
+  // Long press seek (Netflix-style)
+  Timer? _seekBackwardTimer;
+  Timer? _seekForwardTimer;
+  Timer? _seekBackwardDelayTimer;
+  Timer? _seekForwardDelayTimer;
+
+  // Zigzag seekbar feature flag
+  bool _useZigzagSeekbar = false;
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +100,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _currentHeaders = widget.headers;
 
     WakelockPlus.enable();
+    _checkDeviceCapability();
     _initializePlayer();
   }
 
@@ -99,6 +111,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _goBackFocusNode.dispose();
     _vlcFocusNode.dispose();
     _controlsHideTimer?.cancel();
+    _seekBackwardTimer?.cancel();
+    _seekForwardTimer?.cancel();
+    _seekBackwardDelayTimer?.cancel();
+    _seekForwardDelayTimer?.cancel();
     _audioScrollController.dispose();
     _subtitleScrollController.dispose();
     super.dispose();
@@ -173,6 +189,21 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
+  void _checkDeviceCapability() {
+    // Check if device has sufficient RAM (> 512MB)
+    // Using number of processors as a heuristic for device capability
+    // Devices with 4+ cores typically have > 512MB RAM
+    // Note: For accurate RAM detection, use device_info_plus package
+    try {
+      final processorCount = Platform.numberOfProcessors;
+      _useZigzagSeekbar = processorCount >= 4;
+      print('[VideoPlayer] Processor count: $processorCount, Zigzag seekbar: $_useZigzagSeekbar');
+    } catch (e) {
+      print('[VideoPlayer] Error checking device capability: $e');
+      _useZigzagSeekbar = false;
+    }
+  }
+
   void _resetControlsHideTimer() {
     _controlsHideTimer?.cancel();
     if (!_showAudioMenu && !_showSubtitleMenu) {
@@ -214,6 +245,88 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       _playerController!.seekTo(Duration.zero);
     }
     _resetControlsHideTimer();
+  }
+
+  void _startSeekingBackward() {
+    if (_playerController == null) return;
+    
+    // Cancel any existing timers
+    _seekBackwardDelayTimer?.cancel();
+    
+    // Start after a delay to distinguish from quick tap
+    _seekBackwardDelayTimer = Timer(const Duration(milliseconds: 400), () {
+      if (_playerController == null) return;
+      
+      // Immediate first seek (30 seconds)
+      final firstPosition = _currentPosition - const Duration(seconds: 30);
+      if (firstPosition >= Duration.zero) {
+        _playerController!.seekTo(firstPosition);
+      } else {
+        _playerController!.seekTo(Duration.zero);
+      }
+      
+      // Then continuous seeking (30 seconds every 500ms)
+      _seekBackwardTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+        if (_playerController == null) {
+          _stopSeekingBackward();
+          return;
+        }
+        
+        final newPosition = _currentPosition - const Duration(seconds: 30);
+        if (newPosition >= Duration.zero) {
+          _playerController!.seekTo(newPosition);
+        } else {
+          _playerController!.seekTo(Duration.zero);
+        }
+      });
+    });
+  }
+
+  void _stopSeekingBackward() {
+    _seekBackwardDelayTimer?.cancel();
+    _seekBackwardDelayTimer = null;
+    _seekBackwardTimer?.cancel();
+    _seekBackwardTimer = null;
+  }
+
+  void _startSeekingForward() {
+    if (_playerController == null) return;
+    
+    // Cancel any existing timers
+    _seekForwardDelayTimer?.cancel();
+    
+    // Start after a delay to distinguish from quick tap
+    _seekForwardDelayTimer = Timer(const Duration(milliseconds: 400), () {
+      if (_playerController == null) return;
+      
+      // Immediate first seek (30 seconds)
+      final firstPosition = _currentPosition + const Duration(seconds: 30);
+      if (firstPosition <= _totalDuration) {
+        _playerController!.seekTo(firstPosition);
+      }
+      
+      // Then continuous seeking (30 seconds every 500ms)
+      _seekForwardTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+        if (_playerController == null) {
+          _stopSeekingForward();
+          return;
+        }
+        
+        final newPosition = _currentPosition + const Duration(seconds: 30);
+        if (newPosition <= _totalDuration) {
+          _playerController!.seekTo(newPosition);
+        } else {
+          _stopSeekingForward();
+        }
+      });
+    });
+  }
+
+  void _stopSeekingForward() {
+    _seekForwardDelayTimer?.cancel();
+    _seekForwardDelayTimer = null;
+    _seekForwardTimer?.cancel();
+    _seekForwardTimer = null;
   }
 
   void _navigateControls(int delta) {
@@ -1006,8 +1119,25 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           if (event is RawKeyDownEvent) {
             if (event.logicalKey == LogicalKeyboardKey.space) {
               _togglePlayPause();
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              // Start continuous seeking backward when left arrow is held
+              if (!_showAudioMenu && !_showSubtitleMenu && !_showServerMenu && !_isBackButtonFocused) {
+                _startSeekingBackward();
+              }
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              // Start continuous seeking forward when right arrow is held
+              if (!_showAudioMenu && !_showSubtitleMenu && !_showServerMenu && !_isBackButtonFocused) {
+                _startSeekingForward();
+              }
             }
             _resetControlsHideTimer();
+          } else if (event is RawKeyUpEvent) {
+            // Stop continuous seeking when key is released
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              _stopSeekingBackward();
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              _stopSeekingForward();
+            }
           }
         },
         child: Scaffold(
@@ -1181,7 +1311,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                       Expanded(
                                         child: SliderTheme(
                                           data: SliderTheme.of(context).copyWith(
-                                            trackHeight: 2,
+                                            trackHeight: _useZigzagSeekbar ? 6 : 2,
                                             thumbShape:
                                                 const RoundSliderThumbShape(
                                                   enabledThumbRadius: 6,
@@ -1195,8 +1325,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                             thumbColor: Colors.white,
                                             overlayColor: Colors.white
                                                 .withOpacity(0.1),
-                                            trackShape:
-                                                const RectangularSliderTrackShape(),
+                                            trackShape: _useZigzagSeekbar
+                                                ? const SquigglySliderTrackShape(
+                                                    waveLength: 20.0,
+                                                    waveAmplitude: 3.0,
+                                                    strokeWidth: 3.0,
+                                                  )
+                                                : const RectangularSliderTrackShape(),
                                           ),
                                           child: Slider(
                                             value:
@@ -1246,7 +1381,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 32),
+                                  const SizedBox(height: 8),
 
                                   // Control buttons
                                   SizedBox(
@@ -1258,12 +1393,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            _buildControlButton(
-                                              icon: Icons.replay_10_rounded,
-                                              label: 'Back 10s',
-                                              isSelected:
-                                                  _focusedControlIndex == 0,
-                                              onTap: _seekBackward,
+                                            Listener(
+                                              onPointerDown: (_) => _startSeekingBackward(),
+                                              onPointerUp: (_) => _stopSeekingBackward(),
+                                              onPointerCancel: (_) => _stopSeekingBackward(),
+                                              child: _buildControlButton(
+                                                icon: Icons.replay_10_rounded,
+                                                label: 'Back 10s',
+                                                isSelected:
+                                                    _focusedControlIndex == 0,
+                                                onTap: () {}, // Handled by Listener
+                                              ),
                                             ),
                                             const SizedBox(width: 32),
                                             _buildControlButton(
@@ -1279,12 +1419,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                               isPrimary: true,
                                             ),
                                             const SizedBox(width: 32),
-                                            _buildControlButton(
-                                              icon: Icons.forward_10_rounded,
-                                              label: 'Forward 10s',
-                                              isSelected:
-                                                  _focusedControlIndex == 2,
-                                              onTap: _seekForward,
+                                            Listener(
+                                              onPointerDown: (_) => _startSeekingForward(),
+                                              onPointerUp: (_) => _stopSeekingForward(),
+                                              onPointerCancel: (_) => _stopSeekingForward(),
+                                              child: _buildControlButton(
+                                                icon: Icons.forward_10_rounded,
+                                                label: 'Forward 10s',
+                                                isSelected:
+                                                    _focusedControlIndex == 2,
+                                                onTap: () {}, // Handled by Listener
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -2001,7 +2146,7 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
 
               // Inputs
               Row(
@@ -2295,5 +2440,98 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
       ),
     ),
     );
+  }
+}
+
+class SquigglySliderTrackShape extends SliderTrackShape {
+  const SquigglySliderTrackShape({
+    this.waveLength = 20.0,
+    this.waveAmplitude = 3.0,
+    this.strokeWidth = 3.0,
+  });
+
+  final double waveLength;
+  final double waveAmplitude;
+  final double strokeWidth;
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = math.max(sliderTheme.trackHeight ?? 0.0, waveAmplitude * 2);
+    final double trackLeft = offset.dx;
+    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 0,
+  }) {
+    final Rect trackRect = getPreferredRect(
+      parentBox: parentBox,
+      offset: offset,
+      sliderTheme: sliderTheme,
+      isEnabled: isEnabled,
+      isDiscrete: isDiscrete,
+    );
+
+    final Paint activePaint = Paint()
+      ..color = sliderTheme.activeTrackColor ?? Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final Paint inactivePaint = Paint()
+      ..color = sliderTheme.inactiveTrackColor ?? Colors.white24
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final double centerY = trackRect.center.dy;
+
+    // Draw inactive straight line from thumb to right
+    if (thumbCenter.dx < trackRect.right) {
+      context.canvas.drawLine(
+        Offset(thumbCenter.dx, centerY),
+        Offset(trackRect.right, centerY),
+        inactivePaint,
+      );
+    }
+
+    // Draw active squiggly line from left to thumb
+    if (thumbCenter.dx > trackRect.left) {
+      final Path path = Path();
+      path.moveTo(trackRect.left, centerY);
+
+      // Phase shift so the wave meets the thumb at centerY
+      final double k = 2 * math.pi / waveLength;
+      final double phase = -k * thumbCenter.dx;
+
+      const double step = 2.0;
+      for (double x = trackRect.left; x <= thumbCenter.dx; x += step) {
+        final double y = centerY + waveAmplitude * math.sin(k * x + phase);
+        path.lineTo(x, y);
+      }
+      // Connect exactly to thumb center
+      path.lineTo(thumbCenter.dx, centerY);
+
+      context.canvas.drawPath(path, activePaint);
+    }
   }
 }

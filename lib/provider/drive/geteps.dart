@@ -107,23 +107,29 @@ class EpisodeParser {
 
     // Fallback: If no series episodes found, look for movie links
     if (episodes.isEmpty) {
-      // Strategy 1: Look for h3/h4/h5 headers that contain HubCloud or GDFlix links
-      final headerSelectors = ['h3', 'h4', 'h5'];
+      // Find all links in the page that point to HubCloud or GDFlix
+      final allLinks = document.querySelectorAll('a');
       List<EpisodeLink> movieLinks = [];
+      Set<String> seenUrls = {}; // Avoid duplicates
 
-      for (String selector in headerSelectors) {
-        final headerElements = document.querySelectorAll(selector);
-        for (var headerElement in headerElements) {
-          final anchor = headerElement.querySelector('a');
-          if (anchor != null) {
-            final href = anchor.attributes['href'];
+      for (var linkElement in allLinks) {
+        final href = linkElement.attributes['href'];
+        
+        if (href != null && !seenUrls.contains(href)) {
+          String? server;
+          
+          if (_isHubCloudLink(href)) {
+            server = 'HubCloud';
+          } else if (_isGdFlixLink(href)) {
+            server = 'GDFlix';
+          }
 
-            if (href != null) {
-              if (_isHubCloudLink(href)) {
-                movieLinks.add(EpisodeLink(server: 'HubCloud', url: href));
-              } else if (_isGdFlixLink(href)) {
-                movieLinks.add(EpisodeLink(server: 'GDFlix', url: href));
-              }
+          if (server != null) {
+            // Check if this is a download link (not a site/telegram link)
+            // Valid download links should have /drive/ or /file/ in the path
+            if (href.contains('/drive/') || href.contains('/file/')) {
+              seenUrls.add(href);
+              movieLinks.add(EpisodeLink(server: server, url: href));
             }
           }
         }
@@ -139,49 +145,25 @@ class EpisodeParser {
           ),
         );
       }
+    }
 
-      // Strategy 2: Fallback to original method if still no results
-      if (episodes.isEmpty) {
-        final linkElements = document.querySelectorAll('a');
-        for (var element in linkElements) {
-          final href = element.attributes['href'];
-          final text = element.text.toLowerCase();
-
-          if (href != null) {
-            if (_isHubCloudLink(href) || _isGdFlixLink(href)) {
-              bool isMatch = false;
-
-              // Check 1: Text contains 'instant' or 'hubcloud' or 'gdflix'
-              if (text.contains('instant') ||
-                  text.contains('hubcloud') ||
-                  text.contains('gdflix')) {
-                isMatch = true;
-              }
-              // Check 2: Contains an image (handling button images inside links)
-              else if (element.querySelector('img') != null) {
-                isMatch = true;
-              }
-              // Check 3: Parent is a header tag (strong signal for main movie link)
-              else if (element.parent != null &&
-                  ['h3', 'h4', 'h5'].contains(element.parent!.localName)) {
-                isMatch = true;
-              }
-
-              if (isMatch) {
-                String server = _isHubCloudLink(href) ? 'HubCloud' : 'GDFlix';
-                episodes.add(
-                  Episode(
-                    title: text.isNotEmpty ? element.text.trim() : "Movie",
-                    link: href,
-                    links: [EpisodeLink(server: server, url: href)],
-                  ),
-                );
-              }
-            }
-          }
+    // Debug logging for drive episode parser
+    print('=== DRIVE EPISODE PARSER ===');
+    print('Total episodes found: ${episodes.length}');
+    for (var i = 0; i < episodes.length; i++) {
+      final ep = episodes[i];
+      print('Episode $i:');
+      print('  Title: ${ep.title}');
+      print('  Primary Link: ${ep.link}');
+      print('  Available Links: ${ep.links?.length ?? 0}');
+      if (ep.links != null) {
+        for (var j = 0; j < ep.links!.length; j++) {
+          final link = ep.links![j];
+          print('    Link $j - Server: ${link.server}, URL: ${link.url}');
         }
       }
     }
+    print('=== END EPISODE PARSER ===');
 
     return episodes;
   }

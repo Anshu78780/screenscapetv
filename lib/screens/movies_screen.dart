@@ -140,6 +140,53 @@ class _MoviesScreenState extends State<MoviesScreen> {
     }
   }
 
+  Future<void> _showExitDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.exit_to_app, color: Colors.red),
+              SizedBox(width: 10),
+              Text('Exit App', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: const Text(
+            'Do you want to exit the app?',
+            style: TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          actions: <Widget>[
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white70,
+              ),
+              child: const Text('No'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Yes'),
+              onPressed: () {
+                SystemNavigator.pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _toggleSearch() {
     setState(() {
       _isSearchActive = !_isSearchActive;
@@ -499,7 +546,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (!didPop) {
-          // Prevent closing logic here
+          await _showExitDialog();
         }
       },
       child: KeyEventHandler(
@@ -535,14 +582,25 @@ class _MoviesScreenState extends State<MoviesScreen> {
             return;
           }
           if (_isMenuButtonFocused || _isSearchFocused) {
-            // Already at top level/header, maybe show exit dialog or nothing
+            // Already at top level/header, show exit dialog
+            _showExitDialog();
+            return;
+          }
+          // If navigating categories, show exit dialog
+          if (_isNavigatingCategories) {
+            _showExitDialog();
+            return;
+          }
+          // If in movie grid, go back to categories
+          if (_selectedMovieIndex >= 0) {
             setState(() {
-              _isMenuButtonFocused = false;
-              _isSearchFocused = false;
+              _selectedMovieIndex = -1;
               _isNavigatingCategories = true;
             });
             return;
           }
+          // Default fallback: show exit dialog
+          _showExitDialog();
         },
         onEnterKey: () {
           if (_searchFocusNode.hasFocus && _isSearchActive) {

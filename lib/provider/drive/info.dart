@@ -345,6 +345,21 @@ class MovieInfoParser {
       }
     }
     
+    // Debug logging for drive provider
+    print('=== DRIVE PARSER: Movie Info ===');
+    print('Title: $title');
+    print('Total download links found: ${downloadLinks.length}');
+    for (var i = 0; i < downloadLinks.length; i++) {
+      final link = downloadLinks[i];
+      print('Link $i:');
+      print('  Quality: ${link.quality}');
+      print('  Size: ${link.size}');
+      print('  Season: ${link.season}');
+      print('  Episode: ${link.episodeInfo}');
+      print('  URL: ${link.url}');
+    }
+    print('=== END DRIVE PARSER ===');
+    
     return MovieInfo(
       title: title,
       imageUrl: imageUrl,
