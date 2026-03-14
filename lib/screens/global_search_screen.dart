@@ -38,6 +38,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   int _selectedProviderIndex = -1; // -1 means focus is on search bar
   int _selectedMovieIndex = 0;
 
+  List<Map<String, dynamic>> get _searchProviders {
+    return ProviderManager.availableProviders
+        .where((p) => p['id'] != 'Xdmovies')
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,7 +73,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   List<String> _getVisibleProviders() {
-    return ProviderManager.availableProviders
+    return _searchProviders
         .map((p) => p['id'] as String)
         .where((id) {
           final isLoading = _loading[id] == true;
@@ -91,7 +97,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       _selectedProviderIndex = -1;
     });
 
-    final providers = ProviderManager.availableProviders;
+    final providers = _searchProviders;
 
     for (var provider in providers) {
       final providerId = provider['id'] as String;
@@ -460,7 +466,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                     child: ListView(
                       controller: _verticalScrollController,
                       padding: const EdgeInsets.only(bottom: 50, top: 10),
-                      children: ProviderManager.availableProviders.map((
+                      children: _searchProviders.map((
                         provider,
                       ) {
                         return _buildProviderSection(provider);

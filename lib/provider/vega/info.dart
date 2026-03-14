@@ -24,6 +24,9 @@ Future<MovieInfo> vegaGetInfo(String link) async {
 
     // Try multiple selectors to find the content container
     Element? infoContainer =
+      document.querySelector('.post-layout .post-content .page-body') ??
+      document.querySelector('article.post-content main.page-body') ??
+      document.querySelector('main.page-body') ??
         document.querySelector('#primary .entry-content') ??
         document.querySelector('main .entry-content') ??
         document.querySelector('.entry-content') ??
@@ -55,20 +58,43 @@ Future<MovieInfo> vegaGetInfo(String link) async {
       imdbId = textMatch?.group(0) ?? '';
     }
 
-    // Extract title
-    final typeText = heading?.nextElementSibling?.text ?? '';
-    final titleMatch = RegExp(r'Name:\s*(.+)').firstMatch(typeText);
-    final title = titleMatch?.group(1)?.trim() ?? '';
+    // Extract title from new layout first, then fallback to old pattern.
+    var title =
+        document.querySelector('.post-header .post-title')?.text.trim() ?? '';
+
+    if (title.isEmpty) {
+      final typeText = heading?.nextElementSibling?.text ?? '';
+      final titleMatch = RegExp(r'Name:\s*(.+)').firstMatch(typeText);
+      title = titleMatch?.group(1)?.trim() ?? '';
+    }
+
+    if (title.isEmpty) {
+      title = document.querySelector('h1')?.text.trim() ?? '';
+    }
+
+    title = title.replaceAll(RegExp(r'^Download\s+', caseSensitive: false), '').trim();
 
     // Extract synopsis
     String synopsis = '';
-    final paragraphs = infoContainer.querySelectorAll('p');
-    for (var p in paragraphs) {
-      final nextHeading = p.nextElementSibling;
-      if (nextHeading?.localName == 'h3' || nextHeading?.localName == 'h4') {
-        final synopsisP = nextHeading?.nextElementSibling;
-        if (synopsisP?.localName == 'p') {
-          synopsis = synopsisP?.text.trim() ?? '';
+    final synopsisHeader = infoContainer.querySelectorAll('h2, h3, h4').firstWhere(
+      (h) => h.text.toLowerCase().contains('synopsis') || h.text.toLowerCase().contains('plot'),
+      orElse: () => Element.tag('empty'),
+    );
+
+    if (synopsisHeader.localName != 'empty') {
+      final synopsisP = synopsisHeader.nextElementSibling;
+      if (synopsisP?.localName == 'p') {
+        synopsis = synopsisP?.text.trim() ?? '';
+      }
+    }
+
+    // Fallback synopsis: first substantial paragraph in page body.
+    if (synopsis.isEmpty) {
+      final paragraphs = infoContainer.querySelectorAll('p');
+      for (final p in paragraphs) {
+        final text = p.text.trim();
+        if (text.length > 80 && !text.toLowerCase().contains('download')) {
+          synopsis = text;
           break;
         }
       }
@@ -76,19 +102,20 @@ Future<MovieInfo> vegaGetInfo(String link) async {
 
     // Extract image
     var imageUrl =
-        infoContainer
-            .querySelector('img[data-lazy-src]')
-            ?.attributes['data-lazy-src'] ??
-        '';
+      document.querySelector('meta[property="og:image"]')?.attributes['content'] ??
+      document.querySelector('meta[name="twitter:image"]')?.attributes['content'] ??
+      infoContainer.querySelector('img[data-lazy-src]')?.attributes['data-lazy-src'] ??
+      infoContainer.querySelector('img[src]')?.attributes['src'] ??
+      '';
     if (imageUrl.startsWith('//')) {
       imageUrl = 'https:$imageUrl';
     }
 
-    // Extract links from h3/h4 headers (Season + Quality based) and h5 headers (Quality only)
+    // Extract links from headers (Season + Quality based) and h5 headers (Quality only)
     final links = <DownloadLink>[];
 
     // First, try h3/h4 headers for season-based content
-    final headers = infoContainer.querySelectorAll('h3, h4');
+    final headers = infoContainer.querySelectorAll('h2, h3, h4');
 
     for (var element in headers) {
       final headerTitle = element.text.trim();
@@ -137,7 +164,7 @@ Future<MovieInfo> vegaGetInfo(String link) async {
       final nextElement = parent.children[index + 1];
       if (nextElement.localName != 'p') continue;
 
-      // Look for episode links in the following paragraph - extract BOTH G-Direct and V-Cloud
+      // Look for episode links in the following paragraph.
       final episodeLinks = <String>[];
 
       // Extract G-Direct link (by green gradient style)
@@ -179,12 +206,14 @@ Future<MovieInfo> vegaGetInfo(String link) async {
         }
       }
 
-      // Fallback: Check for any link in the paragraph
+      // Fallback: collect every valid anchor in paragraph.
       if (episodeLinks.isEmpty) {
-        final linkElement = nextElement.querySelector('a');
-        final link = linkElement?.attributes['href'];
-        if (link != null && link.isNotEmpty && link != 'javascript:void(0);') {
-          episodeLinks.add(link);
+        final anchors = nextElement.querySelectorAll('a[href]');
+        for (final anchor in anchors) {
+          final link = anchor.attributes['href'];
+          if (link != null && link.isNotEmpty && link != 'javascript:void(0);') {
+            episodeLinks.add(link);
+          }
         }
       }
 
@@ -211,7 +240,7 @@ Future<MovieInfo> vegaGetInfo(String link) async {
       }
     }
 
-    // If no h3/h4 links found, try h5 headers for direct quality downloads
+    // If no h2/h3/h4 links found, try h5 headers for direct quality downloads.
     if (links.isEmpty) {
       print(
         'vegaGetInfo: No season-based links found, looking for direct quality downloads',
@@ -273,13 +302,16 @@ Future<MovieInfo> vegaGetInfo(String link) async {
           downloadLinks.add(vcloudLink);
         }
 
-        // Fallback: check for any link
+        // Fallback: check for all valid links.
         if (downloadLinks.isEmpty) {
-          final link = nextP.querySelector('a')?.attributes['href'];
-          if (link != null &&
-              link.isNotEmpty &&
-              link != 'javascript:void(0);') {
-            downloadLinks.add(link);
+          final anchors = nextP.querySelectorAll('a[href]');
+          for (final anchor in anchors) {
+            final link = anchor.attributes['href'];
+            if (link != null &&
+                link.isNotEmpty &&
+                link != 'javascript:void(0);') {
+              downloadLinks.add(link);
+            }
           }
         }
 
@@ -302,7 +334,16 @@ Future<MovieInfo> vegaGetInfo(String link) async {
       }
     }
 
-    print('vegaGetInfo: Found ${links.length} links');
+    // Deduplicate links by URL payload while preserving order.
+    final uniqueLinks = <String>{};
+    final dedupedLinks = <DownloadLink>[];
+    for (final item in links) {
+      if (item.url.isEmpty || uniqueLinks.contains(item.url)) continue;
+      uniqueLinks.add(item.url);
+      dedupedLinks.add(item);
+    }
+
+    print('vegaGetInfo: Found ${dedupedLinks.length} links');
     return MovieInfo(
       title: title,
       imageUrl: imageUrl,
@@ -315,7 +356,7 @@ Future<MovieInfo> vegaGetInfo(String link) async {
       quality: '',
       format: '',
       storyline: synopsis,
-      downloadLinks: links,
+      downloadLinks: dedupedLinks,
     );
   } catch (error) {
     print('vegaGetInfo error: $error');

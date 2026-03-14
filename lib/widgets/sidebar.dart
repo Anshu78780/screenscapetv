@@ -24,11 +24,17 @@ class _SidebarState extends State<Sidebar> {
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _itemKeys = {};
 
+  List<Map<String, dynamic>> get _sidebarProviders {
+    return ProviderManager.availableProviders
+        .where((p) => p['id'] != 'Xdmovies')
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
     // Create keys for each provider item + user guide
-    final itemCount = ProviderManager.availableProviders.length + 1;
+    final itemCount = _sidebarProviders.length + 1;
     for (int i = 0; i < itemCount; i++) {
       _itemKeys[i] = GlobalKey();
     }
@@ -51,7 +57,7 @@ class _SidebarState extends State<Sidebar> {
 
   void _scrollToFocusedItem() {
     // Include the extra item in the valid range check
-    final maxIndex = ProviderManager.availableProviders.length;
+    final maxIndex = _sidebarProviders.length;
     if (widget.focusedIndex < -1 || widget.focusedIndex > maxIndex) {
       return;
     }
@@ -182,9 +188,9 @@ class _SidebarState extends State<Sidebar> {
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   // Add 1 for the disclaimer button
-                  itemCount: ProviderManager.availableProviders.length + 1,
+                  itemCount: _sidebarProviders.length + 1,
                   itemBuilder: (context, index) {
-                    final providerCount = ProviderManager.availableProviders.length;
+                    final providerCount = _sidebarProviders.length;
                     
                     // Disclaimer/User Guide Button
                     if (index == providerCount) {
@@ -208,7 +214,7 @@ class _SidebarState extends State<Sidebar> {
                        );
                     }
 
-                    final provider = ProviderManager.availableProviders[index];
+                    final provider = _sidebarProviders[index];
                     final isSelected = provider['id'] == widget.selectedProvider;
                     final isFocused = index == widget.focusedIndex;
                     return _buildSidebarItem(
