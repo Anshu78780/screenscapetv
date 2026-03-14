@@ -9,7 +9,8 @@ class CastleCatalog {
   static const String client = '1';
   static const String lang = 'en-US';
   static const String tmdbApiKey = '5a209f099efaba1cd26a904e09b90829';
-  static const String tmdbBaseUrl = 'https://api.themoviedb.org/3';
+  static const String tmdbBaseUrl =
+      'https://twilight-cake-defb.hunternisha55.workers.dev/3';
 
   // Categories for Castle provider
   static const List<Map<String, String>> categories = [
@@ -32,7 +33,6 @@ class CastleCatalog {
     String encryptedB64,
     String securityKeyB64,
   ) async {
-    print('[Castle] Starting Castle-specific AES-CBC decryption...');
 
     try {
       final response = await http.post(

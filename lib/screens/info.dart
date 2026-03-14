@@ -11,6 +11,8 @@ import '../utils/key_event_handler.dart';
 import '../widgets/streaming_links_dialog.dart';
 import '../widgets/episode_selection_dialog.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
+import '../utils/watchlist_storage.dart';
+import '../utils/watch_history_storage.dart';
 
 class InfoScreen extends StatefulWidget {
   final String movieUrl;
@@ -36,6 +38,8 @@ class _InfoScreenState extends State<InfoScreen> {
   bool _isQualitySelectorFocused = false;
   bool _isSeasonSelectorFocused = false;
   bool _isBackButtonFocused = false;
+  bool _isWatchlistButtonFocused = false;
+  bool _isInWatchlist = false;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SeasonListState> _seasonListKey =
       GlobalKey<SeasonListState>();
@@ -106,6 +110,7 @@ class _InfoScreenState extends State<InfoScreen> {
           _isSeasonSelectorFocused = true;
         } else {
           _isBackButtonFocused = true;
+          _isWatchlistButtonFocused = false;
         }
 
         // Auto-load episodes if season is selected or if only qualities exist
@@ -115,12 +120,55 @@ class _InfoScreenState extends State<InfoScreen> {
           _loadEpisodesIfNeeded();
         }
       });
+
+      await _loadWatchlistState();
     } catch (e) {
       setState(() {
         _error = e.toString();
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadWatchlistState() async {
+    final exists = await WatchlistStorage.isInWatchlist(widget.movieUrl);
+    if (!mounted) return;
+    setState(() {
+      _isInWatchlist = exists;
+    });
+  }
+
+  Future<void> _toggleWatchlist() async {
+    if (_movieInfo == null) return;
+
+    if (_isInWatchlist) {
+      await WatchlistStorage.removeItem(widget.movieUrl);
+      if (!mounted) return;
+      setState(() => _isInWatchlist = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Removed from watchlist'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    await WatchlistStorage.addItem(
+      movieUrl: widget.movieUrl,
+      title: _movieInfo!.title,
+      imageUrl: _movieInfo!.imageUrl,
+      provider: _currentProvider,
+    );
+
+    if (!mounted) return;
+    setState(() => _isInWatchlist = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Added to watchlist'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   /// Process download URL using provider-specific logic
@@ -383,11 +431,13 @@ class _InfoScreenState extends State<InfoScreen> {
   void _navigateVertical(int delta) {
     final qualities = _getAvailableQualities();
     final seasons = _getAvailableSeasons();
+    final isTopButtonFocused = _isBackButtonFocused || _isWatchlistButtonFocused;
     
     setState(() {
       if (delta < 0) {
         // Up arrow
         if (!_isBackButtonFocused &&
+          !_isWatchlistButtonFocused &&
             !_isQualitySelectorFocused &&
             !_isSeasonSelectorFocused &&
             _selectedDownloadIndex == 0) {
@@ -398,6 +448,7 @@ class _InfoScreenState extends State<InfoScreen> {
             _isQualitySelectorFocused = true;
           } else {
             _isBackButtonFocused = true;
+            _isWatchlistButtonFocused = false;
             _scrollToTop();
           }
         } else if (_isSeasonSelectorFocused) {
@@ -407,14 +458,16 @@ class _InfoScreenState extends State<InfoScreen> {
             _isQualitySelectorFocused = true;
           } else {
             _isBackButtonFocused = true;
+            _isWatchlistButtonFocused = false;
             _scrollToTop();
           }
         } else if (_isQualitySelectorFocused) {
           // From quality selector to back button
           _isQualitySelectorFocused = false;
           _isBackButtonFocused = true;
+          _isWatchlistButtonFocused = false;
           _scrollToTop();
-        } else if (!_isBackButtonFocused &&
+        } else if (!isTopButtonFocused &&
             !_isQualitySelectorFocused &&
             !_isSeasonSelectorFocused) {
           // Navigate up in downloads
@@ -422,9 +475,10 @@ class _InfoScreenState extends State<InfoScreen> {
         }
       } else {
         // Down arrow
-        if (_isBackButtonFocused) {
+        if (isTopButtonFocused) {
           // From back button to quality selector, season, or downloads
           _isBackButtonFocused = false;
+          _isWatchlistButtonFocused = false;
           if (qualities.isNotEmpty) {
             _isQualitySelectorFocused = true;
           } else if (seasons.length > 1) {
@@ -487,6 +541,14 @@ class _InfoScreenState extends State<InfoScreen> {
 
     return KeyEventHandler(
       onLeftKey: () {
+        if (_isBackButtonFocused || _isWatchlistButtonFocused) {
+          setState(() {
+            _isBackButtonFocused = true;
+            _isWatchlistButtonFocused = false;
+          });
+          return;
+        }
+
         if (_isQualitySelectorFocused) {
           // Navigate from quality to season (if seasons exist)
           final seasons = _getAvailableSeasons();
@@ -505,6 +567,14 @@ class _InfoScreenState extends State<InfoScreen> {
         }
       },
       onRightKey: () {
+        if (_isBackButtonFocused || _isWatchlistButtonFocused) {
+          setState(() {
+            _isBackButtonFocused = false;
+            _isWatchlistButtonFocused = true;
+          });
+          return;
+        }
+
         if (_isSeasonSelectorFocused) {
           // Navigate from season to quality (if qualities exist)
           final qualities = _getAvailableQualities();
@@ -527,6 +597,8 @@ class _InfoScreenState extends State<InfoScreen> {
       onEnterKey: () {
         if (_isBackButtonFocused) {
           Navigator.of(context).pop();
+        } else if (_isWatchlistButtonFocused) {
+          _toggleWatchlist();
         } else if (_isQualitySelectorFocused) {
           _selectCurrentQuality();
           _qualityListKey.currentState?.openDropdown();
@@ -760,6 +832,40 @@ class _InfoScreenState extends State<InfoScreen> {
                   label: const Text(
                     'Back',
                     style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: _isWatchlistButtonFocused
+                      ? (_isInWatchlist ? Colors.green : Colors.amber)
+                      : Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border: _isWatchlistButtonFocused
+                      ? Border.all(color: Colors.white, width: 2)
+                      : Border.all(color: Colors.transparent, width: 2),
+                ),
+                child: TextButton.icon(
+                  onPressed: _toggleWatchlist,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    foregroundColor: _isWatchlistButtonFocused
+                        ? Colors.black
+                        : Colors.white,
+                  ),
+                  icon: Icon(
+                    _isInWatchlist
+                        ? Icons.bookmark_added_rounded
+                        : Icons.bookmark_add_outlined,
+                  ),
+                  label: Text(
+                    _isInWatchlist ? 'In Watchlist' : 'Add Watchlist',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -1379,7 +1485,13 @@ class _InfoScreenState extends State<InfoScreen> {
 
       if (allStreams.isNotEmpty) {
         print('Total streams extracted: ${allStreams.length}');
-        _showStreamingLinksDialog(allStreams, _selectedQuality);
+        final baseTitle = _movieInfo?.title ?? 'Movie';
+        final resumeKey = '$baseTitle|${_selectedSeason.trim()}|${episode.title.trim()}';
+        _showStreamingLinksDialog(
+          allStreams,
+          _selectedQuality,
+          resumeKey: resumeKey,
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1555,14 +1667,27 @@ class _InfoScreenState extends State<InfoScreen> {
 
   void _showStreamingLinksDialog(
     List<stream_types.Stream> streams,
-    String quality,
-  ) {
+    String quality, {
+    String? resumeKey,
+  }) {
+    if (_movieInfo != null) {
+      unawaited(
+        WatchHistoryStorage.addItem(
+          movieUrl: widget.movieUrl,
+          title: _movieInfo!.title,
+          imageUrl: _movieInfo!.imageUrl,
+          provider: _currentProvider,
+        ),
+      );
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => StreamingLinksDialog(
           streams: streams,
           quality: quality,
           movieTitle: _movieInfo?.title ?? 'Movie',
+          resumeKey: resumeKey,
         ),
       ),
     );

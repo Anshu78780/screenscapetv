@@ -190,7 +190,6 @@ class CastleGetPost {
         }
       }
 
-      // Process TV show results
       if (tvResponse.statusCode == 200) {
         final data = jsonDecode(tvResponse.body);
         final results = (data['results'] ?? []) as List;
@@ -229,10 +228,8 @@ class CastleGetPost {
         }
       }
 
-      print('[CastleGetPost] Search returning ${movies.length} results');
       return movies;
     } catch (e) {
-      print('[CastleGetPost] Search error: $e');
       return [];
     }
   }

@@ -11,10 +11,12 @@ import '../provider/extractors/stream_types.dart' as stream_types;
 import '../utils/vlc_launcher.dart';
 import '../utils/key_event_handler.dart';
 import '../utils/subtitle_service.dart';
+import '../utils/playback_progress_cache.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String title;
+  final String? resumeKey;
   final String server;
   final Map<String, String>? headers;
   final List<stream_types.Stream>? streams;
@@ -24,6 +26,7 @@ class VideoPlayerScreen extends StatefulWidget {
     super.key,
     required this.videoUrl,
     required this.title,
+    this.resumeKey,
     required this.server,
     this.headers,
     this.streams,
@@ -61,6 +64,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _isPlaying = false;
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
+  Duration _resumePosition = Duration.zero;
+  bool _hasAppliedResume = false;
+  DateTime _lastProgressSaveAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   // Audio track selection
   bool _showAudioMenu = false;
@@ -88,6 +94,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Timer? _seekForwardTimer;
   Timer? _seekBackwardDelayTimer;
   Timer? _seekForwardDelayTimer;
+  bool _isSeekingBackward = false;
+  bool _isSeekingForward = false;
 
   // Zigzag seekbar feature flag
   bool _useZigzagSeekbar = false;
@@ -101,12 +109,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     WakelockPlus.enable();
     _checkDeviceCapability();
+    _loadResumePosition();
     _initializePlayer();
   }
 
   @override
   void dispose() {
     WakelockPlus.disable();
+    unawaited(_persistPlaybackProgress(force: true));
     _playerController?.dispose();
     _goBackFocusNode.dispose();
     _vlcFocusNode.dispose();
@@ -118,6 +128,53 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _audioScrollController.dispose();
     _subtitleScrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadResumePosition() async {
+    _resumePosition = await PlaybackProgressCache.getProgress(
+      widget.resumeKey ?? widget.title,
+    );
+  }
+
+  Future<void> _persistPlaybackProgress({bool force = false}) async {
+    final now = DateTime.now();
+    if (!force && now.difference(_lastProgressSaveAt) < const Duration(seconds: 5)) {
+      return;
+    }
+
+    _lastProgressSaveAt = now;
+    await PlaybackProgressCache.saveProgress(
+      movieTitle: widget.resumeKey ?? widget.title,
+      position: _currentPosition,
+      duration: _totalDuration,
+    );
+  }
+
+  void _tryApplyResumePosition() {
+    if (_hasAppliedResume) return;
+    if (_resumePosition <= Duration.zero) return;
+    if (_playerController == null) return;
+    if (_totalDuration <= _resumePosition + const Duration(seconds: 5)) return;
+    if (_currentPosition > const Duration(seconds: 5)) return;
+
+    _hasAppliedResume = true;
+    unawaited(() async {
+      try {
+        await _playerController!.seekTo(_resumePosition);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Resumed at ${_formatDuration(_resumePosition)}'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.black87,
+            ),
+          );
+        }
+      } catch (_) {
+        // Ignore resume seek failures; playback should continue normally.
+      }
+    }());
   }
 
   Future<void> _initializePlayer() async {
@@ -187,6 +244,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         _isPlaying = state.isPlaying;
       });
     }
+
+    _tryApplyResumePosition();
+    unawaited(_persistPlaybackProgress());
   }
 
   void _checkDeviceCapability() {
@@ -249,30 +309,32 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   void _startSeekingBackward() {
     if (_playerController == null) return;
+    if (_isSeekingBackward) return;
+    _isSeekingBackward = true;
     
     // Cancel any existing timers
     _seekBackwardDelayTimer?.cancel();
     
-    // Start after a delay to distinguish from quick tap
+    // Start after a short delay to distinguish from quick tap
     _seekBackwardDelayTimer = Timer(const Duration(milliseconds: 400), () {
       if (_playerController == null) return;
       
-      // Immediate first seek (30 seconds)
-      final firstPosition = _currentPosition - const Duration(seconds: 30);
+      // Immediate first seek (20 seconds)
+      final firstPosition = _currentPosition - const Duration(seconds: 20);
       if (firstPosition >= Duration.zero) {
         _playerController!.seekTo(firstPosition);
       } else {
         _playerController!.seekTo(Duration.zero);
       }
       
-      // Then continuous seeking (30 seconds every 500ms)
+      // Then continuous seeking (20 seconds every 500ms)
       _seekBackwardTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
         if (_playerController == null) {
           _stopSeekingBackward();
           return;
         }
         
-        final newPosition = _currentPosition - const Duration(seconds: 30);
+        final newPosition = _currentPosition - const Duration(seconds: 20);
         if (newPosition >= Duration.zero) {
           _playerController!.seekTo(newPosition);
         } else {
@@ -283,6 +345,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   void _stopSeekingBackward() {
+    _isSeekingBackward = false;
     _seekBackwardDelayTimer?.cancel();
     _seekBackwardDelayTimer = null;
     _seekBackwardTimer?.cancel();
@@ -291,28 +354,30 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   void _startSeekingForward() {
     if (_playerController == null) return;
+    if (_isSeekingForward) return;
+    _isSeekingForward = true;
     
     // Cancel any existing timers
     _seekForwardDelayTimer?.cancel();
     
-    // Start after a delay to distinguish from quick tap
+    // Start after a short delay to distinguish from quick tap
     _seekForwardDelayTimer = Timer(const Duration(milliseconds: 400), () {
       if (_playerController == null) return;
       
-      // Immediate first seek (30 seconds)
-      final firstPosition = _currentPosition + const Duration(seconds: 30);
+      // Immediate first seek (20 seconds)
+      final firstPosition = _currentPosition + const Duration(seconds: 20);
       if (firstPosition <= _totalDuration) {
         _playerController!.seekTo(firstPosition);
       }
       
-      // Then continuous seeking (30 seconds every 500ms)
+      // Then continuous seeking (20 seconds every 500ms)
       _seekForwardTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
         if (_playerController == null) {
           _stopSeekingForward();
           return;
         }
         
-        final newPosition = _currentPosition + const Duration(seconds: 30);
+        final newPosition = _currentPosition + const Duration(seconds: 20);
         if (newPosition <= _totalDuration) {
           _playerController!.seekTo(newPosition);
         } else {
@@ -323,6 +388,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   void _stopSeekingForward() {
+    _isSeekingForward = false;
     _seekForwardDelayTimer?.cancel();
     _seekForwardDelayTimer = null;
     _seekForwardTimer?.cancel();

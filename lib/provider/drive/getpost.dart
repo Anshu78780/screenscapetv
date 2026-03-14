@@ -23,7 +23,12 @@ class GetPost {
   /// Search movies using the search API
   static Future<List<Movie>> searchMovies(String query) async {
     try {
-      final url = 'https://new1.moviesdrive.surf/searchapi.php?q=$query&page=1';
+      final baseUrl = await BaseUrl.getDriveUrl();
+      final cleanBaseUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      final encodedQuery = Uri.encodeQueryComponent(query);
+      final url = '$cleanBaseUrl/searchapi.php?q=$encodedQuery&page=1';
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {

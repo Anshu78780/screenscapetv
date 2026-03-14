@@ -18,6 +18,11 @@ class ProviderManager extends ChangeNotifier {
   // List of available providers
   static final List<Map<String, dynamic>> availableProviders = [
     {
+      'id': 'WatchHistory',
+      'name': 'Watch History',
+      'icon': Icons.history_rounded,
+    },
+    {
       'id': 'Drive',
       'name': 'Drive',
       'icon': Icons.cloud,

@@ -12,12 +12,14 @@ class StreamingLinksDialog extends StatefulWidget {
   final List<stream_types.Stream> streams;
   final String quality;
   final String movieTitle;
+  final String? resumeKey;
 
   const StreamingLinksDialog({
     super.key,
     required this.streams,
     required this.quality,
     required this.movieTitle,
+    this.resumeKey,
   });
 
   @override
@@ -102,6 +104,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
         builder: (context) => VideoPlayerScreen(
           videoUrl: selectedStream.link,
           title: widget.movieTitle,
+          resumeKey: widget.resumeKey,
           server: selectedStream.server,
           headers: selectedStream.headers,
           streams: widget.streams,
@@ -134,6 +137,7 @@ class _StreamingLinksDialogState extends State<StreamingLinksDialog> {
           builder: (context) => LinuxVideoPlayerScreen(
             videoUrl: selectedStream.link,
             title: widget.movieTitle,
+            resumeKey: widget.resumeKey,
             server: selectedStream.server,
             headers: selectedStream.headers,
             streams: widget.streams,

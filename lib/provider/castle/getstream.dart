@@ -7,6 +7,25 @@ import 'geteps.dart';
 import '../extractors/stream_types.dart';
 
 class CastleGetStream {
+  static const String _streamFlixApiBase = 'https://api.streamflix.app';
+  static const String _streamFlixConfigUrl =
+      '$_streamFlixApiBase/config/config-streamflixapp.json';
+  static const String _streamFlixDataUrl = '$_streamFlixApiBase/data.json';
+
+  static Map<String, dynamic>? _streamFlixConfigCache;
+  static DateTime? _streamFlixConfigCacheTime;
+  static Map<String, dynamic>? _streamFlixDataCache;
+  static DateTime? _streamFlixDataCacheTime;
+  static const Duration _streamFlixCacheTtl = Duration(minutes: 5);
+
+  static Map<String, String> get _streamFlixHeaders => {
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Connection': 'keep-alive',
+  };
+
   // Get video URL using v2.0.1 getVideo2 (shared streams)
   static Future<Map<String, dynamic>> getVideo2(
     String securityKey,
@@ -205,6 +224,281 @@ class CastleGetStream {
     return streams;
   }
 
+  static Future<Map<String, dynamic>> _getStreamFlixConfig() async {
+    final now = DateTime.now();
+    if (_streamFlixConfigCache != null &&
+        _streamFlixConfigCacheTime != null &&
+        now.difference(_streamFlixConfigCacheTime!) < _streamFlixCacheTtl) {
+      return _streamFlixConfigCache!;
+    }
+
+    final response = await http
+        .get(Uri.parse(_streamFlixConfigUrl), headers: _streamFlixHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('StreamFlix config HTTP ${response.statusCode}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    _streamFlixConfigCache = data;
+    _streamFlixConfigCacheTime = now;
+    return data;
+  }
+
+  static Future<Map<String, dynamic>> _getStreamFlixData() async {
+    final now = DateTime.now();
+    if (_streamFlixDataCache != null &&
+        _streamFlixDataCacheTime != null &&
+        now.difference(_streamFlixDataCacheTime!) < _streamFlixCacheTtl) {
+      return _streamFlixDataCache!;
+    }
+
+    final response = await http
+        .get(Uri.parse(_streamFlixDataUrl), headers: _streamFlixHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('StreamFlix data HTTP ${response.statusCode}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    _streamFlixDataCache = data;
+    _streamFlixDataCacheTime = now;
+    return data;
+  }
+
+  static double _calculateSimilarity(String a, String b) {
+    final wordsA = a.toLowerCase().split(RegExp(r'\s+'));
+    final wordsB = b.toLowerCase().split(RegExp(r'\s+'));
+    if (wordsA.isEmpty || wordsB.isEmpty) return 0;
+
+    var matches = 0;
+    for (final word in wordsA) {
+      if (word.length <= 2) continue;
+      if (wordsB.any((w) => w.contains(word) || word.contains(w))) {
+        matches++;
+      }
+    }
+    return matches / (wordsA.length > wordsB.length ? wordsA.length : wordsB.length);
+  }
+
+  static Map<String, dynamic>? _findBestStreamFlixMatch(
+    String title,
+    List<dynamic> items,
+  ) {
+    Map<String, dynamic>? best;
+    var bestScore = 0.0;
+
+    for (final item in items) {
+      if (item is! Map) continue;
+      final map = Map<String, dynamic>.from(item);
+      final itemTitle = (map['moviename'] ?? '').toString();
+      if (itemTitle.isEmpty) continue;
+
+      final score = _calculateSimilarity(title, itemTitle);
+      if (score > bestScore) {
+        bestScore = score;
+        best = map;
+      }
+    }
+
+    return best;
+  }
+
+  static Future<List<Stream>> _fetchStreamFlixStreams(
+    Map<String, dynamic> tmdbInfo,
+    String mediaType, {
+    int? seasonNum,
+    int? episodeNum,
+  }) async {
+    try {
+      final title = (tmdbInfo['title'] ?? '').toString();
+      if (title.isEmpty) return [];
+
+      final results = await Future.wait([
+        _getStreamFlixConfig(),
+        _getStreamFlixData(),
+      ]);
+
+      final config = results[0];
+      final data = results[1];
+      final list = (data['data'] as List?) ?? const [];
+      final best = _findBestStreamFlixMatch(title, list);
+      if (best == null) {
+        print('[StreamFlix] No suitable match found for: $title');
+        return [];
+      }
+
+      final premiumBases = ((config['premium'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      final movieBases = ((config['movies'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final movielink = (best['movielink'] ?? '').toString();
+      final movieKey = (best['moviekey'] ?? '').toString();
+      final duration = (best['movieduration'] ?? 'Unknown').toString();
+      final streams = <Stream>[];
+
+      if (mediaType == 'movie') {
+        if (movielink.isNotEmpty) {
+          for (final base in premiumBases) {
+            streams.add(
+              Stream(
+                server: 'StreamFlix Premium - 1080p',
+                link: '$base$movielink',
+                type: 'video',
+                headers: const {
+                  'Referer': 'https://api.streamflix.app',
+                  'User-Agent':
+                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+              ),
+            );
+          }
+          for (final base in movieBases) {
+            streams.add(
+              Stream(
+                server: 'StreamFlix Standard - 720p',
+                link: '$base$movielink',
+                type: 'video',
+                headers: const {
+                  'Referer': 'https://api.streamflix.app',
+                  'User-Agent':
+                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+              ),
+            );
+          }
+        }
+      } else {
+        if (seasonNum != null && episodeNum != null &&
+            movieKey.isNotEmpty && premiumBases.isNotEmpty) {
+          for (final base in premiumBases) {
+            streams.add(
+              Stream(
+                server: 'StreamFlix Premium - 1080p',
+                link: '${base}tv/$movieKey/s$seasonNum/episode$episodeNum.mkv',
+                type: 'video',
+                headers: const {
+                  'Referer': 'https://api.streamflix.app',
+                  'User-Agent':
+                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+              ),
+            );
+          }
+        } else if (movielink.isNotEmpty) {
+          for (final base in premiumBases) {
+            streams.add(
+              Stream(
+                server: 'StreamFlix Premium - 1080p',
+                link: '$base$movielink',
+                type: 'video',
+                headers: const {
+                  'Referer': 'https://api.streamflix.app',
+                  'User-Agent':
+                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+              ),
+            );
+          }
+        }
+      }
+
+      print('[StreamFlix] Found ${streams.length} streams for: $title ($duration)');
+      return streams;
+    } catch (e) {
+      print('[StreamFlix] Failed to fetch streams: $e');
+      return [];
+    }
+  }
+
+  static Future<List<Stream>> _fetchCastleStreams(
+    String securityKey,
+    String movieId,
+    String episodeId,
+    List<Map<String, dynamic>> tracks,
+    Map<String, dynamic> tmdbInfo, {
+    int? seasonNum,
+    int? episodeNum,
+  }) async {
+    final hasIndividualVideo =
+        tracks.any((t) => t['existIndividualVideo'] == true);
+
+    print('[Castle] Found ${tracks.length} tracks, hasIndividualVideo: $hasIndividualVideo');
+
+    const resolution = 2; // Default to 720p
+    final allStreams = <Stream>[];
+
+    if (hasIndividualVideo) {
+      for (final track in tracks) {
+        if (track['existIndividualVideo'] == true && track['languageId'] != null) {
+          final langName = track['languageName'] ?? track['abbreviate'] ?? 'Unknown';
+
+          try {
+            print('[Castle] Fetching $langName (v1, languageId: ${track['languageId']})');
+
+            final videoData = await getVideoV1(
+              securityKey,
+              movieId,
+              episodeId,
+              track['languageId'].toString(),
+              resolution: resolution,
+            );
+
+            final langStreams = processVideoResponse(
+              videoData,
+              tmdbInfo,
+              seasonNum,
+              episodeNum,
+              resolution,
+              '[$langName]',
+            );
+
+            if (langStreams.isNotEmpty) {
+              print('[Castle] ✅ $langName: Found ${langStreams.length} streams');
+              allStreams.addAll(langStreams);
+            } else {
+              print('[Castle] ⚠️  $langName: v1 returned no streams');
+            }
+          } catch (e) {
+            print('[Castle] ⚠️  $langName: v1 failed - $e');
+          }
+        }
+      }
+    }
+
+    if (allStreams.isEmpty) {
+      print('[Castle] No individual videos available, using shared stream (v2)');
+      try {
+        final videoData = await getVideo2(
+          securityKey,
+          movieId,
+          episodeId,
+          resolution: resolution,
+        );
+
+        final sharedStreams = processVideoResponse(
+          videoData,
+          tmdbInfo,
+          seasonNum,
+          episodeNum,
+          resolution,
+          '[Shared]',
+        );
+
+        allStreams.addAll(sharedStreams);
+      } catch (e) {
+        print('[Castle] Shared stream (v2) failed: $e');
+      }
+    }
+
+    return allStreams;
+  }
+
   // Main function to extract streaming links
   static Future<List<Stream>> getStreams(
     String tmdbId,
@@ -274,95 +568,48 @@ class CastleGetStream {
       // Get security key
       final securityKey = await CastleCatalog.getSecurityKey();
 
-      // Step 2: Check for language-specific tracks
-      final hasIndividualVideo = tracks.any((t) => t['existIndividualVideo'] == true);
+      // Step 2: Fetch streams from Castle + StreamFlix in parallel
+      final results = await Future.wait([
+        _fetchCastleStreams(
+          securityKey,
+          currentMovieId,
+          episodeId,
+          tracks,
+          tmdbInfo,
+          seasonNum: seasonNum,
+          episodeNum: episodeNum,
+        ),
+        _fetchStreamFlixStreams(
+          tmdbInfo,
+          mediaType,
+          seasonNum: seasonNum,
+          episodeNum: episodeNum,
+        ),
+      ]);
 
-      print('[Castle] Found ${tracks.length} tracks, hasIndividualVideo: $hasIndividualVideo');
-
-      // Step 3: Get video URLs for ALL available languages
-      const resolution = 2; // Default to 720p
       final allStreams = <Stream>[];
+      allStreams.addAll(results[0]);
+      allStreams.addAll(results[1]);
 
-      // Process all language tracks
-      if (hasIndividualVideo) {
-        for (final track in tracks) {
-          if (track['existIndividualVideo'] == true &&
-              track['languageId'] != null) {
-            final langName = track['languageName'] ?? track['abbreviate'] ?? 'Unknown';
-
-            try {
-              print(
-                '[Castle] Fetching $langName (v1, languageId: ${track['languageId']})',
-              );
-
-              final videoData = await getVideoV1(
-                securityKey,
-                currentMovieId,
-                episodeId,
-                track['languageId'].toString(),
-                resolution: resolution,
-              );
-
-              final langStreams = processVideoResponse(
-                videoData,
-                tmdbInfo,
-                seasonNum,
-                episodeNum,
-                resolution,
-                '[$langName]',
-              );
-
-              if (langStreams.isNotEmpty) {
-                print('[Castle] ✅ $langName: Found ${langStreams.length} streams');
-                allStreams.addAll(langStreams);
-              } else {
-                print('[Castle] ⚠️  $langName: v1 returned no streams');
-              }
-            } catch (e) {
-              print('[Castle] ⚠️  $langName: v1 failed - $e');
-            }
-          }
-        }
+      // De-duplicate by link while preserving order
+      final seen = <String>{};
+      final deduped = <Stream>[];
+      for (final stream in allStreams) {
+        if (stream.link.isEmpty || seen.contains(stream.link)) continue;
+        seen.add(stream.link);
+        deduped.add(stream);
       }
 
-      // Fallback: Use shared stream (v2) if no individual videos worked
-      if (allStreams.isEmpty) {
-        print(
-          '[Castle] No individual videos available, using shared stream (v2)',
-        );
-        try {
-          final videoData = await getVideo2(
-            securityKey,
-            currentMovieId,
-            episodeId,
-            resolution: resolution,
-          );
-
-          final sharedStreams = processVideoResponse(
-            videoData,
-            tmdbInfo,
-            seasonNum,
-            episodeNum,
-            resolution,
-            '[Shared]',
-          );
-
-          allStreams.addAll(sharedStreams);
-        } catch (e) {
-          print('[Castle] Shared stream (v2) failed: $e');
-        }
-      }
-
-      print('[Castle] Total streams found: ${allStreams.length}');
+      print('[Castle] Total streams found (combined): ${deduped.length}');
 
       // Sort streams by quality (highest first)
-      allStreams.sort((a, b) {
+      deduped.sort((a, b) {
         final qualityA = getQualityValue(a.server.split('-').last.trim());
         final qualityB = getQualityValue(b.server.split('-').last.trim());
         return qualityB.compareTo(qualityA);
       });
 
-      return allStreams;
+      return deduped;
     } catch (e) {
       print('[Castle] Error: $e');
       return []; // Return empty array on error

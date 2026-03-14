@@ -10,10 +10,12 @@ import 'package:file_picker/file_picker.dart';
 import '../provider/extractors/stream_types.dart' as stream_types;
 import '../utils/key_event_handler.dart';
 import '../utils/subtitle_service.dart';
+import '../utils/playback_progress_cache.dart';
 
 class LinuxVideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String title;
+  final String? resumeKey;
   final String server;
   final Map<String, String>? headers;
   final List<stream_types.Stream>? streams;
@@ -23,6 +25,7 @@ class LinuxVideoPlayerScreen extends StatefulWidget {
     super.key,
     required this.videoUrl,
     required this.title,
+    this.resumeKey,
     required this.server,
     this.headers,
     this.streams,
@@ -50,6 +53,9 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
   
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
+  Duration _resumePosition = Duration.zero;
+  bool _hasAppliedResume = false;
+  DateTime _lastProgressSaveAt = DateTime.fromMillisecondsSinceEpoch(0);
   
   // Audio track selection
   bool _showAudioMenu = false;
@@ -91,6 +97,7 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
     _currentHeaders = widget.headers;
     
     WakelockPlus.enable();
+    _loadResumePosition();
     _initializePlayer();
     _startHideControlsTimer();
     
@@ -104,11 +111,51 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
   void dispose() {
     _hideControlsTimer?.cancel();
     WakelockPlus.disable();
+    unawaited(_persistPlaybackProgress(force: true));
     _audioScrollController.dispose();
     _serverScrollController.dispose();
     _subtitleScrollController.dispose();
     player.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadResumePosition() async {
+    _resumePosition = await PlaybackProgressCache.getProgress(
+      widget.resumeKey ?? widget.title,
+    );
+  }
+
+  Future<void> _persistPlaybackProgress({bool force = false}) async {
+    final now = DateTime.now();
+    if (!force && now.difference(_lastProgressSaveAt) < const Duration(seconds: 5)) {
+      return;
+    }
+
+    _lastProgressSaveAt = now;
+    await PlaybackProgressCache.saveProgress(
+      movieTitle: widget.resumeKey ?? widget.title,
+      position: _currentPosition,
+      duration: _totalDuration,
+    );
+  }
+
+  void _tryApplyResumePosition() {
+    if (_hasAppliedResume) return;
+    if (_resumePosition <= Duration.zero) return;
+    if (_totalDuration <= _resumePosition + const Duration(seconds: 5)) return;
+    if (_currentPosition > const Duration(seconds: 5)) return;
+
+    _hasAppliedResume = true;
+    unawaited(() async {
+      try {
+        await player.seek(_resumePosition);
+        if (mounted) {
+          _showSnackBar('Resumed at ${_formatDuration(_resumePosition)}');
+        }
+      } catch (_) {
+        // Ignore resume seek failures; playback should continue normally.
+      }
+    }());
   }
 
   void _checkIfNfProvider() {
@@ -235,6 +282,8 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
         if (mounted) {
           setState(() => _currentPosition = position);
         }
+        _tryApplyResumePosition();
+        unawaited(_persistPlaybackProgress());
       });
 
       player.stream.duration.listen((duration) {
@@ -249,6 +298,7 @@ class _LinuxVideoPlayerScreenState extends State<LinuxVideoPlayerScreen> {
             }
           });
         }
+        _tryApplyResumePosition();
       });
 
       player.stream.buffering.listen((buffering) {

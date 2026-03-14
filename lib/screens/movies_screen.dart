@@ -10,6 +10,8 @@ import '../widgets/sidebar.dart';
 import 'info.dart';
 import 'global_search_screen.dart';
 import 'user_guide_screen.dart';
+import 'watchlist_screen.dart';
+import 'watch_history_screen.dart';
 
 class MoviesScreen extends StatefulWidget {
   const MoviesScreen({super.key});
@@ -19,7 +21,7 @@ class MoviesScreen extends StatefulWidget {
 }
 
 class _MoviesScreenState extends State<MoviesScreen> {
-  int _selectedCategoryIndex = 0;
+  int _selectedCategoryIndex = 1;
   int _selectedMovieIndex = -1; // No selection by default
   List<Movie> _movies = [];
   bool _isLoading = false;
@@ -46,7 +48,33 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
   // Get categories dynamically based on active provider
   List<Map<String, String>> get _categories {
-    return ProviderFactory.getCategories(_currentProvider);
+    final providerCategories = ProviderFactory.getCategories(_currentProvider);
+    return [
+      {'name': 'Watchlist', 'path': '__watchlist__'},
+      ...providerCategories,
+    ];
+  }
+
+  bool _isWatchlistCategory(Map<String, String> category) {
+    return category['path'] == '__watchlist__';
+  }
+
+  Future<void> _openWatchlist() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WatchlistScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openWatchHistory() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WatchHistoryScreen(),
+      ),
+    );
   }
 
   @override
@@ -79,6 +107,26 @@ class _MoviesScreenState extends State<MoviesScreen> {
   }
 
   Future<void> _loadMovies() async {
+    if (_categories.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _movies = [];
+      });
+      return;
+    }
+
+    if (_selectedCategoryIndex < 0 || _selectedCategoryIndex >= _categories.length) {
+      _selectedCategoryIndex = _categories.length > 1 ? 1 : 0;
+    }
+
+    if (_isWatchlistCategory(_categories[_selectedCategoryIndex])) {
+      setState(() {
+        _isLoading = false;
+        _isSearchActive = false;
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _error = '';
@@ -145,43 +193,77 @@ class _MoviesScreenState extends State<MoviesScreen> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.exit_to_app, color: Colors.red),
-              SizedBox(width: 10),
-              Text('Exit App', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: const Text(
-            'Do you want to exit the app?',
-            style: TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          actions: <Widget>[
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.white70,
-              ),
-              child: const Text('No'),
-              onPressed: () {
-                Navigator.of(context).pop();
+        int focusedAction = 1; // 0 = No, 1 = Yes
+
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> handleYes() async {
+              Navigator.of(dialogContext, rootNavigator: true).pop();
+              await Future<void>.delayed(const Duration(milliseconds: 20));
+              await SystemNavigator.pop();
+            }
+
+            return KeyEventHandler(
+              onLeftKey: () {
+                setDialogState(() => focusedAction = 0);
               },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Yes'),
-              onPressed: () {
-                SystemNavigator.pop();
+              onRightKey: () {
+                setDialogState(() => focusedAction = 1);
               },
-            ),
-          ],
+              onEnterKey: () {
+                if (focusedAction == 0) {
+                  Navigator.of(dialogContext, rootNavigator: true).pop();
+                } else {
+                  handleYes();
+                }
+              },
+              onBackKey: () {
+                Navigator.of(dialogContext, rootNavigator: true).pop();
+              },
+              child: AlertDialog(
+                backgroundColor: const Color(0xFF1E1E1E),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Row(
+                  children: [
+                    Icon(Icons.exit_to_app, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text('Exit App', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+                content: const Text(
+                  'Do you want to exit the app?',
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: focusedAction == 0
+                          ? const BorderSide(color: Colors.white, width: 1.5)
+                          : BorderSide.none,
+                    ),
+                    child: const Text('No'),
+                    onPressed: () {
+                      Navigator.of(dialogContext, rootNavigator: true).pop();
+                    },
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      side: focusedAction == 1
+                          ? const BorderSide(color: Colors.white, width: 1.5)
+                          : BorderSide.none,
+                    ),
+                    child: const Text('Yes'),
+                    onPressed: handleYes,
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -210,13 +292,27 @@ class _MoviesScreenState extends State<MoviesScreen> {
   void _changeCategory(int delta) {
     if (_categories.isEmpty) return;
 
+    final previousIndex = _selectedCategoryIndex;
+
     setState(() {
       int newIndex = _selectedCategoryIndex + delta;
       if (newIndex >= 0 && newIndex < _categories.length) {
         _selectedCategoryIndex = newIndex;
-        if (!_isSearchActive) _loadMovies();
       }
     });
+
+    final selectedCategory = _categories[_selectedCategoryIndex];
+    if (_isWatchlistCategory(selectedCategory)) {
+      _openWatchlist().then((_) {
+        if (!mounted) return;
+        setState(() {
+          _selectedCategoryIndex = previousIndex <= 0 ? 1 : previousIndex;
+        });
+      });
+      return;
+    }
+
+    if (!_isSearchActive) _loadMovies();
   }
 
   void _navigateHorizontal(int delta) {
@@ -507,12 +603,33 @@ class _MoviesScreenState extends State<MoviesScreen> {
       return;
     }
 
+    if (provider == 'Watchlist') {
+      setState(() {
+        _isSidebarOpen = false;
+      });
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const WatchlistScreen(),
+        ),
+      );
+      return;
+    }
+
+    if (provider == 'WatchHistory') {
+      setState(() {
+        _isSidebarOpen = false;
+      });
+      _openWatchHistory();
+      return;
+    }
+
     setState(() {
       _isSidebarOpen = false;
       _isNavigatingCategories = true;
       _isMenuButtonFocused = true;
       // Reset to first category when switching providers
-      _selectedCategoryIndex = 0;
+      _selectedCategoryIndex = 1;
       _selectedMovieIndex = 0;
     });
 
@@ -977,6 +1094,11 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
                   return GestureDetector(
                     onTap: () {
+                      if (_isWatchlistCategory(category)) {
+                        _openWatchlist();
+                        return;
+                      }
+
                       setState(() {
                         _isSearchFocused = false;
                         _isSearchActive = false;

@@ -61,3 +61,75 @@ class EpisodeLink {
 
   EpisodeLink({required this.server, required this.url, this.size});
 }
+
+class WatchlistItem {
+  final String movieUrl;
+  final String title;
+  final String imageUrl;
+  final String provider;
+  final int addedAt;
+
+  WatchlistItem({
+    required this.movieUrl,
+    required this.title,
+    required this.imageUrl,
+    required this.provider,
+    required this.addedAt,
+  });
+
+  factory WatchlistItem.fromJson(Map<String, dynamic> json) {
+    return WatchlistItem(
+      movieUrl: (json['movieUrl'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      imageUrl: (json['imageUrl'] ?? '').toString(),
+      provider: (json['provider'] ?? '').toString(),
+      addedAt: (json['addedAt'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'movieUrl': movieUrl,
+      'title': title,
+      'imageUrl': imageUrl,
+      'provider': provider,
+      'addedAt': addedAt,
+    };
+  }
+}
+
+class WatchHistoryItem {
+  final String movieUrl;
+  final String title;
+  final String imageUrl;
+  final String provider;
+  final int watchedAt;
+
+  WatchHistoryItem({
+    required this.movieUrl,
+    required this.title,
+    required this.imageUrl,
+    required this.provider,
+    required this.watchedAt,
+  });
+
+  factory WatchHistoryItem.fromJson(Map<String, dynamic> json) {
+    return WatchHistoryItem(
+      movieUrl: (json['movieUrl'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      imageUrl: (json['imageUrl'] ?? '').toString(),
+      provider: (json['provider'] ?? '').toString(),
+      watchedAt: (json['watchedAt'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'movieUrl': movieUrl,
+      'title': title,
+      'imageUrl': imageUrl,
+      'provider': provider,
+      'watchedAt': watchedAt,
+    };
+  }
+}
